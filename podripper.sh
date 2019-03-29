@@ -29,19 +29,21 @@ while (( $( date '+%s' ) < "$END_TIMESTAMP" )); do
 done
 
 # after we've spent enough time ripping, upload all the files to Firefox Send if any
-if [[ -z "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
+if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
+  echo "*** uploading files at $( date )"
+  SHARE_LINK="$( ffsend --no-interact --yes --quiet upload "$RIP_OUTPUT_DIR" )"
+  echo "Link: $SHARE_LINK"
+
+  # append the link to the gist
+  {
+    gist -r "$GIST_ID"
+    echo "$( date ) :: $SHARE_LINK"
+  } | gist -u "$GIST_ID"
+else
   echo "no files in $RIP_OUTPUT_DIR; nothing to upload"
-  exit 1
 fi
 
-echo "*** uploading files at $( date )"
-SHARE_LINK="$( ffsend --no-interact --yes --quiet upload "$RIP_OUTPUT_DIR" )"
-echo "Link: $SHARE_LINK"
-
-# append the link to the gist
-{
-  gist -r "$GIST_ID"
-  echo "$( date ) :: $SHARE_LINK"
-} | gist -u "$GIST_ID"
+echo "*** removing $RIP_OUTPUT_DIR at $( date )"
+trash-put "$RIP_OUTPUT_DIR"
 
 # vim: et ts=2 sw=2
