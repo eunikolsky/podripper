@@ -5,9 +5,9 @@ IFS=$'\n\t'
 
 STREAM_URL="${STREAM_URL:-http://rcmp.me:8000/stream}"
 # The expected duration of the stream, minimum duration to rip everything, maximum duration to stop somewhere.
-DURATION_SEC="30"
+DURATION_SEC="${DURATION_SEC:-16200}"
 # The sleep duration between rip retries.
-RETRY_SEC="10"
+RETRY_SEC="${RETRY_SEC:-60}"
 # The base output directory for the rips.
 BASE_OUTPUT_DIR="$HOME/.podripper"
 # The output directory for the current rip.
