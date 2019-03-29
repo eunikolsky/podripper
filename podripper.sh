@@ -3,15 +3,27 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-STREAM_URL="${STREAM_URL:-http://rcmp.me:8000/stream}"
-# The expected duration of the stream, minimum duration to rip everything, maximum duration to stop somewhere.
-DURATION_SEC="${DURATION_SEC:-16200}"
-# The sleep duration between rip retries.
-RETRY_SEC="${RETRY_SEC:-60}"
+# Config name should be passed as the single parameter.
+CONF_NAME="${1:?no config name}.conf"
+
+# The configuration file should set the following variables:
+# * `STREAM_URL`
+# * `DURATION_SEC` -- The expected duration of the stream, minimum duration to rip everything, maximum duration to stop somewhere.
+# * `RETRY_SEC` -- The sleep duration between rip retries.
+# * `RIP_DIR_NAME` -- The base name of the rip directory, prepended to today's date.
+
+# The directory of the script, to locate extra resources.
+SCRIPT_DIR="$( dirname "$0" )"
+
+set -o allexport
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/$CONF_NAME"
+set +o allexport
+
 # The base output directory for the rips.
 BASE_OUTPUT_DIR="$HOME/.podripper"
 # The output directory for the current rip.
-RIP_OUTPUT_DIR="$BASE_OUTPUT_DIR/rcmp_$( date '+%F' )"
+RIP_OUTPUT_DIR="$BASE_OUTPUT_DIR/${RIP_DIR_NAME}_$( date '+%F' )"
 GIST_ID="c1ddfca162a9e4f648fcae697a827463"
 
 [[ -d "$BASE_OUTPUT_DIR" ]] || mkdir "$BASE_OUTPUT_DIR"
