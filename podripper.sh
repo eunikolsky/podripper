@@ -34,15 +34,11 @@ if [[ -z "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
   exit 1
 fi
 
-FFSEND="$( ffsend --no-interact --yes upload -d 5 "$RIP_OUTPUT_DIR" )"
-echo "*** ffsend:"
-echo "$FFSEND"
-
-SHARE_LINK="$( echo "$FFSEND" | awk '/Share link:/ { print $3 }' )"
+echo "*** uploading files at $( date )"
+SHARE_LINK="$( ffsend --no-interact --yes --quiet upload "$RIP_OUTPUT_DIR" )"
 echo "Link: $SHARE_LINK"
 
 # append the link to the gist
-
 {
   gist -r "$GIST_ID"
   echo "$( date ) :: $SHARE_LINK"
