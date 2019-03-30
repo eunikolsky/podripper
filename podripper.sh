@@ -40,10 +40,19 @@ while (( $( date '+%s' ) < "$END_TIMESTAMP" )); do
   sleep "$RETRY_SEC"
 done
 
-# after we've spent enough time ripping, upload all the files to Firefox Send if any
+# after we've spent enough time ripping, reencode the files (to fix the mp3 headers and stuff) and upload all the files to Firefox Send if any
 if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
+  echo "*** reencoding files at $( date )"
+  ENC_RIP_OUTPUT_DIR="${RIP_OUTPUT_DIR}_fix"
+  # we don't expect the directory to exist, it should have been cleaned up before
+  mkdir "$ENC_RIP_OUTPUT_DIR"
+
+  for rip in "$RIP_OUTPUT_DIR"/*.mp3; do
+    lame --quiet -V4 "$rip" "$ENC_RIP_OUTPUT_DIR/$( basename "$rip" )"
+  done
+
   echo "*** uploading files at $( date )"
-  SHARE_LINK="$( ffsend --no-interact --yes --quiet upload "$RIP_OUTPUT_DIR" )"
+  SHARE_LINK="$( ffsend --no-interact --yes --quiet upload "$ENC_RIP_OUTPUT_DIR" )"
   echo "Link: $SHARE_LINK"
 
   # append the link to the gist
@@ -51,6 +60,8 @@ if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
     gist -r "$GIST_ID"
     echo "$( date ) :: $SHARE_LINK"
   } | gist -u "$GIST_ID"
+
+  trash-put "$ENC_RIP_OUTPUT_DIR"
 else
   echo "no files in $RIP_OUTPUT_DIR; nothing to upload"
 fi
