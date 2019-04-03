@@ -37,7 +37,13 @@ END_TIMESTAMP="$( date -d "+ ${DURATION_SEC} seconds" '+%s' )"
 while (( $( date '+%s' ) < "$END_TIMESTAMP" )); do
   echo "*** starting ripping at $( date )"
   streamripper "$STREAM_URL" --quiet -d "$RIP_OUTPUT_DIR" -s -r -R 3 -a -A -o version -t -m 5 -M 1000 -l "$DURATION_SEC"
-  sleep "$RETRY_SEC"
+
+  # if we've run out of time, no need to sleep one more time at the end
+  if (( $( date -d "+ ${RETRY_SEC} seconds" '+%s' ) < "$END_TIMESTAMP" )); then
+    sleep "$RETRY_SEC"
+  else
+    break
+  fi
 done
 
 # after we've spent enough time ripping, reencode the files (to fix the mp3 headers and stuff) and upload all the files to Firefox Send if any
