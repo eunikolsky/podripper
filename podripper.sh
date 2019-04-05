@@ -57,8 +57,25 @@ if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
     lame --quiet -V4 "$rip" "$ENC_RIP_OUTPUT_DIR/$( basename "$rip" )"
   done
 
-  echo "*** uploading files at $( date )"
-  SHARE_LINK="$( ffsend --no-interact --yes --quiet upload "$ENC_RIP_OUTPUT_DIR" )"
+  upload_retry_count=5
+  upload_retry_sec=30
+
+  while (( upload_retry_count > 0 )); do
+    echo "*** uploading files at $( date )"
+    if SHARE_LINK="$( ffsend --no-interact --yes --quiet upload "$ENC_RIP_OUTPUT_DIR" )"; then
+      break
+    else
+      sleep "$upload_retry_sec"
+      upload_retry_sec=$(( upload_retry_sec * 2 ))
+      upload_retry_count=$(( upload_retry_count - 1 ))
+    fi
+  done
+
+  if [[ -z "$SHARE_LINK" ]]; then
+    echo "Failed to upload the files at $( date ); aborting" >&2
+    exit 1
+  fi
+
   echo "Link: $SHARE_LINK"
 
   # append the link to the gist
