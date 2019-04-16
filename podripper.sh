@@ -11,6 +11,7 @@ CONF_NAME="${1:?no config name}.conf"
 # * `DURATION_SEC` -- The expected duration of the stream, minimum duration to rip everything, maximum duration to stop somewhere.
 # * `RETRY_SEC` -- The sleep duration between rip retries.
 # * `RIP_DIR_NAME` -- The base name of the rip directory, prepended to today's date.
+# * `POD_ARTIST`, `POD_ALBUM` -- ID3 tag information.
 
 # The directory of the script, to locate extra resources.
 SCRIPT_DIR="$( dirname "$0" )"
@@ -53,8 +54,10 @@ if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
   # we don't expect the directory to exist, it should have been cleaned up before
   mkdir "$ENC_RIP_OUTPUT_DIR"
 
+  year="$( date '+%Y' )"
   for rip in "$RIP_OUTPUT_DIR"/*.mp3; do
-    lame --quiet -V4 "$rip" "$ENC_RIP_OUTPUT_DIR/$( basename "$rip" )"
+    pod_title="$( echo "$rip" | sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' )"
+    lame --quiet --id3v2-only --tt "$pod_title" --ta "$POD_ARTIST" --tl "$POD_ALBUM" --ty "$year" --tg Podcast -V4 "$rip" "$ENC_RIP_OUTPUT_DIR/$( basename "$rip" )"
   done
 
   upload_retry_count=5
