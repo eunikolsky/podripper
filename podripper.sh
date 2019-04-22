@@ -3,6 +3,10 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# These environment variables can override the default values for debugging:
+# * `TODAY`, using the `YYYY-MM-DD` format -- to specify today's date for rip directories.
+# * `END_TIMESTAMP` -- when to stop recording.
+
 # Config name should be passed as the single parameter.
 CONF_NAME="${1:?no config name}.conf"
 
@@ -24,7 +28,7 @@ set +o allexport
 # The base output directory for the rips.
 BASE_OUTPUT_DIR="$HOME/.podripper"
 # The output directory for the current rip.
-RIP_OUTPUT_DIR="$BASE_OUTPUT_DIR/${RIP_DIR_NAME}_$( date '+%F' )"
+RIP_OUTPUT_DIR="$BASE_OUTPUT_DIR/${RIP_DIR_NAME}_${TODAY:-$( date '+%F' )}"
 GIST_ID="c1ddfca162a9e4f648fcae697a827463"
 
 [[ -d "$BASE_OUTPUT_DIR" ]] || mkdir "$BASE_OUTPUT_DIR"
@@ -33,7 +37,7 @@ cd "$BASE_OUTPUT_DIR"
 [[ -d "$RIP_OUTPUT_DIR" ]] || mkdir "$RIP_OUTPUT_DIR"
 
 # at the start, figure out the duration until which keep on ripping the stream
-END_TIMESTAMP="$( date -d "+ ${DURATION_SEC} seconds" '+%s' )"
+END_TIMESTAMP="${END_TIMESTAMP:-$( date -d "+ ${DURATION_SEC} seconds" '+%s' )}"
 
 while (( $( date '+%s' ) < "$END_TIMESTAMP" )); do
   echo "*** starting ripping at $( date )"
