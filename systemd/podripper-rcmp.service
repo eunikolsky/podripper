@@ -1,0 +1,10 @@
+[Unit]
+Description=Podripper rcmp
+After=network.target
+
+[Service]
+ExecStart=/home/alarm/proj/podripper/podripper.sh rcmp
+User=alarm
+
+[Install]
+WantedBy=multi-user.target

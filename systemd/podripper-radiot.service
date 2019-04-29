@@ -1,0 +1,10 @@
+[Unit]
+Description=Podripper radiot
+After=network.target
+
+[Service]
+ExecStart=/home/alarm/proj/podripper/podripper.sh radiot
+User=alarm
+
+[Install]
+WantedBy=multi-user.target
