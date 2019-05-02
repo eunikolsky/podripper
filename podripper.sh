@@ -91,7 +91,7 @@ if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
   # append the link to the gist
   {
     gist -r "$GIST_ID"
-    echo "$( date ) :: $SHARE_LINK"
+    echo "$( date '+%F %T %z' ) :: $SHARE_LINK"
   } | gist -u "$GIST_ID"
 
   trash-put "$ENC_RIP_OUTPUT_DIR"
