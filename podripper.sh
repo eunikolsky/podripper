@@ -29,7 +29,6 @@ set +o allexport
 BASE_OUTPUT_DIR="$HOME/.podripper"
 # The output directory for the current rip.
 RIP_OUTPUT_DIR="$BASE_OUTPUT_DIR/${RIP_DIR_NAME}_${TODAY:-$( date '+%F' )}"
-GIST_ID="c1ddfca162a9e4f648fcae697a827463"
 
 [[ -d "$BASE_OUTPUT_DIR" ]] || mkdir "$BASE_OUTPUT_DIR"
 cd "$BASE_OUTPUT_DIR"
@@ -51,7 +50,7 @@ while (( $( date '+%s' ) < "$END_TIMESTAMP" )); do
   fi
 done
 
-# after we've spent enough time ripping, reencode the files (to fix the mp3 headers and stuff) and upload all the files to Firefox Send if any
+# after we've spent enough time ripping, reencode the files (to fix the mp3 headers and stuff)
 if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
   echo "*** reencoding files at $( date )"
   ENC_RIP_OUTPUT_DIR="${RIP_OUTPUT_DIR}_fix"
@@ -66,33 +65,6 @@ if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
       ln "$rip" "$ENC_RIP_OUTPUT_DIR/$( basename -s .mp3 "$rip" )_src.mp3"
     fi
   done
-
-  upload_retry_count=5
-  upload_retry_sec=30
-
-  while (( upload_retry_count > 0 )); do
-    echo "*** uploading files at $( date )"
-    if SHARE_LINK="$( ffsend --no-interact --yes --quiet upload "$ENC_RIP_OUTPUT_DIR" )"; then
-      break
-    else
-      sleep "$upload_retry_sec"
-      upload_retry_sec=$(( upload_retry_sec * 2 ))
-      upload_retry_count=$(( upload_retry_count - 1 ))
-    fi
-  done
-
-  if [[ -z "$SHARE_LINK" ]]; then
-    echo "Failed to upload the files at $( date ); aborting" >&2
-    exit 1
-  fi
-
-  echo "Link: $SHARE_LINK"
-
-  # append the link to the gist
-  {
-    gist -r "$GIST_ID"
-    echo "$( date '+%F %T %z' ) :: $SHARE_LINK"
-  } | gist -u "$GIST_ID"
 
   trash-put "$ENC_RIP_OUTPUT_DIR"
 else
