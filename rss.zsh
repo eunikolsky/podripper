@@ -7,6 +7,11 @@ zmodload zsh/regex
 
 MONTHS=(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
 
+WORKDIR="${1:?no working directory}"
+PODCAST_NAME="$( basename "$WORKDIR" )"
+
+cd "$WORKDIR"
+
 rss_item() {
     FILE="$1"
 
@@ -15,10 +20,11 @@ rss_item() {
         # https://tools.ietf.org/html/rfc2822#section-3.3
         TZ="$( date '+%z' )"
         PUBDATE="${match[3]} ${MONTHS[$match[2]]} ${match[1]} ${match[4]}:${match[5]}:${match[6]} ${TZ}"
-        FILE_URL="/$FILE"
-        FILE_SIZE="$( stat -f %z "$FILE" )"
+        TITLE="$PODCAST_NAME: $PUBDATE"
+        FILE_URL="/$PODCAST_NAME/$FILE"
+        FILE_SIZE="$( stat -c %s "$FILE" )"
 
-        echo "<item><title>$PUBDATE</title><guid>$FILE_URL</guid><description></description><pubDate>$PUBDATE</pubDate><enclosure url="\""$FILE_URL"\"" type="\""audio/mp3"\"" length="\""$FILE_SIZE"\"" /></item>"
+        echo "<item><title>$TITLE</title><guid>$FILE</guid><description></description><pubDate>$PUBDATE</pubDate><enclosure url="\""$FILE_URL"\"" type="\""audio/mp3"\"" length="\""$FILE_SIZE"\"" /></item>"
     else
         >&2 echo "Can't parse date/time from filename: $FILE"
         return 1
@@ -36,22 +42,23 @@ rss_feed() {
     echo "</channel></rss>"
 }
 
-working_dir() {
-    basename "$( pwd )"
-}
-
 # automatic podcast detection based on the directory where this script is run
 detect_podcast() {
-    case "$( working_dir )" in
+    case "$PODCAST_NAME" in
         radiot )
             PODCAST_TITLE="Радио-Т Поток"
-            PODCAST_DESCRIPTION="Ручная запись потока Радио-Т"
+            PODCAST_DESCRIPTION="Запись потока Радио-Т"
             ;;
 
         rcmp )
             PODCAST_TITLE="Пиратский Канадский Лось и компания"
-            PODCAST_DESCRIPTION="Автоматизированная запись потока RCMP на малине"
+            PODCAST_DESCRIPTION="Запись потока RCMP"
             ;;
+
+	80s80s )
+	    PODCAST_TITLE="80s80s feed"
+	    PODCAST_DESCRIPTION="Test RSS feed"
+	    ;;
 
         * )
             >&2 echo "Unknown podcast directory: $DIR; exiting"
@@ -69,9 +76,9 @@ generate_rss() {
     )"
 }
 
-case "${1:-}" in
+case "${2:-}" in
     "--also-serve" )
-        case "$( working_dir )" in
+        case "$PODCAST_NAME" in
             radiot ) RSS_FILE=radiot.rss HTTP_PORT=50000 ;;
             rcmp ) RSS_FILE=rcmp.rss HTTP_PORT=50001 ;;
         esac
