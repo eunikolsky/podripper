@@ -63,6 +63,9 @@ if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
       trash-put "$rip"
     fi
   done
+
+  # clean up after `streamripper`
+  trash-put "$RIP_OUTPUT_DIR"/*.cue
 else
   echo "no files in $RIP_OUTPUT_DIR"
 fi
