@@ -17,7 +17,8 @@ CONF_NAME="${1:?no config name}.conf"
 # * `POD_ARTIST`, `POD_ALBUM` -- ID3 tag information.
 
 # The directory of the script, to locate extra resources.
-SCRIPT_DIR="$( dirname "$0" )"
+# note: https://mywiki.wooledge.org/BashFAQ/028
+SCRIPT_DIR="$( dirname "$( realpath -s "$0" )" )"
 
 set -o allexport
 # shellcheck source=/dev/null
@@ -69,5 +70,9 @@ if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
 else
   echo "no files in $RIP_OUTPUT_DIR"
 fi
+
+# finally, we should update the RSS feed
+echo "*** generating the RSS feed at $( date )"
+"$SCRIPT_DIR/rss.zsh" "$ENC_RIP_OUTPUT_DIR" > "$BASE_OUTPUT_DIR/$RIP_DIR_NAME.rss"
 
 # vim: et ts=2 sw=2
