@@ -72,7 +72,7 @@ detect_podcast() {
 generate_rss() {
     detect_podcast
     rss_feed "$(
-        for f in *.mp3; do
+        for f in *.mp3(omoc); do
             rss_item "$f"
         done
     )"
