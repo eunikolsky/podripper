@@ -10,6 +10,8 @@ MONTHS=(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
 WORKDIR="${1:?no working directory}"
 PODCAST_NAME="$( basename "$WORKDIR" )"
 
+BASE_URL="https://example.org"
+
 cd "$WORKDIR"
 
 rss_item() {
@@ -21,10 +23,10 @@ rss_item() {
         TZ="$( date '+%z' )"
         PUBDATE="${match[3]} ${MONTHS[$match[2]]} ${match[1]} ${match[4]}:${match[5]}:${match[6]} ${TZ}"
         TITLE="$PODCAST_NAME: $PUBDATE"
-        FILE_URL="/$PODCAST_NAME/$FILE"
+        FILE_URL="$BASE_URL/$PODCAST_NAME/$FILE"
         FILE_SIZE="$( stat -c %s "$FILE" )"
 
-        echo "<item><title>$TITLE</title><guid>$FILE</guid><description></description><pubDate>$PUBDATE</pubDate><enclosure url="\""$FILE_URL"\"" type="\""audio/mp3"\"" length="\""$FILE_SIZE"\"" /></item>"
+        echo "<item><title>$TITLE</title><guid isPermaLink="\""false"\"">$FILE</guid><description></description><pubDate>$PUBDATE</pubDate><enclosure url="\""$FILE_URL"\"" type="\""audio/mp3"\"" length="\""$FILE_SIZE"\"" /></item>"
     else
         >&2 echo "Can't parse date/time from filename: $FILE"
         return 1
@@ -37,7 +39,7 @@ PODCAST_DESCRIPTION=
 rss_feed() {
     ITEMS="$1"
 
-    echo "<rss version="\""2.0"\""><channel><title>$PODCAST_TITLE</title><description>$PODCAST_DESCRIPTION</description><language>ru</language><generator>rss.zsh</generator>"
+    echo "<rss version="\""2.0"\"" xmlns:atom="\""http://www.w3.org/2005/Atom"\""><channel><link>$BASE_URL</link><title>$PODCAST_TITLE</title><description>$PODCAST_DESCRIPTION</description><language>ru</language><generator>rss.zsh</generator><atom:link rel="\""self"\"" type="\""application/rss+xml"\"" href="\""$BASE_URL/$PODCAST_NAME.rss"\"" />"
     echo "$ITEMS"
     echo "</channel></rss>"
 }
