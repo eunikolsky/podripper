@@ -22,7 +22,7 @@ rss_item() {
         # https://tools.ietf.org/html/rfc2822#section-3.3
         TZ="$( date '+%z' )"
         PUBDATE="${match[3]} ${MONTHS[$match[2]]} ${match[1]} ${match[4]}:${match[5]}:${match[6]} ${TZ}"
-        TITLE="$PODCAST_NAME: $PUBDATE"
+        TITLE="$PUBDATE / $PODCAST_NAME"
         FILE_URL="$BASE_URL/$PODCAST_NAME/$FILE"
         FILE_SIZE="$( stat -c %s "$FILE" )"
 
