@@ -39,7 +39,7 @@ PODCAST_DESCRIPTION=
 rss_feed() {
     ITEMS="$1"
 
-    echo "<rss version="\""2.0"\"" xmlns:atom="\""http://www.w3.org/2005/Atom"\""><channel><link>$BASE_URL</link><title>$PODCAST_TITLE</title><description>$PODCAST_DESCRIPTION</description><language>ru</language><generator>rss.zsh</generator><atom:link rel="\""self"\"" type="\""application/rss+xml"\"" href="\""$BASE_URL/$PODCAST_NAME.rss"\"" />"
+    echo "<rss version="\""2.0"\"" xmlns:atom="\""http://www.w3.org/2005/Atom"\""><channel><link>$BASE_URL</link><title>$PODCAST_TITLE</title><description>$PODCAST_DESCRIPTION</description><language>ru</language><generator>rss.zsh</generator><atom:link rel="\""self"\"" type="\""application/rss+xml"\"" href="\""$BASE_URL/$PODCAST_NAME.rss"\"" /><image><url>$BASE_URL/$PODCAST_NAME/cover.jpg</url></image>"
     echo "$ITEMS"
     echo "</channel></rss>"
 }
