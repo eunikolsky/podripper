@@ -35,6 +35,9 @@ RIP_OUTPUT_DIR="$ENC_RIP_OUTPUT_DIR/incomplete/"
 
 cd "$BASE_OUTPUT_DIR"
 
+# remove `mp3`s older than 10 days to clean up space
+find "$ENC_RIP_OUTPUT_DIR" -depth -maxdepth 1 -type f -name '*.mp3' -mtime +10 -delete || true
+
 # at the start, figure out the duration until which keep on ripping the stream
 END_TIMESTAMP="${END_TIMESTAMP:-$( date -d "+ ${DURATION_SEC} seconds" '+%s' )}"
 
