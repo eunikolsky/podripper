@@ -60,7 +60,7 @@ if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
   year="$( date '+%Y' )"
   for rip in "$RIP_OUTPUT_DIR"/*.mp3; do
     pod_title="$( echo "$rip" | sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' )"
-    if ! ffmpeg -hide_banner -i "$rip" -vn -v warning -codec:a libmp3lame -q:a 4 -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$ENC_RIP_OUTPUT_DIR/$( basename -s .mp3 "$rip" )_enc.mp3"; then
+    if ! ffmpeg -hide_banner -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$ENC_RIP_OUTPUT_DIR/$( basename -s .mp3 "$rip" )_enc.mp3"; then
       echo "reencoding $rip failed; moving the source"
       mv "$rip" "$ENC_RIP_OUTPUT_DIR/$( basename -s .mp3 "$rip" )_src.mp3"
     else
