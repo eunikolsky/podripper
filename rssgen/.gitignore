@@ -1,3 +1,5 @@
 .stack-work/
 rssgen.cabal
 *~
+.shake/
+_testing/
