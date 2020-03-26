@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module RSSItem where
 
@@ -23,17 +24,13 @@ data RSSItem = RSSItem
 -- | Creates an @RSSItem@ based on the information about the file. Returns
 -- @Nothing@ if the file is not found.
 rssItemFromFile :: FilePath -> IO (Maybe RSSItem)
-rssItemFromFile file = runMaybeT $ do
-  existingFile <- MaybeT $ doesFileExist' file
-  fileSize <- liftIO $ getFileSize existingFile
-  ripTime <- MaybeT . pure . parseRipDate $ existingFile
+rssItemFromFile filename = runMaybeT $ do
+  file <- MaybeT $ doesFileExist' filename
+  let title = T.pack . takeFileName $ file
+  fileSize <- liftIO $ getFileSize file
+  ripTime <- MaybeT . pure . parseRipDate $ file
 
-  return $ RSSItem
-    { file = existingFile
-    , title = T.pack . takeFileName $ existingFile
-    , fileSize = fileSize
-    , ripTime = ripTime
-    }
+  return $ RSSItem {..}
 
 -- | Parses the rip date from the filename. Assumes the standard streamripper's
 -- filename like `sr_program_2020_03_21_21_55_20_enc.mp3` (the `_enc` at the
