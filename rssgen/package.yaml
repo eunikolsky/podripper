@@ -29,6 +29,7 @@ library:
   - filepath
   - text
   - time
+  - transformers
 
 executables:
   rssgen-exe:
