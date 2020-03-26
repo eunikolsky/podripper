@@ -24,6 +24,11 @@ dependencies:
 
 library:
   source-dirs: src
+  dependencies:
+  - directory
+  - filepath
+  - text
+  - time
 
 executables:
   rssgen-exe:
