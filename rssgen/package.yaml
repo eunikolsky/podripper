@@ -30,6 +30,7 @@ library:
   - text
   - time
   - transformers
+  - xml
 
 executables:
   rssgen-exe:
