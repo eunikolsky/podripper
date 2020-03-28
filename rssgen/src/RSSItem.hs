@@ -7,8 +7,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.List
 import qualified Data.Text as T
-import Data.Time.Calendar
-import Data.Time.Clock
+import Data.Time
 import System.Directory
 import System.FilePath.Posix
 
@@ -17,7 +16,7 @@ data RSSItem = RSSItem
   { file :: FilePath
   , title :: T.Text
   , fileSize :: Integer
-  , ripTime :: UTCTime
+  , ripTime :: LocalTime
   }
   deriving (Show)
 
@@ -32,14 +31,14 @@ rssItemFromFile filename = runMaybeT $ do
 
   return $ RSSItem {..}
 
--- | Parses the rip date from the filename. Assumes the standard streamripper's
+-- | Parses the rip time from the filename. Assumes the standard streamripper's
 -- filename like `sr_program_2020_03_21_21_55_20_enc.mp3` (the `_enc` at the
 -- end may be missing).
-parseRipDate :: FilePath -> Maybe UTCTime
+parseRipDate :: FilePath -> Maybe LocalTime
 parseRipDate file = do
-  let baseName = takeBaseName file
-  f <- stripPrefix "sr_program_" . maybeStripSuffix "_enc" $ baseName
-  return $ UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 0)
+  dateString <- stripPrefix "sr_program_" . maybeStripSuffix "_enc" . takeBaseName $ file
+  let acceptSurroundingWhitespace = False
+  parseTimeM acceptSurroundingWhitespace defaultTimeLocale "%Y_%m_%d_%H_%M_%S" dateString
 
 -- | Returns the filename if it exists.
 doesFileExist' :: FilePath -> IO (Maybe FilePath)
