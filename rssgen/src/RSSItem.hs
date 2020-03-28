@@ -10,13 +10,14 @@ import qualified Data.Text as T
 import Data.Time
 import System.Directory
 import System.FilePath.Posix
+import Text.XML.Light
 
 -- | An item in an RSS feed, based on a present file.
 data RSSItem = RSSItem
   { file :: FilePath
   , title :: T.Text
   , fileSize :: Integer
-  , ripTime :: LocalTime
+  , ripTime :: ZonedTime
   }
   deriving (Show)
 
@@ -27,7 +28,8 @@ rssItemFromFile filename = runMaybeT $ do
   file <- MaybeT $ doesFileExist' filename
   let title = T.pack . takeFileName $ file
   fileSize <- liftIO $ getFileSize file
-  ripTime <- MaybeT . pure . parseRipDate $ file
+  localTime <- MaybeT . pure . parseRipDate $ file
+  ripTime <- liftIO $ localTimeToZonedTime localTime
 
   return $ RSSItem {..}
 
@@ -39,6 +41,26 @@ parseRipDate file = do
   dateString <- stripPrefix "sr_program_" . maybeStripSuffix "_enc" . takeBaseName $ file
   let acceptSurroundingWhitespace = False
   parseTimeM acceptSurroundingWhitespace defaultTimeLocale "%Y_%m_%d_%H_%M_%S" dateString
+
+-- | Adds the current timezone to the local time.
+localTimeToZonedTime :: LocalTime -> IO ZonedTime
+localTimeToZonedTime localTime = do
+  tz <- getCurrentTimeZone
+  return . utcToZonedTime tz . localTimeToUTC tz $ localTime
+
+-- | Renders the RSS item into an XML element for the feed.
+renderItem :: RSSItem -> Element
+renderItem RSSItem {..} = unode "item" [ititle, guid, description, pubDate, enclosure]
+  where
+    ititle = unode "title" $ T.unpack title
+    guid = unode "guid" (Attr (unqual "isPermaLink") "false", takeBaseName file)
+    description = unode "description" ()
+    pubDate = unode "pubDate" $ formatTime defaultTimeLocale "%d %b %Y %H:%M:%S %z" ripTime
+    enclosure = unode "enclosure"
+      [ Attr (unqual "url") $ "https://example.com/" <> file
+      , Attr (unqual "type") "audio/mp3"
+      , Attr (unqual "length") $ show fileSize
+      ]
 
 -- | Returns the filename if it exists.
 doesFileExist' :: FilePath -> IO (Maybe FilePath)
