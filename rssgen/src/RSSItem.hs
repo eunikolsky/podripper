@@ -5,6 +5,7 @@ module RSSItem where
 
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
+import Data.Function
 import Data.List
 import qualified Data.Text as T
 import Data.Time
@@ -20,6 +21,18 @@ data RSSItem = RSSItem
   , ripTime :: ZonedTime
   }
   deriving (Show)
+
+instance Eq RSSItem where
+  (RSSItem file0 title0 fileSize0 ripTime0) == (RSSItem file1 title1 fileSize1 ripTime1) = and
+    [ file0 == file1
+    , title0 == title1
+    , fileSize0 == fileSize1
+    , zonedTimeToUTC ripTime0 == zonedTimeToUTC ripTime1
+    ]
+
+instance Ord RSSItem where
+  -- is this a valid definition given that `Eq` compares all the fields?
+  (<=) = (<=) `on` zonedTimeToUTC . ripTime
 
 -- | Formats the publication date string as required in the RSS standard.
 formatPubDate :: ZonedTime -> String
