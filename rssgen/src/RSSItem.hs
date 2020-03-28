@@ -42,11 +42,15 @@ parseRipDate file = do
   let acceptSurroundingWhitespace = False
   parseTimeM acceptSurroundingWhitespace defaultTimeLocale "%Y_%m_%d_%H_%M_%S" dateString
 
--- | Adds the current timezone to the local time.
+-- | Extends the local time with the local timezone /at that time/.
 localTimeToZonedTime :: LocalTime -> IO ZonedTime
 localTimeToZonedTime localTime = do
-  tz <- getCurrentTimeZone
-  return . utcToZonedTime tz . localTimeToUTC tz $ localTime
+  currentTZ <- getCurrentTimeZone
+  -- we need to have UTCTime to convert it to a zoned time,
+  -- but converting local time to UTC also requires a timezone
+  let utcTime = localTimeToUTC currentTZ localTime
+  localTZ <- getTimeZone utcTime
+  return . utcToZonedTime localTZ $ utcTime
 
 -- | Renders the RSS item into an XML element for the feed.
 renderItem :: RSSItem -> Element
