@@ -1,6 +1,11 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+
 module RSSFeed where
 
+import Data.Aeson
 import qualified Data.Text as T
+import GHC.Generics
 import Text.XML.Light
 
 import RSSItem
@@ -14,7 +19,7 @@ data RSSFeedConfig = RSSFeedConfig
   , imageLink :: T.Text
   , selfLink :: T.Text
   }
-  deriving (Show)
+  deriving (Generic, FromJSON, Show, ToJSON)
 
 -- | Returns the XML string of the entire RSS feed with the RSS items.
 feed :: RSSFeedConfig -> [RSSItem] -> String
