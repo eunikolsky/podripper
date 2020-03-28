@@ -28,6 +28,6 @@ main = shakeArgs shakeOptions $ do
     -- we need the audio files to generate the RSS, which are in the
     -- directory of the same name as the podcast title
     let mp3Directory = dropExtension out
-    mp3Files <- getDirectoryFiles "" [mp3Directory </> "*.mp3"]
+    mp3Files <- sort <$> getDirectoryFiles "" [mp3Directory </> "*.mp3"]
     rssItems <- liftIO . fmap catMaybes $ traverse rssItemFromFile mp3Files
     writeFile' out $ feed feedConfig rssItems
