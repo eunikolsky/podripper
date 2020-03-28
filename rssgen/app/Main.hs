@@ -4,6 +4,7 @@ module Main where
 
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
+import Data.Functor
 import Data.List
 import Data.Maybe
 import Data.Ord (Down(..))
@@ -15,9 +16,9 @@ import RSSItem
 
 main :: IO ()
 main = shakeArgs shakeOptions $ do
-  want ["radiot" <.> "rss"]
+  want $ ["radiot", "rcmp"] <&> (<.> "rss")
 
-  versioned 10 $ "radiot" <.> "rss" %> \out -> do
+  versioned 11 $ "*.rss" %> \out -> do
     let podcastTitle = dropExtension out
         feedConfigFile = podcastTitle <> "_feed.conf"
     need [feedConfigFile]
