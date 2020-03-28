@@ -21,15 +21,19 @@ data RSSItem = RSSItem
   }
   deriving (Show)
 
--- | Creates an @RSSItem@ based on the information about the file. Returns
--- @Nothing@ if the file is not found.
-rssItemFromFile :: FilePath -> IO (Maybe RSSItem)
-rssItemFromFile filename = runMaybeT $ do
+-- | Formats the publication date string as required in the RSS standard.
+formatPubDate :: ZonedTime -> String
+formatPubDate = formatTime defaultTimeLocale "%d %b %Y %H:%M:%S %z"
+
+-- | Creates an @RSSItem@ based on the information about the file and the
+-- podcast title. Returns @Nothing@ if the file is not found.
+rssItemFromFile :: String -> FilePath -> IO (Maybe RSSItem)
+rssItemFromFile podcastTitle filename = runMaybeT $ do
   file <- MaybeT $ doesFileExist' filename
-  let title = T.pack . takeFileName $ file
   fileSize <- liftIO $ getFileSize file
   localTime <- MaybeT . pure . parseRipDate $ file
   ripTime <- liftIO $ localTimeToZonedTime localTime
+  let title = T.pack . (++ " / " <> podcastTitle) . formatPubDate $ ripTime
 
   return $ RSSItem {..}
 
@@ -52,16 +56,17 @@ localTimeToZonedTime localTime = do
   localTZ <- getTimeZone utcTime
   return . utcToZonedTime localTZ $ utcTime
 
--- | Renders the RSS item into an XML element for the feed.
-renderItem :: RSSItem -> Element
-renderItem RSSItem {..} = unode "item" [ititle, guid, description, pubDate, enclosure]
+-- | Renders the RSS item into an XML element for the feed. First parameter
+-- is the base URL for the file.
+renderItem :: String -> RSSItem -> Element
+renderItem baseURL RSSItem {..} = unode "item" [ititle, guid, description, pubDate, enclosure]
   where
     ititle = unode "title" $ T.unpack title
     guid = unode "guid" (Attr (unqual "isPermaLink") "false", takeBaseName file)
     description = unode "description" ()
-    pubDate = unode "pubDate" $ formatTime defaultTimeLocale "%d %b %Y %H:%M:%S %z" ripTime
+    pubDate = unode "pubDate" $ formatPubDate ripTime
     enclosure = unode "enclosure"
-      [ Attr (unqual "url") $ "https://example.com/" <> file
+      [ Attr (unqual "url") $ baseURL <> file
       , Attr (unqual "type") "audio/mp3"
       , Attr (unqual "length") $ show fileSize
       ]

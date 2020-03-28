@@ -16,7 +16,7 @@ main :: IO ()
 main = shakeArgs shakeOptions $ do
   want ["radiot" <.> "rss"]
 
-  versioned 7 $ "radiot" <.> "rss" %> \out -> do
+  versioned 8 $ "radiot" <.> "rss" %> \out -> do
     let podcastTitle = dropExtension out
         feedConfigFile = podcastTitle <> "_feed.conf"
     need [feedConfigFile]
@@ -32,5 +32,5 @@ main = shakeArgs shakeOptions $ do
         -- directory of the same name as the podcast title
         let podcastTitle = dropExtension out
         mp3Files <- sort <$> getDirectoryFiles "" [podcastTitle </> "*.mp3"]
-        rssItems <- liftIO . fmap catMaybes $ traverse rssItemFromFile mp3Files
+        rssItems <- liftIO . fmap catMaybes $ traverse (rssItemFromFile podcastTitle) mp3Files
         writeFile' out $ feed feedConfig rssItems

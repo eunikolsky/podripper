@@ -45,6 +45,6 @@ feed (RSSFeedConfig fcTitle fcDescription fcLanguage fcPodcastLink fcImageLink f
       , Attr (unqual "href") $ T.unpack fcSelfLink
       ]
 
-    items = fmap renderItem rssItems
+    items = renderItem (T.unpack fcPodcastLink) <$> rssItems
 
     unodet name = unode name . T.unpack
