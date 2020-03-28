@@ -75,7 +75,7 @@ renderItem :: String -> RSSItem -> Element
 renderItem baseURL RSSItem {..} = unode "item" [ititle, guid, description, pubDate, enclosure]
   where
     ititle = unode "title" $ T.unpack title
-    guid = unode "guid" (Attr (unqual "isPermaLink") "false", takeBaseName file)
+    guid = unode "guid" (Attr (unqual "isPermaLink") "false", takeFileName file)
     description = unode "description" ()
     pubDate = unode "pubDate" $ formatPubDate ripTime
     enclosure = unode "enclosure"

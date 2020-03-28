@@ -17,7 +17,7 @@ main :: IO ()
 main = shakeArgs shakeOptions $ do
   want ["radiot" <.> "rss"]
 
-  versioned 9 $ "radiot" <.> "rss" %> \out -> do
+  versioned 10 $ "radiot" <.> "rss" %> \out -> do
     let podcastTitle = dropExtension out
         feedConfigFile = podcastTitle <> "_feed.conf"
     need [feedConfigFile]
