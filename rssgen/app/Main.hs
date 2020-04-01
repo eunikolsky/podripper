@@ -1,4 +1,6 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Main where
 
@@ -8,17 +10,29 @@ import Data.Functor
 import Data.List
 import Data.Maybe
 import Data.Ord (Down(..))
+import Data.Version (Version, showVersion)
 import Development.Shake
+import Development.Shake.Classes
 import Development.Shake.FilePath
 
+import qualified Paths_rssgen as Paths (version)
 import RSSFeed
 import RSSItem
+
+newtype RSSGenVersion = RSSGenVersion ()
+  deriving (Show, Typeable, Eq, Hashable, Binary, NFData)
+
+type instance RuleResult RSSGenVersion = Version
 
 main :: IO ()
 main = shakeArgs shakeOptions $ do
   want $ ["radiot", "rcmp"] <&> (<.> "rss")
 
-  versioned 11 $ "*.rss" %> \out -> do
+  getRSSGenVersion <- addOracle $ \(RSSGenVersion _) -> return Paths.version
+
+  versioned 12 $ "*.rss" %> \out -> do
+    getRSSGenVersion $ RSSGenVersion ()
+
     let podcastTitle = dropExtension out
         feedConfigFile = podcastTitle <> "_feed.conf"
     need [feedConfigFile]
@@ -35,7 +49,9 @@ main = shakeArgs shakeOptions $ do
         let podcastTitle = dropExtension out
         mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
         rssItems <- liftIO . fmap (newestFirst . catMaybes) $ traverse (rssItemFromFile podcastTitle) mp3Files
-        writeFile' out $ feed feedConfig rssItems
+
+        version <- askOracle $ RSSGenVersion ()
+        writeFile' out $ feed (ProgramVersion . showVersion $ version) feedConfig rssItems
 
       newestFirst :: [RSSItem] -> [RSSItem]
       newestFirst = sortOn Down

@@ -21,9 +21,15 @@ data RSSFeedConfig = RSSFeedConfig
   }
   deriving (Generic, FromJSON, Show, ToJSON)
 
+-- | The program version to use in the RSS feed.
+newtype ProgramVersion = ProgramVersion String
+
 -- | Returns the XML string of the entire RSS feed with the RSS items.
-feed :: RSSFeedConfig -> [RSSItem] -> String
-feed (RSSFeedConfig fcTitle fcDescription fcLanguage fcPodcastLink fcImageLink fcSelfLink) rssItems =
+feed :: ProgramVersion -> RSSFeedConfig -> [RSSItem] -> String
+feed
+    (ProgramVersion version)
+    (RSSFeedConfig fcTitle fcDescription fcLanguage fcPodcastLink fcImageLink fcSelfLink)
+    rssItems =
   ppcElement config rss
   where
     config = useShortEmptyTags (/= unqual "description") prettyConfigPP
@@ -37,7 +43,7 @@ feed (RSSFeedConfig fcTitle fcDescription fcLanguage fcPodcastLink fcImageLink f
     title = unodet "title" fcTitle
     language = unodet "language" fcLanguage
     description = unodet "description" fcDescription
-    generator = unode "generator" "rssgen"
+    generator = unode "generator" $ "rssgen " <> version
     image = unode "image" $ unodet "url" fcImageLink
     atom_link = node (QName "link" Nothing (Just atomns_name))
       [ Attr (unqual "rel") "self"
