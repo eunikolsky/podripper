@@ -76,6 +76,6 @@ fi
 
 # finally, we should update the RSS feed
 echo "*** generating the RSS feed at $( date )"
-"$SCRIPT_DIR/rss.zsh" "$ENC_RIP_OUTPUT_DIR" > "$BASE_OUTPUT_DIR/$RIP_DIR_NAME.rss"
+"$HOME/.local/bin/rssgen-exe"
 
 # vim: et ts=2 sw=2
