@@ -1,5 +1,5 @@
 [Timer]
-OnCalendar=Thu 16:30 America/Toronto
+OnCalendar=Thu 15:30 America/Toronto
 AccuracySec=1m
 
 [Install]
