@@ -30,7 +30,7 @@ package() {
 
   install -Dm 755 -t "$pkgdir"/usr/bin podripper.sh rssgen-exe
 
-  find . -maxdepth 1 -type f -name '*.conf' \
+  find conf -maxdepth 1 -type f -name '*.conf' \
     -exec install -Dm 644 -t "$pkgdir"/usr/share/$pkgname "{}" +
 
   find rssgen/conf -maxdepth 1 -type f -name '*.conf' \
