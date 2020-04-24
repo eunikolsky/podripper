@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 ExecStart=/usr/bin/podripper.sh %i
-User=alarm
+User=user
 
 [Install]
 WantedBy=multi-user.target
