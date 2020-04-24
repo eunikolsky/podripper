@@ -1,9 +1,9 @@
 [Unit]
-Description=Podripper rcmp
+Description=Podripper %i
 After=network.target
 
 [Service]
-ExecStart=/home/alarm/proj/podripper/podripper.sh rcmp
+ExecStart=/usr/bin/podripper.sh %i
 User=alarm
 
 [Install]
