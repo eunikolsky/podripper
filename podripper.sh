@@ -74,6 +74,6 @@ fi
 
 # finally, we should update the RSS feed
 echo "*** generating the RSS feed at $( date )"
-/usr/bin/rssgen-exe
+/usr/bin/rssgen-exe "${RIP_DIR_NAME}.rss"
 
 # vim: et ts=2 sw=2
