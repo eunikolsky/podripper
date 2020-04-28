@@ -1,0 +1,10 @@
+[Unit]
+Description=Podripper %i
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/podripper.sh %i
+User=user
+
+[Install]
+WantedBy=multi-user.target

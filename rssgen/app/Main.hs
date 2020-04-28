@@ -33,8 +33,9 @@ main = shakeArgs shakeOptions $ do
   versioned 12 $ "*.rss" %> \out -> do
     getRSSGenVersion $ RSSGenVersion ()
 
+    configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
     let podcastTitle = dropExtension out
-        feedConfigFile = podcastTitle <> "_feed.conf"
+        feedConfigFile = configDir </> podcastTitle <> "_feed.conf"
     need [feedConfigFile]
     feedConfig <- fmap decode . liftIO $ BL.readFile feedConfigFile
     case feedConfig of

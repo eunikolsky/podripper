@@ -6,6 +6,8 @@ IFS=$'\n\t'
 # These environment variables can override the default values for debugging:
 # * `END_TIMESTAMP` -- when to stop recording.
 
+# The directory with the config files.
+CONF_DIR="${CONF_DIR:-/usr/share/podripper}"
 # Config name should be passed as the single parameter.
 CONF_NAME="${1:?no config name}.conf"
 
@@ -16,13 +18,9 @@ CONF_NAME="${1:?no config name}.conf"
 # * `RIP_DIR_NAME` -- The base name of the rip directory
 # * `POD_ARTIST`, `POD_ALBUM` -- ID3 tag information.
 
-# The directory of the script, to locate extra resources.
-# note: https://mywiki.wooledge.org/BashFAQ/028
-SCRIPT_DIR="$( dirname "$( realpath -s "$0" )" )"
-
 set -o allexport
 # shellcheck source=/dev/null
-. "$SCRIPT_DIR/$CONF_NAME"
+. "$CONF_DIR/$CONF_NAME"
 set +o allexport
 
 # The base output directory for the rips.
@@ -76,6 +74,6 @@ fi
 
 # finally, we should update the RSS feed
 echo "*** generating the RSS feed at $( date )"
-"$HOME/.local/bin/rssgen-exe"
+/usr/bin/rssgen-exe "${RIP_DIR_NAME}.rss"
 
 # vim: et ts=2 sw=2
