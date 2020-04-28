@@ -4,6 +4,7 @@
 
 module Main where
 
+import Control.Monad.Reader
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as CL
@@ -15,6 +16,8 @@ import Data.Version (Version, showVersion)
 import Development.Shake
 import Development.Shake.Classes
 import Development.Shake.FilePath
+import Network.HTTP.Client
+import Network.HTTP.Client.TLS
 import qualified System.Environment as Env
 
 import qualified Paths_rssgen as Paths (version)
@@ -47,8 +50,13 @@ main = do
         Just config -> generateFeed config out
         Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
 
-    "_radiot.rss" %> \out -> do
-      maybeRSS <- runFakeDownloadT downloadRadioTRSS
+    versioned 2 $ "_radiot.rss" %> \out -> do
+      manager <- liftIO $ newManager tlsManagerSettings
+      -- this `liftIO` is to fix the build error:
+      -- • No instance for (exceptions-0.10.4:Control.Monad.Catch.MonadThrow
+      --                      Action)
+      --     arising from a use of ‘downloadRadioTRSS’
+      maybeRSS <- liftIO $ runReaderT (runHTTPClientDownloadT downloadRadioTRSS) manager
       case maybeRSS of
         Just rss -> writeFileChanged out $ CL.unpack rss
         Nothing -> putWarn $ "Can't download " <> out

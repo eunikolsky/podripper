@@ -22,14 +22,17 @@ dependencies:
 - aeson
 - base >= 4.7 && < 5
 - bytestring
+- mtl
+- http-client
+- http-client-tls
 
 library:
   source-dirs: src
   dependencies:
   - directory
+  - exceptions
   - filepath
-  - http-client
-  - http-client-tls
+  - http-types
   - text
   - time
   - transformers
