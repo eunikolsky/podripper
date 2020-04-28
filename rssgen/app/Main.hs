@@ -7,11 +7,12 @@ module Main where
 import Control.Monad.Reader
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString.Lazy.Char8 as CL
 import Data.Functor
 import Data.List
 import Data.Maybe
 import Data.Ord (Down(..))
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
 import Data.Version (Version, showVersion)
 import Development.Shake
 import Development.Shake.Classes
@@ -59,7 +60,7 @@ main = do
       --     arising from a use of ‘downloadRadioTRSS’
       maybeRSS <- liftIO $ runReaderT (runHTTPClientDownloadT downloadRadioTRSS) manager
       case maybeRSS of
-        Just rss -> writeFileChanged out $ CL.unpack rss
+        Just rss -> writeFileChanged out $ TL.unpack rss
         Nothing -> putWarn $ "Can't download " <> out
 
       where
@@ -77,5 +78,5 @@ main = do
         newestFirst :: [RSSItem] -> [RSSItem]
         newestFirst = sortOn Down
 
-downloadRadioTRSS :: MonadDownload m => m (Maybe Bytes)
-downloadRadioTRSS = getFile "https://radio-t.com/podcast.rss"
+downloadRadioTRSS :: MonadDownload m => m (Maybe TL.Text)
+downloadRadioTRSS = fmap TLE.decodeUtf8 <$> getFile "https://radio-t.com/podcast.rss"

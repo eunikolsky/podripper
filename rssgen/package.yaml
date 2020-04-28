@@ -25,6 +25,7 @@ dependencies:
 - mtl
 - http-client
 - http-client-tls
+- text
 
 library:
   source-dirs: src
@@ -33,7 +34,6 @@ library:
   - exceptions
   - filepath
   - http-types
-  - text
   - time
   - transformers
   - xml
