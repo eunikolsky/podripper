@@ -25,7 +25,7 @@ newtype RSSGenVersion = RSSGenVersion ()
 type instance RuleResult RSSGenVersion = Version
 
 main :: IO ()
-main = shakeArgs shakeOptions $ do
+main = shakeArgs shakeOptions { shakeColor = True } $ do
   want $ ["radiot", "rcmp"] <&> (<.> "rss")
 
   getRSSGenVersion <- addOracle $ \(RSSGenVersion _) -> return Paths.version
