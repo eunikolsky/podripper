@@ -50,7 +50,8 @@ main = do
         Just config -> generateFeed config out
         Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
 
-    versioned 2 $ "_radiot.rss" %> \out -> do
+    versioned 3 $ "_radiot.rss" %> \out -> do
+      alwaysRerun
       manager <- liftIO $ newManager tlsManagerSettings
       -- this `liftIO` is to fix the build error:
       -- • No instance for (exceptions-0.10.4:Control.Monad.Catch.MonadThrow
