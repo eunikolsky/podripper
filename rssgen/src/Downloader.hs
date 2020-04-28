@@ -1,8 +1,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Downloader where
 
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy.Char8 as CL
 
 type URL = String
 
@@ -14,9 +16,9 @@ class Monad m => MonadDownload m where
   getFile :: URL -> m (Maybe Bytes)
 
 
--- |A fake downloader that always returns @Nothing@.
+-- |A fake downloader that always returns an XML with the commented URL.
 newtype FakeDownloadT m a = FakeDownloadT { runFakeDownloadT :: m a }
   deriving (Functor, Applicative, Monad)
 
 instance Monad m => MonadDownload (FakeDownloadT m) where
-  getFile = const $ pure Nothing
+  getFile url = pure . Just $ "<!-- " <> CL.pack url <> " -->"
