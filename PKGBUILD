@@ -1,4 +1,4 @@
-# Maintainer: Eugene Nikolskyi <e@egeek.me>
+# Maintainer: Eugene Nikolsky <e@egeek.me>
 pkgname=podripper
 # TODO it's the version of `rssgen` for now
 pkgver=0.1.4.0
@@ -7,7 +7,7 @@ epoch=
 pkgdesc="Rips online podcast streams and generates RSS for them"
 arch=('x86_64')
 url=""
-license=('unknown')
+license=('MIT')
 groups=()
 depends=('bash' 'streamripper' 'ffmpeg' 'glibc' 'gmp')
 makedepends=()
@@ -29,6 +29,7 @@ package() {
   cd "$pkgname-$pkgver"
 
   install -Dm 755 -t "$pkgdir"/usr/bin podripper.sh rssgen-exe
+  install -Dm 644 LICENSE "$pkgdir/usr/share/license/$pkgname/LICENSE"
 
   find conf -maxdepth 1 -type f -name '*.conf' \
     -exec install -Dm 644 -t "$pkgdir"/usr/share/$pkgname "{}" +

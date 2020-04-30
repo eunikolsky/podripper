@@ -1,10 +1,9 @@
 name:                rssgen
 version:             0.1.4.0
 github:              "githubuser/rssgen"
-license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2020 Author name here"
+license:             MIT
+author:              "Eugene Nikolsky <e@egeek.me>"
+copyright:           "2020 Eugene Nikolsky"
 
 extra-source-files:
 - README.md
