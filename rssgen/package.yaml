@@ -8,6 +8,8 @@ copyright:           "2020 Eugene Nikolsky"
 extra-source-files:
 - README.md
 - ChangeLog.md
+# based on https://github.com/ulfsauer0815/ghmm/commit/e9da1940f56f7a88bea03a17b7f75c0fc397e45d
+- test/data/radiot.rss
 
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
@@ -59,4 +61,6 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - hspec
+    - hspec-discover
     - rssgen
