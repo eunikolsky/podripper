@@ -6,6 +6,7 @@ module Main where
 
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy.Char8 as CL
 import Data.Functor
 import Data.List
 import Data.Maybe
@@ -17,6 +18,7 @@ import Development.Shake.FilePath
 import qualified System.Environment as Env
 
 import qualified Paths_rssgen as Paths (version)
+import Downloader
 import RSSFeed
 import RSSItem
 
@@ -45,6 +47,12 @@ main = do
         Just config -> generateFeed config out
         Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
 
+    "_radiot.rss" %> \out -> do
+      maybeRSS <- runFakeDownloadT downloadRadioTRSS
+      case maybeRSS of
+        Just rss -> writeFileChanged out $ CL.unpack rss
+        Nothing -> putWarn $ "Can't download " <> out
+
       where
         generateFeed :: RSSFeedConfig -> FilePattern -> Action ()
         generateFeed feedConfig out = do
@@ -59,3 +67,6 @@ main = do
 
         newestFirst :: [RSSItem] -> [RSSItem]
         newestFirst = sortOn Down
+
+downloadRadioTRSS :: MonadDownload m => m (Maybe Bytes)
+downloadRadioTRSS = getFile "https://radio-t.com/podcast.rss"

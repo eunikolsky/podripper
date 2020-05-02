@@ -21,12 +21,15 @@ description:         Please see the README on GitHub at <https://github.com/gith
 dependencies:
 - aeson
 - base >= 4.7 && < 5
+- bytestring
 
 library:
   source-dirs: src
   dependencies:
   - directory
   - filepath
+  - http-client
+  - http-client-tls
   - text
   - time
   - transformers
@@ -41,7 +44,6 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - bytestring
     - rssgen
     - shake
 
