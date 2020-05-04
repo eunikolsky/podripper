@@ -64,3 +64,4 @@ tests:
     - hspec
     - hspec-discover
     - rssgen
+    - time
