@@ -91,7 +91,24 @@ renderItem baseURL RSSItem {..} = unode "item" [ititle, guid, description, pubDa
 
 -- | Returns an upstread RSS item closest to @time@ if it's within one day.
 closestUpstreamItemToTime :: [UpstreamRSSFeed.UpstreamRSSItem] -> UTCTime -> Maybe UpstreamRSSFeed.UpstreamRSSItem
-closestUpstreamItemToTime items time = Nothing
+closestUpstreamItemToTime items time = if null items
+  then Nothing
+  else
+    (safeHead
+    . sortBy (compare `on` abs . diffUTCTime time . UpstreamRSSFeed.pubDate)
+    $ items)
+    >>= withinOneDay time
+
+  where
+    withinOneDay :: UTCTime -> UpstreamRSSFeed.UpstreamRSSItem -> Maybe UpstreamRSSFeed.UpstreamRSSItem
+    withinOneDay time item = if (< nominalDay) . abs . diffUTCTime time . UpstreamRSSFeed.pubDate $ item
+      then Just item
+      else Nothing
+
+-- | Returns the first element if the list is non-empty.
+safeHead :: [a] -> Maybe a
+safeHead (x:_) = Just x
+safeHead _ = Nothing
 
 -- | Returns the filename if it exists.
 doesFileExist' :: FilePath -> IO (Maybe FilePath)
