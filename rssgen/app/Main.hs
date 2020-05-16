@@ -32,13 +32,10 @@ newtype RSSGenVersion = RSSGenVersion ()
   deriving (Show, Typeable, Eq, Hashable, Binary, NFData)
 type instance RuleResult RSSGenVersion = Version
 
-newtype PodcastName = PodcastName String
-  deriving (Show, Eq, Hashable, Binary, NFData)
-
 -- |This oracle is to depend on the upstream RSS without an intermediate file.
 -- If the downloading failed, we don't want to fail our build.
--- PodcastName -> Maybe T.Text
-newtype UpstreamRSS = UpstreamRSS PodcastName
+-- URL -> Maybe T.Text
+newtype UpstreamRSS = UpstreamRSS URL
   deriving (Show, Typeable, Eq, Hashable, Binary, NFData)
 type instance RuleResult UpstreamRSS = Maybe T.Text
 
@@ -50,13 +47,13 @@ main = do
 
     getRSSGenVersion <- addOracle $ \RSSGenVersion{} -> return Paths.version
 
-    upstreamRSS <- addOracle $ \(UpstreamRSS _) -> do
+    upstreamRSS <- addOracle $ \(UpstreamRSS url) -> do
       manager <- liftIO $ newManager tlsManagerSettings
       -- this `liftIO` is to fix the build error:
       -- • No instance for (exceptions-0.10.4:Control.Monad.Catch.MonadThrow
       --                      Action)
       --     arising from a use of ‘downloadRadioTRSS’
-      liftIO $ runReaderT (runHTTPClientDownloadT downloadRadioTRSS) manager
+      liftIO $ runReaderT (runHTTPClientDownloadT $ downloadRSS url) manager
 
     versioned 14 $ "*.rss" %> \out -> do
       getRSSGenVersion $ RSSGenVersion ()
@@ -66,11 +63,12 @@ main = do
           feedConfigFile = configDir </> podcastTitle <> "_feed.conf"
       need [feedConfigFile]
       feedConfig <- fmap decode . liftIO . BL.readFile $ feedConfigFile
-      -- downloading is triggered every time when this RSS is requested, and
-      -- the RSS is not updated if the upstream RSS hasn't changed
-      maybeUpstreamRSSBytes <- upstreamRSS . UpstreamRSS . PodcastName $ podcastTitle
       case feedConfig of
         Just config -> do
+          -- downloading is triggered every time when this RSS is requested, and
+          -- the RSS is not updated if the upstream RSS hasn't changed
+          let maybeUpstreamRSSURL = upstreamRSSURL config
+          maybeUpstreamRSSBytes <- fmap join . traverse (upstreamRSS . UpstreamRSS . T.unpack) $ maybeUpstreamRSSURL
           let maybeUpstreamRSS = maybeUpstreamRSSBytes >>= UpstreamRSSFeed.parse
           generateFeed config (fromMaybe [] maybeUpstreamRSS) out
         Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
@@ -90,5 +88,5 @@ main = do
       newestFirst :: [RSSItem] -> [RSSItem]
       newestFirst = sortOn Down
 
-downloadRadioTRSS :: MonadDownload m => m (Maybe T.Text)
-downloadRadioTRSS = fmap (TE.decodeUtf8 . BL.toStrict) <$> getFile "https://radio-t.com/podcast.rss"
+downloadRSS :: MonadDownload m => URL -> m (Maybe T.Text)
+downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict)) . getFile
