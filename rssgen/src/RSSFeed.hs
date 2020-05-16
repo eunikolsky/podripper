@@ -18,6 +18,7 @@ data RSSFeedConfig = RSSFeedConfig
   , podcastLink :: T.Text
   , imageLink :: T.Text
   , selfLink :: T.Text
+  , upstreamRSSURL :: Maybe T.Text
   }
   deriving (Generic, FromJSON, Show, ToJSON)
 
@@ -28,7 +29,7 @@ newtype ProgramVersion = ProgramVersion String
 feed :: ProgramVersion -> RSSFeedConfig -> [RSSItem] -> String
 feed
     (ProgramVersion version)
-    (RSSFeedConfig fcTitle fcDescription fcLanguage fcPodcastLink fcImageLink fcSelfLink)
+    (RSSFeedConfig fcTitle fcDescription fcLanguage fcPodcastLink fcImageLink fcSelfLink _)
     rssItems =
   ppcElement config rss
   where

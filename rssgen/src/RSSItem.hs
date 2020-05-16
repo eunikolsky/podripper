@@ -13,6 +13,8 @@ import System.Directory
 import System.FilePath.Posix
 import Text.XML.Light
 
+import qualified UpstreamRSSFeed
+
 -- | An item in an RSS feed, based on a present file.
 data RSSItem = RSSItem
   { file :: FilePath
@@ -38,15 +40,18 @@ instance Ord RSSItem where
 formatPubDate :: ZonedTime -> String
 formatPubDate = formatTime defaultTimeLocale "%d %b %Y %H:%M:%S %z"
 
--- | Creates an @RSSItem@ based on the information about the file and the
--- podcast title. Returns @Nothing@ if the file is not found.
-rssItemFromFile :: String -> FilePath -> IO (Maybe RSSItem)
-rssItemFromFile podcastTitle filename = runMaybeT $ do
+-- | Creates an @RSSItem@ based on the information about the file. If
+-- @upstreamItems@ contains an RSS item close to the item's date, uses its
+-- title, otherwise uses the @podcastTitle@. Returns @Nothing@ if the file
+-- is not found.
+rssItemFromFile :: String -> [UpstreamRSSFeed.UpstreamRSSItem] -> FilePath -> IO (Maybe RSSItem)
+rssItemFromFile podcastTitle upstreamItems filename = runMaybeT $ do
   file <- MaybeT $ doesFileExist' filename
   fileSize <- liftIO $ getFileSize file
   localTime <- MaybeT . pure . parseRipDate $ file
-  ripTime <- liftIO $ localTimeToZonedTime localTime
-  let title = T.pack . (++ " / " <> podcastTitle) . formatPubDate $ ripTime
+  (ripTime, utcTime) <- liftIO $ localTimeToZonedTime localTime
+  let titleSuffix = maybe podcastTitle (T.unpack . UpstreamRSSFeed.title) $ closestUpstreamItemToTime upstreamItems utcTime
+  let title = T.pack . (++ " / " <> titleSuffix) . formatPubDate $ ripTime
 
   return $ RSSItem {..}
 
@@ -60,14 +65,14 @@ parseRipDate file = do
   parseTimeM acceptSurroundingWhitespace defaultTimeLocale "%Y_%m_%d_%H_%M_%S" dateString
 
 -- | Extends the local time with the local timezone /at that time/.
-localTimeToZonedTime :: LocalTime -> IO ZonedTime
+localTimeToZonedTime :: LocalTime -> IO (ZonedTime, UTCTime)
 localTimeToZonedTime localTime = do
   currentTZ <- getCurrentTimeZone
   -- we need to have UTCTime to convert it to a zoned time,
   -- but converting local time to UTC also requires a timezone
   let utcTime = localTimeToUTC currentTZ localTime
   localTZ <- getTimeZone utcTime
-  return . utcToZonedTime localTZ $ utcTime
+  return (utcToZonedTime localTZ utcTime, utcTime)
 
 -- | Renders the RSS item into an XML element for the feed. First parameter
 -- is the base URL for the file.
@@ -83,6 +88,27 @@ renderItem baseURL RSSItem {..} = unode "item" [ititle, guid, description, pubDa
       , Attr (unqual "type") "audio/mp3"
       , Attr (unqual "length") $ show fileSize
       ]
+
+-- | Returns an upstread RSS item closest to @time@ if it's within one day.
+closestUpstreamItemToTime :: [UpstreamRSSFeed.UpstreamRSSItem] -> UTCTime -> Maybe UpstreamRSSFeed.UpstreamRSSItem
+closestUpstreamItemToTime items time = if null items
+  then Nothing
+  else
+    (safeHead
+    . sortBy (compare `on` abs . diffUTCTime time . UpstreamRSSFeed.pubDate)
+    $ items)
+    >>= withinOneDay time
+
+  where
+    withinOneDay :: UTCTime -> UpstreamRSSFeed.UpstreamRSSItem -> Maybe UpstreamRSSFeed.UpstreamRSSItem
+    withinOneDay time item = if (< nominalDay) . abs . diffUTCTime time . UpstreamRSSFeed.pubDate $ item
+      then Just item
+      else Nothing
+
+-- | Returns the first element if the list is non-empty.
+safeHead :: [a] -> Maybe a
+safeHead (x:_) = Just x
+safeHead _ = Nothing
 
 -- | Returns the filename if it exists.
 doesFileExist' :: FilePath -> IO (Maybe FilePath)
