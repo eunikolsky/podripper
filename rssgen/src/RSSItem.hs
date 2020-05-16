@@ -40,6 +40,13 @@ instance Ord RSSItem where
 formatPubDate :: ZonedTime -> String
 formatPubDate = formatTime defaultTimeLocale "%d %b %Y %H:%M:%S %z"
 
+-- | Formats the publication date for the RSS item's title, specifically in
+-- the `YYYY-MM-DD` format so that the files appear sorted on the podcast
+-- player when synced with gPodder (which renames the files on the device
+-- based on the title).
+titlePubDate :: ZonedTime -> String
+titlePubDate = formatTime defaultTimeLocale "%F %T %z"
+
 -- | Creates an @RSSItem@ based on the information about the file. If
 -- @upstreamItems@ contains an RSS item close to the item's date, uses its
 -- title, otherwise uses the @podcastTitle@. Returns @Nothing@ if the file
@@ -51,7 +58,7 @@ rssItemFromFile podcastTitle upstreamItems filename = runMaybeT $ do
   localTime <- MaybeT . pure . parseRipDate $ file
   (ripTime, utcTime) <- liftIO $ localTimeToZonedTime localTime
   let titleSuffix = maybe podcastTitle (T.unpack . UpstreamRSSFeed.title) $ closestUpstreamItemToTime upstreamItems utcTime
-  let title = T.pack . (++ " / " <> titleSuffix) . formatPubDate $ ripTime
+  let title = T.pack . (++ " / " <> titleSuffix) . titlePubDate $ ripTime
 
   return $ RSSItem {..}
 
