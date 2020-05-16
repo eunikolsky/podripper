@@ -66,8 +66,8 @@ main = do
           feedConfigFile = configDir </> podcastTitle <> "_feed.conf"
       need [feedConfigFile]
       feedConfig <- fmap decode . liftIO . BL.readFile $ feedConfigFile
-      -- TODO it seems that downloading is not triggered if the local RSS is already up-to-date
-      -- use a file instead of the oracle?
+      -- downloading is triggered every time when this RSS is requested, and
+      -- the RSS is not updated if the upstream RSS hasn't changed
       maybeUpstreamRSSBytes <- upstreamRSS . UpstreamRSS . PodcastName $ podcastTitle
       case feedConfig of
         Just config -> do
