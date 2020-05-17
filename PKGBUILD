@@ -2,7 +2,7 @@
 pkgname=podripper
 # TODO it's the version of `rssgen` for now
 pkgver=0.2.1.0
-pkgrel=1
+pkgrel=2
 epoch=
 pkgdesc="Rips online podcast streams and generates RSS for them"
 arch=('x86_64')
@@ -40,4 +40,6 @@ package() {
   find systemd -maxdepth 1 -type f \
     \( -name '*.service' -o -name '*.timer' \) \
     -exec install -Dm 644 -t "$pkgdir"/usr/lib/systemd/system "{}" +
+
+  install -m 755 -o user -d "$pkgdir"/var/lib/podripper
 }
