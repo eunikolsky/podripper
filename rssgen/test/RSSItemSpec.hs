@@ -16,14 +16,14 @@ spec :: Spec
 spec =
   describe "closestUpstreamItemToTime" $ do
     it "returns the closest item by time" $ do
-      let item0 = UpstreamRSSItem "item0" $ utcTime 2020 01 01 10 15 00
-          item1 = UpstreamRSSItem "item1" $ utcTime 2020 01 04 10 15 00
+      let item0 = UpstreamRSSItem "item0" (utcTime 2020 01 01 10 15 00) ""
+          item1 = UpstreamRSSItem "item1" (utcTime 2020 01 04 10 15 00) ""
           time = utcTime 2020 01 03 12 00 00
       closestUpstreamItemToTime [item0, item1] time `shouldBe` Just item1
 
     it "returns Nothing when closest item is more than one day away" $ do
-      let item0 = UpstreamRSSItem "item0" $ utcTime 2020 01 01 00 00 00
-          item1 = UpstreamRSSItem "item1" $ utcTime 2020 01 04 00 00 00
+      let item0 = UpstreamRSSItem "item0" (utcTime 2020 01 01 00 00 00) ""
+          item1 = UpstreamRSSItem "item1" (utcTime 2020 01 04 00 00 00) ""
           time = utcTime 2020 01 02 23 59 59
       closestUpstreamItemToTime [item0, item1] time `shouldBe` Nothing
 
