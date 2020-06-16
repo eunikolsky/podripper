@@ -13,6 +13,7 @@ import Text.XML.Light
 data UpstreamRSSItem = UpstreamRSSItem
   { title :: T.Text
   , pubDate :: UTCTime
+  , description :: T.Text
   }
   deriving (Eq, Show)
 
@@ -32,6 +33,7 @@ parse = parseRSS . parseXML
     parseRSSItem element = UpstreamRSSItem
       <$> (T.pack . strContent <$> findChild (unqual "title") element)
       <*> (parsePubDate =<< strContent <$> findChild (unqual "pubDate") element)
+      <*> (T.pack . strContent <$> findChild (unqual "description") element)
 
     parsePubDate :: String -> Maybe UTCTime
     parsePubDate = parseTimeM acceptSurroundingWhitespace defaultTimeLocale rfc822DateFormat

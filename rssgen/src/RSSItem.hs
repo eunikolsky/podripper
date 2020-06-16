@@ -21,15 +21,17 @@ data RSSItem = RSSItem
   , title :: T.Text
   , fileSize :: Integer
   , ripTime :: ZonedTime
+  , description :: Maybe T.Text
   }
   deriving (Show)
 
 instance Eq RSSItem where
-  (RSSItem file0 title0 fileSize0 ripTime0) == (RSSItem file1 title1 fileSize1 ripTime1) = and
+  (RSSItem file0 title0 fileSize0 ripTime0 description0) == (RSSItem file1 title1 fileSize1 ripTime1 description1) = and
     [ file0 == file1
     , title0 == title1
     , fileSize0 == fileSize1
     , zonedTimeToUTC ripTime0 == zonedTimeToUTC ripTime1
+    , description0 == description1
     ]
 
 instance Ord RSSItem where
@@ -57,8 +59,10 @@ rssItemFromFile podcastTitle upstreamItems filename = runMaybeT $ do
   fileSize <- liftIO $ getFileSize file
   localTime <- MaybeT . pure . parseRipDate $ file
   (ripTime, utcTime) <- liftIO $ localTimeToZonedTime localTime
-  let titleSuffix = maybe podcastTitle (T.unpack . UpstreamRSSFeed.title) $ closestUpstreamItemToTime upstreamItems utcTime
+  let maybeUpstreamItem = closestUpstreamItemToTime upstreamItems utcTime
+  let titleSuffix = maybe podcastTitle (T.unpack . UpstreamRSSFeed.title) maybeUpstreamItem
   let title = T.pack . (++ " / " <> titleSuffix) . titlePubDate $ ripTime
+  let description = UpstreamRSSFeed.description <$> maybeUpstreamItem
 
   return $ RSSItem {..}
 
@@ -84,11 +88,11 @@ localTimeToZonedTime localTime = do
 -- | Renders the RSS item into an XML element for the feed. First parameter
 -- is the base URL for the file.
 renderItem :: String -> RSSItem -> Element
-renderItem baseURL RSSItem {..} = unode "item" [ititle, guid, description, pubDate, enclosure]
+renderItem baseURL RSSItem {..} = unode "item" [ititle, guid, idescription, pubDate, enclosure]
   where
     ititle = unode "title" $ T.unpack title
     guid = unode "guid" (Attr (unqual "isPermaLink") "false", takeFileName file)
-    description = unode "description" ()
+    idescription = maybe (unode "description" ()) (unode "description" . flip (CData CDataVerbatim) Nothing . T.unpack) description
     pubDate = unode "pubDate" $ formatPubDate ripTime
     enclosure = unode "enclosure"
       [ Attr (unqual "url") $ baseURL <> file
