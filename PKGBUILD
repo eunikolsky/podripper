@@ -1,7 +1,7 @@
 # Maintainer: Eugene Nikolsky <e@egeek.me>
 pkgname=podripper
 # TODO it's the version of `rssgen` for now
-pkgver=0.2.2.0
+pkgver=0.2.2.1
 pkgrel=1
 epoch=
 pkgdesc="Rips online podcast streams and generates RSS for them"
@@ -9,7 +9,7 @@ arch=('x86_64')
 url=""
 license=('MIT')
 groups=()
-depends=('bash' 'streamripper' 'ffmpeg' 'glibc' 'gmp')
+depends=('bash' 'streamripper' 'ffmpeg' 'glibc' 'gmp' 'trash-cli')
 makedepends=()
 checkdepends=()
 optdepends=()

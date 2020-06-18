@@ -62,12 +62,12 @@ if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
       echo "reencoding $rip failed; moving the source"
       mv "$rip" "$ENC_RIP_OUTPUT_DIR/$( basename -s .mp3 "$rip" )_src.mp3"
     else
-      rm -f "$rip"
+      trash-put "$rip"
     fi
   done
 
   # clean up after `streamripper`
-  rm -f "$RIP_OUTPUT_DIR"/*.cue
+  trash-put "$RIP_OUTPUT_DIR"/*.cue
 else
   echo "no files in $RIP_OUTPUT_DIR"
 fi
