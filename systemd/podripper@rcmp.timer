@@ -1,5 +1,9 @@
 [Timer]
+# The official start time is Thu 18:00 Toronto
 OnCalendar=Thu 15:30 America/Toronto
+# New recordings may or may not start at Fri 17:00 Toronto
+# https://rcmp.me/2020/10/05/podcast-record-time-2020/
+OnCalendar=Fri 15:30 America/Toronto
 AccuracySec=1m
 
 [Install]
