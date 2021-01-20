@@ -40,7 +40,6 @@ find "$ENC_RIP_OUTPUT_DIR" -depth -maxdepth 1 -type f -name '*.mp3' -mtime +10 -
 END_TIMESTAMP="${END_TIMESTAMP:-$( date -d "+ ${DURATION_SEC} seconds" '+%s' )}"
 
 while (( $( date '+%s' ) < "$END_TIMESTAMP" )); do
-  echo "*** starting ripping at $( date )"
   streamripper "$STREAM_URL" --quiet -d "$RIP_OUTPUT_DIR" -s -r -R 3 -a -A -o version -t -m 5 -M 1000 -l "$DURATION_SEC"
 
   # if we've run out of time, no need to sleep one more time at the end
@@ -53,8 +52,6 @@ done
 
 # after we've spent enough time ripping, reencode the files (to fix the mp3 headers and stuff)
 if [[ -n "$( ls -A "$RIP_OUTPUT_DIR" )" ]]; then
-  echo "*** reencoding files at $( date )"
-
   year="$( date '+%Y' )"
   for rip in "$RIP_OUTPUT_DIR"/*.mp3; do
     pod_title="$( echo "$rip" | sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' )"
@@ -73,7 +70,6 @@ else
 fi
 
 # finally, we should update the RSS feed
-echo "*** generating the RSS feed at $( date )"
 /usr/bin/rssgen-exe "${RIP_DIR_NAME}.rss"
 
 # vim: et ts=2 sw=2
