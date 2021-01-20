@@ -3,6 +3,10 @@
 # https://rcmp.me/live_stream/
 # but recent streams started around 13:45
 OnCalendar=Fri 13:00 America/Toronto
+# The most recent streams were on Thursdays
+# and even on a Wednesday
+OnCalendar=Thu 13:00 America/Toronto
+OnCalendar=Wed 13:00 America/Toronto
 AccuracySec=1m
 
 [Install]
