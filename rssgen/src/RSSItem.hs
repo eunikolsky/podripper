@@ -7,6 +7,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.Function
 import Data.List
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
 import Data.Time
 import System.Directory
@@ -102,24 +103,15 @@ renderItem baseURL RSSItem {..} = unode "item" [ititle, guid, idescription, pubD
 
 -- | Returns an upstread RSS item closest to @time@ if it's within one day.
 closestUpstreamItemToTime :: [UpstreamRSSFeed.UpstreamRSSItem] -> UTCTime -> Maybe UpstreamRSSFeed.UpstreamRSSItem
-closestUpstreamItemToTime items time = if null items
-  then Nothing
-  else
-    (safeHead
-    . sortBy (compare `on` abs . diffUTCTime time . UpstreamRSSFeed.pubDate)
-    $ items)
-    >>= withinOneDay time
+closestUpstreamItemToTime items time = do
+  NE.nonEmpty items
+  let closeItems = filter (withinOneDay time) items
+  NE.nonEmpty closeItems
+  return $ maximumBy (compare `on` UpstreamRSSFeed.pubDate) closeItems
 
   where
-    withinOneDay :: UTCTime -> UpstreamRSSFeed.UpstreamRSSItem -> Maybe UpstreamRSSFeed.UpstreamRSSItem
-    withinOneDay time item = if (< nominalDay) . abs . diffUTCTime time . UpstreamRSSFeed.pubDate $ item
-      then Just item
-      else Nothing
-
--- | Returns the first element if the list is non-empty.
-safeHead :: [a] -> Maybe a
-safeHead (x:_) = Just x
-safeHead _ = Nothing
+    withinOneDay :: UTCTime -> UpstreamRSSFeed.UpstreamRSSItem -> Bool
+    withinOneDay time item = (< nominalDay) . abs . diffUTCTime time $ UpstreamRSSFeed.pubDate item
 
 -- | Returns the filename if it exists.
 doesFileExist' :: FilePath -> IO (Maybe FilePath)
