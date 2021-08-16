@@ -3,11 +3,12 @@
 
 module RSSItem where
 
+import Control.Applicative
+import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.Function
 import Data.List
-import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
 import Data.Time
 import System.Directory
@@ -104,14 +105,17 @@ renderItem baseURL RSSItem {..} = unode "item" [ititle, guid, idescription, pubD
 -- | Returns an upstread RSS item closest to @time@ if it's within one day.
 closestUpstreamItemToTime :: [UpstreamRSSFeed.UpstreamRSSItem] -> UTCTime -> Maybe UpstreamRSSFeed.UpstreamRSSItem
 closestUpstreamItemToTime items time = do
-  NE.nonEmpty items
+  guardNonEmpty items
   let closeItems = filter (withinOneDay time) items
-  NE.nonEmpty closeItems
+  guardNonEmpty closeItems
   return $ maximumBy (compare `on` UpstreamRSSFeed.pubDate) closeItems
 
   where
     withinOneDay :: UTCTime -> UpstreamRSSFeed.UpstreamRSSItem -> Bool
     withinOneDay time item = (< nominalDay) . abs . diffUTCTime time $ UpstreamRSSFeed.pubDate item
+
+    guardNonEmpty :: Alternative f => [a] -> f ()
+    guardNonEmpty = guard . not . null
 
 -- | Returns the filename if it exists.
 doesFileExist' :: FilePath -> IO (Maybe FilePath)
