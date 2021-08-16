@@ -105,7 +105,6 @@ renderItem baseURL RSSItem {..} = unode "item" [ititle, guid, idescription, pubD
 -- | Returns an upstream RSS item closest to @time@ if it's within one day.
 closestUpstreamItemToTime :: [UpstreamRSSFeed.UpstreamRSSItem] -> UTCTime -> Maybe UpstreamRSSFeed.UpstreamRSSItem
 closestUpstreamItemToTime items time = do
-  guardNonEmpty items
   let closeItems = filter (withinOneDay time) items
   guardNonEmpty closeItems
   return $ maximumBy (compare `on` UpstreamRSSFeed.pubDate) closeItems
