@@ -31,6 +31,12 @@ spec =
       let time = utcTime 2020 01 03 12 00 00
       closestUpstreamItemToTime [] time `shouldBe` Nothing
 
+    it "returns newest item when there are multiple items within one day" $ do
+      let newer = UpstreamRSSItem "newer" (utcTime 2021 08 14 01 14 30) ""
+          older = UpstreamRSSItem "older" (utcTime 2021 08 13 23 04 06) ""
+          time = utcTime 2021 08 13 22 47 09
+      closestUpstreamItemToTime [newer, older] time `shouldBe` Just newer
+
   where
     utcTime :: Integer -> Int -> Int -> Int -> Int -> Int -> UTCTime
     utcTime year month day hour minute second = UTCTime
