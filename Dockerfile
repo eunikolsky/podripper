@@ -1,6 +1,6 @@
 # based on https://dev.to/cloudx/testing-our-package-build-in-the-docker-world-34p0
 
-FROM archlinux
+FROM archlinux AS build
 
 # binutils is for `strip` even though we're not using it
 RUN pacman -Sy --noconfirm sudo fakeroot binutils gcc pkg-config glib2 make
@@ -26,3 +26,8 @@ RUN useradd builduser \
     && sudo -u builduser bash -c 'makepkg --noconfirm --nodeps'
 
 CMD ["bash"]
+
+# this allows to copy the built package to the host
+# https://docs.docker.com/engine/reference/commandline/build/#custom-build-outputs
+FROM scratch AS export
+COPY --from=build /build/podripper*pkg* /
