@@ -102,7 +102,7 @@ renderItem baseURL RSSItem {..} = unode "item" [ititle, guid, idescription, pubD
       , Attr (unqual "length") $ show fileSize
       ]
 
--- | Returns an upstread RSS item closest to @time@ if it's within one day.
+-- | Returns an upstream RSS item closest to @time@ if it's within one day.
 closestUpstreamItemToTime :: [UpstreamRSSFeed.UpstreamRSSItem] -> UTCTime -> Maybe UpstreamRSSFeed.UpstreamRSSItem
 closestUpstreamItemToTime items time = do
   guardNonEmpty items
