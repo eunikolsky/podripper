@@ -20,13 +20,13 @@ backup=()
 options=()
 install=
 changelog=
-source=($pkgname-$pkgver.tar.gz)
+source=($pkgname.tar)
 noextract=()
 md5sums=('SKIP')
 validpgpkeys=()
 
 package() {
-  cd "$pkgname-$pkgver"
+  cd "$pkgname"
 
   install -Dm 755 -t "$pkgdir"/usr/bin podripper.sh rssgen-exe
   install -Dm 644 LICENSE "$pkgdir/usr/share/license/$pkgname/LICENSE"
@@ -41,5 +41,6 @@ package() {
     \( -name '*.service' -o -name '*.timer' \) \
     -exec install -Dm 644 -t "$pkgdir"/usr/lib/systemd/system "{}" +
 
-  install -m 755 -o user -d "$pkgdir"/var/lib/podripper
+  # note: uid=1000 is the default user on the system
+  install -m 755 -o 1000 -d "$pkgdir"/var/lib/podripper
 }
