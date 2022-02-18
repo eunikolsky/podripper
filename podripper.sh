@@ -23,20 +23,23 @@ set -o allexport
 . "$CONF_DIR/$CONF_NAME"
 set +o allexport
 
-# The base output directory for the rips.
-BASE_DIR="/srv/http"
+# /var/lib/podripper/               # set from outside, e.g. by `systemd`
+# +- $RIP_DIR_NAME                  # $RAW_RIP_DIR, local, raw recordings
+# \- $DONE_BASE_DIR/$RIP_DIR_NAME   # $DONE_RIP_DIR, S3, converted recordings + RSS files
+
+# The base directory for complete rips; this should be mounted from S3.
+DONE_BASE_DIR="complete"
 # The output directory for reencoded and processed rips. (It is possible
 # that it contains raw rips when `ffmpeg` fails to process them.)
-DONE_RIP_DIR="$BASE_DIR/$RIP_DIR_NAME"
+DONE_RIP_DIR="$DONE_BASE_DIR/$RIP_DIR_NAME"
 # The output directory for raw rips recorded by streamripper.
-RAW_RIP_DIR="$DONE_RIP_DIR/incomplete/"
+RAW_RIP_DIR="$RIP_DIR_NAME"
 
 [[ -d "$RAW_RIP_DIR" ]] || mkdir -p "$RAW_RIP_DIR"
+[[ -d "$DONE_RIP_DIR" ]] || mkdir -p "$DONE_RIP_DIR"
 
-cd "$BASE_DIR"
-
-# remove `mp3`s older than 10 days to clean up space
-find "$DONE_RIP_DIR" -depth -maxdepth 1 -type f -name '*.mp3' -mtime +10 -delete || true
+# TODO cleanup complete rips on S3 after a year?
+# local raw rip `mp3`s are removed/moved in the reencoding cycle below
 
 # at the start, figure out the duration until which keep on ripping the stream
 END_TIMESTAMP="${END_TIMESTAMP:-$( date -d "+ ${DURATION_SEC} seconds" '+%s' )}"
@@ -72,6 +75,7 @@ else
 fi
 
 # finally, we should update the RSS feed
+cd "$DONE_BASE_DIR"
 /usr/bin/rssgen-exe "${RIP_DIR_NAME}.rss"
 
 # vim: et ts=2 sw=2
