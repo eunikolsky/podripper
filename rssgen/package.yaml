@@ -1,9 +1,9 @@
 name:                rssgen
-version:             0.2.3.1
+version:             0.3.0.0
 github:              "githubuser/rssgen"
 license:             MIT
 author:              "Eugene Nikolsky <e@egeek.me>"
-copyright:           "2020 Eugene Nikolsky"
+copyright:           "2020–2022 Eugene Nikolsky"
 
 extra-source-files:
 - README.md

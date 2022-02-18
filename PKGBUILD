@@ -1,7 +1,7 @@
 # Maintainer: Eugene Nikolsky <e@egeek.me>
 pkgname=podripper
 # TODO it's the version of `rssgen` for now
-pkgver=0.2.3.1
+pkgver=0.3.0.0
 pkgrel=1
 epoch=
 pkgdesc="Rips online podcast streams and generates RSS for them"
