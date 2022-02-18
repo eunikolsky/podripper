@@ -39,5 +39,6 @@ package() {
     -exec install -Dm 644 -t "$pkgdir"/usr/lib/systemd/system "{}" +
 
   # note: uid=1000 is the default user on the system
+  # TODO update user
   install -m 755 -o 1000 -d "$pkgdir"/var/lib/podripper
 }
