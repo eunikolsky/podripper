@@ -13,7 +13,6 @@ COPY podripper.sh LICENSE \
     podripper/
 # multiple steps are necessary to copy every individual directory
 ADD conf podripper/conf
-ADD rssgen/conf podripper/rssgen/conf
 ADD systemd podripper/systemd
 
 # setup a regular build user because makepkg refuses to run as root

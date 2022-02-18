@@ -34,9 +34,6 @@ package() {
   find conf -maxdepth 1 -type f -name '*.conf' \
     -exec install -Dm 644 -t "$pkgdir"/usr/share/$pkgname "{}" +
 
-  find rssgen/conf -maxdepth 1 -type f -name '*.conf' \
-    -exec install -Dm 644 -t "$pkgdir"/usr/share/$pkgname "{}" +
-
   find systemd -maxdepth 1 -type f \
     \( -name '*.service' -o -name '*.timer' \) \
     -exec install -Dm 644 -t "$pkgdir"/usr/lib/systemd/system "{}" +
