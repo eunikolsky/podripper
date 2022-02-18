@@ -3,27 +3,13 @@ pkgname=podripper
 # TODO it's the version of `rssgen` for now
 pkgver=0.3.0.0
 pkgrel=1
-epoch=
 pkgdesc="Rips online podcast streams and generates RSS for them"
 arch=('x86_64')
 url=""
 license=('MIT')
-groups=()
 depends=('bash' 'streamripper' 'ffmpeg' 'glibc' 'gmp')
-makedepends=()
-checkdepends=()
-optdepends=()
-provides=()
-conflicts=()
-replaces=()
-backup=()
-options=()
-install=
-changelog=
 source=($pkgname.tar)
-noextract=()
 md5sums=('SKIP')
-validpgpkeys=()
 
 package() {
   cd "$pkgname"
