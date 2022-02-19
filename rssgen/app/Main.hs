@@ -5,6 +5,7 @@
 module Main where
 
 import Control.Monad.Reader
+import Control.Monad.Trans.Maybe
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
 import Data.Functor
@@ -67,9 +68,10 @@ main = do
         Just config -> do
           -- downloading is triggered every time when this RSS is requested, and
           -- the RSS is not updated if the upstream RSS hasn't changed
-          let maybeUpstreamRSSURL = upstreamRSSURL config
-          maybeUpstreamRSSBytes <- fmap join . traverse (upstreamRSS . UpstreamRSS . T.unpack) $ maybeUpstreamRSSURL
-          let maybeUpstreamRSS = maybeUpstreamRSSBytes >>= (eitherToMaybe . UpstreamRSSFeed.parse (T.pack podcastTitle))
+          maybeUpstreamRSS <- runMaybeT $ do
+            url <- MaybeT . pure $ upstreamRSSURL config :: MaybeT Action T.Text
+            text <- MaybeT . upstreamRSS . UpstreamRSS . T.unpack $ url
+            MaybeT . pure . eitherToMaybe . UpstreamRSSFeed.parse (T.pack podcastTitle) $ text
           generateFeed config (fromMaybe [] maybeUpstreamRSS) out
         Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
 
