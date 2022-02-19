@@ -18,23 +18,31 @@ data UpstreamRSSItem = UpstreamRSSItem
   deriving (Eq, Show)
 
 -- |Parses the upstream RSS into items.
-parse :: T.Text -> Maybe [UpstreamRSSItem]
+parse :: T.Text -> Either String [UpstreamRSSItem]
 parse = parseRSS . parseXML
   where
-    parseRSS :: [Content] -> Maybe [UpstreamRSSItem]
+    parseRSS :: [Content] -> Either String [UpstreamRSSItem]
     parseRSS contents = do
       let elements = onlyElems contents
-      rss <- find ((== unqual "rss") . elName) elements
-      channel <- findChild (unqual "channel") rss
-      let items = findChildren (unqual "item") channel
+      rss <- find ((== unqual "rss") . elName) elements <?> "no rss"
+      channel <- findChild (unqual "channel") rss <?> "no channel"
+      items <- ensure (not . null) (findChildren (unqual "item") channel) <?> "no items"
       traverse parseRSSItem items
 
-    parseRSSItem :: Element -> Maybe UpstreamRSSItem
+    parseRSSItem :: Element -> Either String UpstreamRSSItem
     parseRSSItem element = UpstreamRSSItem
-      <$> (T.pack . strContent <$> findChild (unqual "title") element)
-      <*> (parsePubDate =<< strContent <$> findChild (unqual "pubDate") element)
-      <*> (T.pack . strContent <$> findChild (unqual "description") element)
+      <$> (T.pack . strContent <$> findChild (unqual "title") element) <?> "no title"
+      <*> (parsePubDate =<< strContent <$> findChild (unqual "pubDate") element) <?> "no/invalid pubDate"
+      <*> (T.pack . strContent <$> findChild (unqual "description") element) <?> "no description"
 
     parsePubDate :: String -> Maybe UTCTime
     parsePubDate = parseTimeM acceptSurroundingWhitespace defaultTimeLocale rfc822DateFormat
       where acceptSurroundingWhitespace = False
+
+ensure :: (a -> Bool) -> a -> Maybe a
+ensure p x = if p x then Just x else Nothing
+
+-- infix 7 <?>
+(<?>) :: Maybe a -> b -> Either b a
+Just x <?> _ = Right x
+Nothing <?> e = Left e

@@ -69,7 +69,7 @@ main = do
           -- the RSS is not updated if the upstream RSS hasn't changed
           let maybeUpstreamRSSURL = upstreamRSSURL config
           maybeUpstreamRSSBytes <- fmap join . traverse (upstreamRSS . UpstreamRSS . T.unpack) $ maybeUpstreamRSSURL
-          let maybeUpstreamRSS = maybeUpstreamRSSBytes >>= UpstreamRSSFeed.parse
+          let maybeUpstreamRSS = maybeUpstreamRSSBytes >>= (eitherToMaybe . UpstreamRSSFeed.parse)
           generateFeed config (fromMaybe [] maybeUpstreamRSS) out
         Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
 
@@ -87,6 +87,10 @@ main = do
 
       newestFirst :: [RSSItem] -> [RSSItem]
       newestFirst = sortOn Down
+
+eitherToMaybe :: Either a b -> Maybe b
+eitherToMaybe (Left _) = Nothing
+eitherToMaybe (Right x) = Just x
 
 downloadRSS :: MonadDownload m => URL -> m (Maybe T.Text)
 downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict)) . getFile
