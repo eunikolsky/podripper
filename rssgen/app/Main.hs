@@ -60,7 +60,7 @@ main = do
 
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
       let podcastTitle = dropExtension out
-          feedConfigFile = configDir </> podcastTitle <> "_feed.conf"
+          feedConfigFile = configDir </> podcastTitle <> "_feed.json"
       need [feedConfigFile]
       feedConfig <- fmap decode . liftIO . BL.readFile $ feedConfigFile
       case feedConfig of

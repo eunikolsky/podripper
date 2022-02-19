@@ -17,7 +17,7 @@ package() {
   install -Dm 755 -t "$pkgdir"/usr/bin podripper.sh rssgen-exe
   install -Dm 644 LICENSE "$pkgdir/usr/share/license/$pkgname/LICENSE"
 
-  find conf -maxdepth 1 -type f -name '*.conf' \
+  find conf -maxdepth 1 -type f \( -name '*.conf' -or -name '*.json' \) \
     -exec install -Dm 644 -t "$pkgdir"/usr/share/$pkgname "{}" +
 
   find systemd -maxdepth 1 -type f \
