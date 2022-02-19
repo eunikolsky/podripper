@@ -69,7 +69,7 @@ main = do
           -- the RSS is not updated if the upstream RSS hasn't changed
           let maybeUpstreamRSSURL = upstreamRSSURL config
           maybeUpstreamRSSBytes <- fmap join . traverse (upstreamRSS . UpstreamRSS . T.unpack) $ maybeUpstreamRSSURL
-          let maybeUpstreamRSS = maybeUpstreamRSSBytes >>= (eitherToMaybe . UpstreamRSSFeed.parse)
+          let maybeUpstreamRSS = maybeUpstreamRSSBytes >>= (eitherToMaybe . UpstreamRSSFeed.parse (T.pack podcastTitle))
           generateFeed config (fromMaybe [] maybeUpstreamRSS) out
         Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
 

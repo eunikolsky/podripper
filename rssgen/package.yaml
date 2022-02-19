@@ -27,6 +27,7 @@ dependencies:
 - mtl
 - http-client
 - http-client-tls
+- sqlite-simple
 - text
 
 library:
