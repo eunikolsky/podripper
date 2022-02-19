@@ -16,6 +16,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 import Data.Version (Version, showVersion)
+import Database.SQLite.Simple
 import Development.Shake
 import Development.Shake.Classes
 import Development.Shake.FilePath
@@ -66,12 +67,19 @@ main = do
       feedConfig <- fmap decode . liftIO . BL.readFile $ feedConfigFile
       case feedConfig of
         Just config -> do
+          conn <- liftIO openDatabase
+
           -- downloading is triggered every time when this RSS is requested, and
           -- the RSS is not updated if the upstream RSS hasn't changed
           maybeUpstreamRSS <- runMaybeT $ do
             url <- MaybeT . pure $ upstreamRSSURL config :: MaybeT Action T.Text
             text <- MaybeT . upstreamRSS . UpstreamRSS . T.unpack $ url
-            MaybeT . pure . eitherToMaybe . UpstreamRSSFeed.parse (T.pack podcastTitle) $ text
+            items <- MaybeT . pure . eitherToMaybe . UpstreamRSSFeed.parse (T.pack podcastTitle) $ text
+            -- if we're here, then we have items
+            liftIO $ saveUpstreamRSSItems conn items
+            pure items
+
+          liftIO $ close conn
           generateFeed config (fromMaybe [] maybeUpstreamRSS) out
         Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
 
@@ -89,6 +97,27 @@ main = do
 
       newestFirst :: [RSSItem] -> [RSSItem]
       newestFirst = sortOn Down
+
+-- |Opens the episodes database and ensures the `episode` table is created.
+openDatabase :: IO Connection
+openDatabase = do
+  conn <- open "episodes.sqlite"
+  execute_ conn
+    "CREATE TABLE episode (\
+    \ podcast TEXT NOT NULL,\
+    \ title TEXT NOT NULL,\
+    \ description TEXT NOT NULL,\
+    \ guid TEXT NOT NULL,\
+    \ publishedAt INTEGER NOT NULL,\
+    \ addedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),\
+    \ UNIQUE (podcast, title, description, guid, publishedAt) ON CONFLICT IGNORE)"
+  pure conn
+
+-- |Saves all the parsed upstream RSS items into the database. The `episode`
+-- |table ignores duplicate records.
+saveUpstreamRSSItems :: Connection -> [UpstreamRSSFeed.UpstreamRSSItem] -> IO ()
+saveUpstreamRSSItems conn
+  = executeMany conn "INSERT INTO episode (podcast,title,description,guid,publishedAt) VALUES (?,?,?,?,?)"
 
 eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left _) = Nothing
