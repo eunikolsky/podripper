@@ -106,7 +106,7 @@ openDatabase :: IO Connection
 openDatabase = do
   conn <- open "episodes.sqlite"
   execute_ conn
-    "CREATE TABLE episode (\
+    "CREATE TABLE IF NOT EXISTS episode (\
     \ podcast TEXT NOT NULL,\
     \ title TEXT NOT NULL,\
     \ description TEXT NOT NULL,\
