@@ -4,12 +4,10 @@
 
 module Main where
 
-import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
-import Data.Function
 import Data.Functor
 import Data.List
 import Data.Maybe
@@ -18,6 +16,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 import Data.Time.Clock
+import Data.Time.Format
 import Data.Version (Version, showVersion)
 import Database.SQLite.Simple
 import Development.Shake
@@ -82,18 +81,18 @@ main = do
             liftIO $ saveUpstreamRSSItems conn items
             pure items
 
+          generateFeed config conn out
           liftIO $ close conn
-          generateFeed config (fromMaybe [] maybeUpstreamRSS) out
         Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
 
     where
-      generateFeed :: RSSFeedConfig -> [UpstreamRSSFeed.UpstreamRSSItem] -> FilePattern -> Action ()
-      generateFeed feedConfig upstreamItems out = do
+      generateFeed :: RSSFeedConfig -> Connection -> FilePattern -> Action ()
+      generateFeed feedConfig conn out = do
         -- we need the audio files to generate the RSS, which are in the
         -- directory of the same name as the podcast title
         let podcastTitle = dropExtension out
         mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
-        let findUpstreamItem = pure . closestUpstreamItemToTime upstreamItems
+        let findUpstreamItem = closestUpstreamItemToTime (T.pack podcastTitle) conn
         rssItems <- liftIO . fmap (newestFirst . catMaybes) $ traverse (rssItemFromFile podcastTitle findUpstreamItem) mp3Files
 
         version <- askOracle $ RSSGenVersion ()
@@ -131,15 +130,12 @@ downloadRSS :: MonadDownload m => URL -> m (Maybe T.Text)
 downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict)) . getFile
 
 -- | Returns an upstream RSS item closest to @time@ if it's within one day.
-closestUpstreamItemToTime :: [UpstreamRSSFeed.UpstreamRSSItem] -> UTCTime -> Maybe UpstreamRSSFeed.UpstreamRSSItem
-closestUpstreamItemToTime items time = do
-  let closeItems = filter (withinOneDay time) items
-  guardNonEmpty closeItems
-  return $ maximumBy (compare `on` UpstreamRSSFeed.pubDate) closeItems
-
-  where
-    withinOneDay :: UTCTime -> UpstreamRSSFeed.UpstreamRSSItem -> Bool
-    withinOneDay time item = (< nominalDay) . abs . diffUTCTime time $ UpstreamRSSFeed.pubDate item
-
-    guardNonEmpty :: Alternative f => [a] -> f ()
-    guardNonEmpty = guard . not . null
+closestUpstreamItemToTime :: UpstreamRSSFeed.PodcastId -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+closestUpstreamItemToTime podcast conn time = do
+  r <- queryNamed conn
+    "SELECT podcast,title,description,guid,publishedAt FROM episode\
+    \ WHERE podcast = :podcast AND\
+      \ (publishedAt BETWEEN strftime('%s', :date, '-1 days') AND strftime('%s', :date, '+1 days'))\
+    \ ORDER BY publishedAt DESC LIMIT 1"
+    [":podcast" := podcast, ":date" := formatTime defaultTimeLocale "%F %T" time]
+  pure $ listToMaybe r

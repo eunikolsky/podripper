@@ -1,7 +1,8 @@
 {-# LANGUAGE TypeApplications #-}
 
 module UpstreamRSSFeed
-  ( UpstreamRSSItem(..)
+  ( PodcastId
+  , UpstreamRSSItem(..)
   , parse
   ) where
 
