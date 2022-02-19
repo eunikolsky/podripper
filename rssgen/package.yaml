@@ -29,6 +29,7 @@ dependencies:
 - http-client-tls
 - sqlite-simple
 - text
+- time
 - transformers
 
 library:
@@ -38,7 +39,6 @@ library:
   - exceptions
   - filepath
   - http-types
-  - time
   - xml
 
 executables:

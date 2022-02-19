@@ -4,10 +4,12 @@
 
 module Main where
 
+import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
+import Data.Function
 import Data.Functor
 import Data.List
 import Data.Maybe
@@ -15,6 +17,7 @@ import Data.Ord (Down(..))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
+import Data.Time.Clock
 import Data.Version (Version, showVersion)
 import Database.SQLite.Simple
 import Development.Shake
@@ -90,7 +93,8 @@ main = do
         -- directory of the same name as the podcast title
         let podcastTitle = dropExtension out
         mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
-        rssItems <- liftIO . fmap (newestFirst . catMaybes) $ traverse (rssItemFromFile podcastTitle upstreamItems) mp3Files
+        let findUpstreamItem = closestUpstreamItemToTime upstreamItems
+        rssItems <- liftIO . fmap (newestFirst . catMaybes) $ traverse (rssItemFromFile podcastTitle findUpstreamItem) mp3Files
 
         version <- askOracle $ RSSGenVersion ()
         writeFile' out $ feed (ProgramVersion . showVersion $ version) feedConfig rssItems
@@ -125,3 +129,17 @@ eitherToMaybe (Right x) = Just x
 
 downloadRSS :: MonadDownload m => URL -> m (Maybe T.Text)
 downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict)) . getFile
+
+-- | Returns an upstream RSS item closest to @time@ if it's within one day.
+closestUpstreamItemToTime :: [UpstreamRSSFeed.UpstreamRSSItem] -> UTCTime -> Maybe UpstreamRSSFeed.UpstreamRSSItem
+closestUpstreamItemToTime items time = do
+  let closeItems = filter (withinOneDay time) items
+  guardNonEmpty closeItems
+  return $ maximumBy (compare `on` UpstreamRSSFeed.pubDate) closeItems
+
+  where
+    withinOneDay :: UTCTime -> UpstreamRSSFeed.UpstreamRSSItem -> Bool
+    withinOneDay time item = (< nominalDay) . abs . diffUTCTime time $ UpstreamRSSFeed.pubDate item
+
+    guardNonEmpty :: Alternative f => [a] -> f ()
+    guardNonEmpty = guard . not . null

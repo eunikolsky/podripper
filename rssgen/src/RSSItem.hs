@@ -3,7 +3,6 @@
 
 module RSSItem where
 
-import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
@@ -51,17 +50,17 @@ formatPubDate = formatTime defaultTimeLocale "%d %b %Y %H:%M:%S %z"
 titlePubDate :: ZonedTime -> String
 titlePubDate = formatTime defaultTimeLocale "%F %T %z"
 
--- | Creates an @RSSItem@ based on the information about the file. If
--- @upstreamItems@ contains an RSS item close to the item's date, uses its
--- title, otherwise uses the @podcastTitle@. Returns @Nothing@ if the file
--- is not found.
-rssItemFromFile :: String -> [UpstreamRSSFeed.UpstreamRSSItem] -> FilePath -> IO (Maybe RSSItem)
-rssItemFromFile podcastTitle upstreamItems filename = runMaybeT $ do
+-- | Creates an @RSSItem@ based on the information about the file.
+-- @findUpstreamItem@ is used to find an upstream RSS item that is close
+-- to the item's date; if there is one, uses its title, otherwise uses the
+-- @podcastTitle@. Returns @Nothing@ if the file is not found.
+rssItemFromFile :: String -> (UTCTime -> Maybe UpstreamRSSFeed.UpstreamRSSItem) -> FilePath -> IO (Maybe RSSItem)
+rssItemFromFile podcastTitle findUpstreamItem filename = runMaybeT $ do
   file <- MaybeT $ doesFileExist' filename
   fileSize <- liftIO $ getFileSize file
   localTime <- MaybeT . pure . parseRipDate $ file
   (ripTime, utcTime) <- liftIO $ localTimeToZonedTime localTime
-  let maybeUpstreamItem = closestUpstreamItemToTime upstreamItems utcTime
+  let maybeUpstreamItem = findUpstreamItem utcTime
   let titleSuffix = maybe podcastTitle (T.unpack . UpstreamRSSFeed.title) maybeUpstreamItem
   let title = T.pack . (++ " / " <> titleSuffix) . titlePubDate $ ripTime
   let description = UpstreamRSSFeed.description <$> maybeUpstreamItem
@@ -101,20 +100,6 @@ renderItem baseURL RSSItem {..} = unode "item" [ititle, guid, idescription, pubD
       , Attr (unqual "type") "audio/mp3"
       , Attr (unqual "length") $ show fileSize
       ]
-
--- | Returns an upstream RSS item closest to @time@ if it's within one day.
-closestUpstreamItemToTime :: [UpstreamRSSFeed.UpstreamRSSItem] -> UTCTime -> Maybe UpstreamRSSFeed.UpstreamRSSItem
-closestUpstreamItemToTime items time = do
-  let closeItems = filter (withinOneDay time) items
-  guardNonEmpty closeItems
-  return $ maximumBy (compare `on` UpstreamRSSFeed.pubDate) closeItems
-
-  where
-    withinOneDay :: UTCTime -> UpstreamRSSFeed.UpstreamRSSItem -> Bool
-    withinOneDay time item = (< nominalDay) . abs . diffUTCTime time $ UpstreamRSSFeed.pubDate item
-
-    guardNonEmpty :: Alternative f => [a] -> f ()
-    guardNonEmpty = guard . not . null
 
 -- | Returns the filename if it exists.
 doesFileExist' :: FilePath -> IO (Maybe FilePath)
