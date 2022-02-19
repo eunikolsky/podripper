@@ -54,16 +54,20 @@ titlePubDate = formatTime defaultTimeLocale "%F %T %z"
 -- @findUpstreamItem@ is used to find an upstream RSS item that is close
 -- to the item's date; if there is one, uses its title, otherwise uses the
 -- @podcastTitle@. Returns @Nothing@ if the file is not found.
-rssItemFromFile :: String -> (UTCTime -> Maybe UpstreamRSSFeed.UpstreamRSSItem) -> FilePath -> IO (Maybe RSSItem)
+rssItemFromFile :: String -> (UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)) -> FilePath -> IO (Maybe RSSItem)
 rssItemFromFile podcastTitle findUpstreamItem filename = runMaybeT $ do
   file <- MaybeT $ doesFileExist' filename
   fileSize <- liftIO $ getFileSize file
   localTime <- MaybeT . pure . parseRipDate $ file
   (ripTime, utcTime) <- liftIO $ localTimeToZonedTime localTime
-  let maybeUpstreamItem = findUpstreamItem utcTime
-  let titleSuffix = maybe podcastTitle (T.unpack . UpstreamRSSFeed.title) maybeUpstreamItem
-  let title = T.pack . (++ " / " <> titleSuffix) . titlePubDate $ ripTime
-  let description = UpstreamRSSFeed.description <$> maybeUpstreamItem
+  -- note: can't use the `MaybeT IO` monad of this `do` block because
+  -- a missing upstream item is not an error that should cause a `Nothing`
+  (title, description) <- MaybeT . fmap pure $ do
+    maybeUpstreamItem <- findUpstreamItem utcTime
+    let titleSuffix = maybe podcastTitle (T.unpack . UpstreamRSSFeed.title) maybeUpstreamItem
+    let title = T.pack . (++ " / " <> titleSuffix) . titlePubDate $ ripTime
+    let description = UpstreamRSSFeed.description <$> maybeUpstreamItem
+    pure (title, description)
 
   return $ RSSItem {..}
 

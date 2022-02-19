@@ -93,7 +93,7 @@ main = do
         -- directory of the same name as the podcast title
         let podcastTitle = dropExtension out
         mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
-        let findUpstreamItem = closestUpstreamItemToTime upstreamItems
+        let findUpstreamItem = pure . closestUpstreamItemToTime upstreamItems
         rssItems <- liftIO . fmap (newestFirst . catMaybes) $ traverse (rssItemFromFile podcastTitle findUpstreamItem) mp3Files
 
         version <- askOracle $ RSSGenVersion ()
