@@ -121,6 +121,11 @@ openDatabase = do
 saveUpstreamRSSItems :: Connection -> [UpstreamRSSFeed.UpstreamRSSItem] -> IO ()
 saveUpstreamRSSItems conn
   = executeMany conn "INSERT INTO episode (podcast,title,description,guid,publishedAt) VALUES (?,?,?,?,?)"
+  -- this provides a small benefit of the initially imported items being
+  -- sorted from lower to higher episode numbers by default
+  . oldestFirst
+
+  where oldestFirst = sortOn UpstreamRSSFeed.pubDate
 
 eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left _) = Nothing
