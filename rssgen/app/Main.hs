@@ -136,6 +136,7 @@ closestUpstreamItemToTime podcast conn time = do
     "SELECT podcast,title,description,guid,publishedAt FROM episode\
     \ WHERE podcast = :podcast AND\
       \ (publishedAt BETWEEN strftime('%s', :date, '-1 days') AND strftime('%s', :date, '+1 days'))\
-    \ ORDER BY publishedAt DESC LIMIT 1"
+    \ ORDER BY abs(publishedAt - strftime('%s', :date)) ASC, publishedAt DESC\
+    \ LIMIT 1"
     [":podcast" := podcast, ":date" := formatTime defaultTimeLocale "%F %T" time]
   pure $ listToMaybe r
