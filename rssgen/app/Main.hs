@@ -74,21 +74,21 @@ main = do
           liftIO $ close conn
         Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
 
-    where
-      generateFeed :: RSSFeedConfig -> Connection -> FilePattern -> Action ()
-      generateFeed feedConfig conn out = do
-        -- we need the audio files to generate the RSS, which are in the
-        -- directory of the same name as the podcast title
-        let podcastTitle = dropExtension out
-        mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
-        let findUpstreamItem = closestUpstreamItemToTime (T.pack podcastTitle) conn
-        rssItems <- liftIO . fmap (newestFirst . catMaybes) $ traverse (rssItemFromFile podcastTitle findUpstreamItem) mp3Files
+-- | Generates the feed at the requested path.
+generateFeed :: RSSFeedConfig -> Connection -> FilePattern -> Action ()
+generateFeed feedConfig conn out = do
+  -- we need the audio files to generate the RSS, which are in the
+  -- directory of the same name as the podcast title
+  let podcastTitle = dropExtension out
+  mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
+  let findUpstreamItem = closestUpstreamItemToTime (T.pack podcastTitle) conn
+  rssItems <- liftIO . fmap (newestFirst . catMaybes) $ traverse (rssItemFromFile podcastTitle findUpstreamItem) mp3Files
 
-        version <- askOracle $ RSSGenVersion ()
-        writeFile' out $ feed (ProgramVersion . showVersion $ version) feedConfig rssItems
+  version <- askOracle $ RSSGenVersion ()
+  writeFile' out $ feed (ProgramVersion . showVersion $ version) feedConfig rssItems
 
-      newestFirst :: [RSSItem] -> [RSSItem]
-      newestFirst = sortOn Down
+newestFirst :: [RSSItem] -> [RSSItem]
+newestFirst = sortOn Down
 
 -- | Downloads the upstream RSS from the URL in the config, parses it and
 -- saves the items in the database.
