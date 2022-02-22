@@ -69,16 +69,7 @@ main = do
       case feedConfig of
         Just config -> do
           conn <- liftIO openDatabase
-
-          -- downloading is triggered every time when this RSS is requested, and
-          -- the RSS is not updated if the upstream RSS hasn't changed
-          runMaybeT $ do
-            url <- MaybeT . pure $ upstreamRSSURL config
-            text <- MaybeT . upstreamRSS . UpstreamRSS . T.unpack $ url
-            items <- MaybeT . pure . eitherToMaybe . UpstreamRSSFeed.parse (T.pack podcastTitle) $ text
-            -- if we're here, then we have items
-            liftIO $ saveUpstreamRSSItems conn items
-
+          processUpstreamRSS upstreamRSS (T.pack podcastTitle) config conn
           generateFeed config conn out
           liftIO $ close conn
         Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
@@ -98,6 +89,18 @@ main = do
 
       newestFirst :: [RSSItem] -> [RSSItem]
       newestFirst = sortOn Down
+
+-- | Downloads the upstream RSS from the URL in the config, parses it and
+-- saves the items in the database.
+-- Downloading is triggered every time when our RSS is requested, and
+-- the RSS is not updated if the upstream RSS hasn't changed.
+processUpstreamRSS :: (UpstreamRSS -> Action (Maybe T.Text)) -> UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Connection -> Action ()
+processUpstreamRSS upstreamRSS podcastTitle config conn = void $ runMaybeT $ do
+  url <- MaybeT . pure $ upstreamRSSURL config
+  text <- MaybeT . upstreamRSS . UpstreamRSS . T.unpack $ url
+  items <- MaybeT . pure . eitherToMaybe . UpstreamRSSFeed.parse podcastTitle $ text
+  -- if we're here, then we have items
+  liftIO $ saveUpstreamRSSItems conn items
 
 eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left _) = Nothing
