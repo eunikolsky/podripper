@@ -72,13 +72,12 @@ main = do
 
           -- downloading is triggered every time when this RSS is requested, and
           -- the RSS is not updated if the upstream RSS hasn't changed
-          maybeUpstreamRSS <- runMaybeT $ do
-            url <- MaybeT . pure $ upstreamRSSURL config :: MaybeT Action T.Text
+          runMaybeT $ do
+            url <- MaybeT . pure $ upstreamRSSURL config
             text <- MaybeT . upstreamRSS . UpstreamRSS . T.unpack $ url
             items <- MaybeT . pure . eitherToMaybe . UpstreamRSSFeed.parse (T.pack podcastTitle) $ text
             -- if we're here, then we have items
             liftIO $ saveUpstreamRSSItems conn items
-            pure items
 
           generateFeed config conn out
           liftIO $ close conn
