@@ -43,7 +43,7 @@ newtype UpstreamRSS = UpstreamRSS URL
 type instance RuleResult UpstreamRSS = Maybe T.Text
 
 main :: IO ()
-main = do
+main = withVersionAddendum $ do
   shakeDir <- fromMaybe "/var/lib/podripper/shake" <$> Env.lookupEnv "SHAKE_DIR"
   shakeArgs shakeOptions { shakeFiles = shakeDir, shakeColor = True } $ do
     want $ ["radiot", "rcmp"] <&> (<.> "rss")
@@ -108,3 +108,15 @@ eitherToMaybe (Right x) = Just x
 
 downloadRSS :: MonadDownload m => URL -> m (Maybe T.Text)
 downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict)) . getFile
+
+-- | Prints @rssgen@'s version prior to shake's version when `--version` is passed.
+-- It's a workaround since shake doesn't support extending the output. Note that
+-- shake also supports `-v` and `--numeric-version` for version output.
+withVersionAddendum :: IO () -> IO ()
+withVersionAddendum rest = printVersionWhenRequested >> rest
+  where
+    printVersionWhenRequested = do
+      args <- Env.getArgs
+      case args of
+        ["--version"] -> putStrLn $ "rssgen " <> showVersion Paths.version
+        _ -> pure ()
