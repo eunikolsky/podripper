@@ -4,6 +4,7 @@ After=network.target
 
 [Service]
 ExecStart=/usr/bin/podripper.sh %i
+WorkingDirectory=/var/lib/podripper
 User=user
 
 [Install]

@@ -1,9 +1,9 @@
 {
     "description": "Запись потока RCMP",
-    "imageLink": "https://example.org/rcmp/cover.jpg",
+    "imageLink": "https://podcasts.example.org/rcmp/cover.jpg",
     "language": "ru",
-    "podcastLink": "https://example.org/",
-    "selfLink": "https://example.org/rcmp.rss",
+    "podcastLink": "https://podcasts.example.org/",
+    "selfLink": "https://podcasts.example.org/rcmp.rss",
     "title": "Пиратский Канадский Лось и компания",
     "upstreamRSSURL": "https://rcmp.me/feed/"
 }
