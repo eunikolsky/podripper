@@ -1,5 +1,5 @@
 [Timer]
-OnCalendar=Sat 22:50 Europe/Moscow
+OnCalendar=Sat 19:50 UTC
 AccuracySec=1m
 
 [Install]
