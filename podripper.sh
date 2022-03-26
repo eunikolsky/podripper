@@ -3,6 +3,12 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+case "$OSTYPE" in
+  linux*)  DATE="date" ;;
+  darwin*) DATE="gdate" ;;
+  *)       >&2 echo "unsupported OS type $OSTYPE" ;;
+esac
+
 # These environment variables can override the default values for debugging:
 # * `END_TIMESTAMP` -- when to stop recording.
 
@@ -42,13 +48,13 @@ RAW_RIP_DIR="$RIP_DIR_NAME"
 # local raw rip `mp3`s are removed/moved in the reencoding cycle below
 
 # at the start, figure out the duration until which keep on ripping the stream
-END_TIMESTAMP="${END_TIMESTAMP:-$( date -d "+ ${DURATION_SEC} seconds" '+%s' )}"
+END_TIMESTAMP="${END_TIMESTAMP:-$( "$DATE" -d "+ ${DURATION_SEC} seconds" '+%s' )}"
 
-while (( $( date '+%s' ) < "$END_TIMESTAMP" )); do
+while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
   streamripper "$STREAM_URL" --quiet -d "$RAW_RIP_DIR" -s -r -R 3 -a -A -o version -t -m 5 -M 1000 -l "$DURATION_SEC"
 
   # if we've run out of time, no need to sleep one more time at the end
-  if (( $( date -d "+ ${RETRY_SEC} seconds" '+%s' ) < "$END_TIMESTAMP" )); then
+  if (( $( "$DATE" -d "+ ${RETRY_SEC} seconds" '+%s' ) < "$END_TIMESTAMP" )); then
     sleep "$RETRY_SEC"
   else
     break
@@ -57,7 +63,7 @@ done
 
 # after we've spent enough time ripping, reencode the files (to fix the mp3 headers and stuff)
 if [[ -n "$( ls -A "$RAW_RIP_DIR" )" ]]; then
-  year="$( date '+%Y' )"
+  year="$( "$DATE" '+%Y' )"
   for rip in "$RAW_RIP_DIR"/*.mp3; do
     pod_title="$( echo "$rip" | sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' )"
     if ! ffmpeg -hide_banner -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )_enc.mp3"; then
