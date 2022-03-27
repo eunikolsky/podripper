@@ -76,7 +76,11 @@ rssItemFromFile podcastTitle findUpstreamItem filename = runMaybeT $ do
 -- end may be missing).
 parseRipDate :: FilePath -> Maybe LocalTime
 parseRipDate file = do
-  dateString <- stripPrefix "sr_program_" . maybeStripSuffix "_enc" . takeBaseName $ file
+  dateString <- stripPrefix "sr_program_"
+    . maybeStripSuffix "_enc"
+    . maybeStripSuffix "_src"
+    . takeBaseName
+    $ file
   let acceptSurroundingWhitespace = False
   parseTimeM acceptSurroundingWhitespace defaultTimeLocale "%Y_%m_%d_%H_%M_%S" dateString
 
