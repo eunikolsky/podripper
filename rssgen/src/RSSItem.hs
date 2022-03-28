@@ -75,12 +75,12 @@ rssItemFromFile podcastTitle findUpstreamItem filename = runMaybeT $ do
   (title, description) <- MaybeT . fmap pure $ do
     maybeUpstreamItem <- findUpstreamItem utcTime
     let titleSuffix = maybe podcastTitle (T.unpack . UpstreamRSSFeed.title) maybeUpstreamItem
-    let { title = T.pack
-      -- TODO use Writer for clearer code?
-      . (if ripType == SourceRip then ("SOURCE " ++) else id)
-      . (++ " / " <> titleSuffix)
-      . titlePubDate
-      $ ripTime
+    let { title = T.pack $ mconcat
+      [ if ripType == SourceRip then "SOURCE " else ""
+      , titlePubDate ripTime
+      , " / "
+      , titleSuffix
+      ]
     }
     let description = UpstreamRSSFeed.description <$> maybeUpstreamItem
     pure (title, description)
