@@ -11,6 +11,7 @@ esac
 
 # These environment variables can override the default values for debugging:
 # * `END_TIMESTAMP` -- when to stop recording.
+#     Note: you can set `END_TIMESTAMP=0` in order to skip the ripping step.
 
 # The directory with the config files.
 CONF_DIR="${CONF_DIR:-/usr/share/podripper}"
