@@ -9,6 +9,7 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Writer.Strict
 import Data.Function
 import Data.List
+import Data.Maybe (fromMaybe)
 import Data.Monoid (Any(..))
 import qualified Data.Text as T
 import Data.Time
@@ -74,18 +75,21 @@ rssItemFromFile podcastTitle findUpstreamItem filename = runMaybeT $ do
   -- a missing upstream item is not an error that should cause a `Nothing`
   (title, description) <- MaybeT . fmap pure $ do
     maybeUpstreamItem <- findUpstreamItem utcTime
-    let titleSuffix = maybe podcastTitle (T.unpack . UpstreamRSSFeed.title) maybeUpstreamItem
     let { title = T.pack $ mconcat
       [ if ripType == SourceRip then "SOURCE " else ""
       , titlePubDate ripTime
       , " / "
-      , titleSuffix
+      , (T.unpack . UpstreamRSSFeed.title <$> maybeUpstreamItem) ?? podcastTitle
       ]
     }
     let description = UpstreamRSSFeed.description <$> maybeUpstreamItem
     pure (title, description)
 
   return $ RSSItem {..}
+
+-- | `Maybe`-coalescing operator.
+(??) :: Maybe a -> a -> a
+(??) = flip fromMaybe
 
 -- | Parses the rip time from the filename. Assumes the standard streamripper's
 -- filename like `sr_program_2020_03_21_21_55_20_enc.mp3` (the `_enc` or `_src`
