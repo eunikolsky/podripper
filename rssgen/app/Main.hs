@@ -58,7 +58,7 @@ main = withVersionAddendum $ do
       --     arising from a use of ‘downloadRadioTRSS’
       liftIO $ runReaderT (runHTTPClientDownloadT $ downloadRSS url) manager
 
-    versioned 18 $ "*.rss" %> \out -> do
+    versioned 19 $ "*.rss" %> \out -> do
       getRSSGenVersion $ RSSGenVersion ()
 
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"

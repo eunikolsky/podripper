@@ -105,10 +105,10 @@ parseRipDate file = fmap mapResult . runWriterT $ do
   runWriterT x :: Maybe (String, Flag)
   -}
 
-  let baseName = takeBaseName file
-  noSrcSuffix <- writer . fmap Any $ maybeStripSuffix "_src" baseName
-  let noEncSuffix = fst $ maybeStripSuffix "_enc" noSrcSuffix
-  dateString <- lift $ stripPrefix "sr_program_" noEncSuffix
+  dateString <- takeBaseName file
+    & writer . fmap Any . maybeStripSuffix "_src"
+    <$> fst . maybeStripSuffix "_enc"
+    >>= lift . stripPrefix "sr_program_"
   let acceptSurroundingWhitespace = False
   parseTimeM acceptSurroundingWhitespace defaultTimeLocale "%Y_%m_%d_%H_%M_%S" dateString
 
