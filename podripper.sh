@@ -62,16 +62,40 @@ while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
   fi
 done
 
+year="$( "$DATE" '+%Y' )"
+SRC_RIP_SUFFIX="_src"
+REENCODED_RIP_SUFFIX="_enc"
+
+# discover previously failed to convert rips and try to reencode them again
+# (for example, this helps with the case when `ffmpeg` after an update fails
+# to run (`GLIBC` ld error) and reencode the fresh rips, then a fix comes and
+# we can try reencoding those older ones again)
+# this needs to happen before reencoding fresh rips because if those fail, they
+# would be attempted to be reencoded again in this run, which isn't very useful
+if ls "$DONE_RIP_DIR"/*"$SRC_RIP_SUFFIX".mp3 &>/dev/null; then
+  for rip in "$DONE_RIP_DIR"/*"$SRC_RIP_SUFFIX".mp3; do
+    pod_title="$( sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' <<< "$rip" )"
+    REENCODED_RIP="${rip/$SRC_RIP_SUFFIX/$REENCODED_RIP_SUFFIX}"
+    if ! ffmpeg -nostdin -hide_banner -y -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$REENCODED_RIP"; then
+      echo "reencoding $rip failed again; leaving as is for now"
+      [[ -e "$REENCODED_RIP" ]] && rm -f "$REENCODED_RIP"
+    else
+      rm -f "$rip"
+    fi
+  done
+fi
+
 # after we've spent enough time ripping, reencode the files (to fix the mp3 headers and stuff)
+# the `if` here is to avoid printing an error from `for` when there are no
+# files in `$RAW_RIP_DIR`
 if ls "$RAW_RIP_DIR"/*.mp3 &>/dev/null; then
-  year="$( "$DATE" '+%Y' )"
   for rip in "$RAW_RIP_DIR"/*.mp3; do
     pod_title="$( sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' <<< "$rip" )"
-    REENCODED_RIP="$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )_enc.mp3"
-    if ! ffmpeg -hide_banner -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$REENCODED_RIP"; then
+    REENCODED_RIP="$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )$REENCODED_RIP_SUFFIX.mp3"
+    if ! ffmpeg -nostdin -hide_banner -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$REENCODED_RIP"; then
       echo "reencoding $rip failed; moving the source"
       [[ -e "$REENCODED_RIP" ]] && rm -f "$REENCODED_RIP"
-      mv "$rip" "$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )_src.mp3"
+      mv "$rip" "$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )$SRC_RIP_SUFFIX.mp3"
     else
       rm -f "$rip"
     fi
