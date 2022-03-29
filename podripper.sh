@@ -63,7 +63,7 @@ while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
 done
 
 # after we've spent enough time ripping, reencode the files (to fix the mp3 headers and stuff)
-if [[ -n "$( ls -A "$RAW_RIP_DIR" )" ]]; then
+if ls "$RAW_RIP_DIR"/*.mp3 &>/dev/null; then
   year="$( "$DATE" '+%Y' )"
   for rip in "$RAW_RIP_DIR"/*.mp3; do
     pod_title="$( sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' <<< "$rip" )"
