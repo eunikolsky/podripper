@@ -3,8 +3,15 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+case "$OSTYPE" in
+  linux*)  DATE="date" ;;
+  darwin*) DATE="gdate" ;;
+  *)       >&2 echo "unsupported OS type $OSTYPE" ;;
+esac
+
 # These environment variables can override the default values for debugging:
 # * `END_TIMESTAMP` -- when to stop recording.
+#     Note: you can set `END_TIMESTAMP=0` in order to skip the ripping step.
 
 # The directory with the config files.
 CONF_DIR="${CONF_DIR:-/usr/share/podripper}"
@@ -42,27 +49,53 @@ RAW_RIP_DIR="$RIP_DIR_NAME"
 # local raw rip `mp3`s are removed/moved in the reencoding cycle below
 
 # at the start, figure out the duration until which keep on ripping the stream
-END_TIMESTAMP="${END_TIMESTAMP:-$( date -d "+ ${DURATION_SEC} seconds" '+%s' )}"
+END_TIMESTAMP="${END_TIMESTAMP:-$( "$DATE" -d "+ ${DURATION_SEC} seconds" '+%s' )}"
 
-while (( $( date '+%s' ) < "$END_TIMESTAMP" )); do
+while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
   streamripper "$STREAM_URL" --quiet -d "$RAW_RIP_DIR" -s -r -R 3 -a -A -o version -t -m 5 -M 1000 -l "$DURATION_SEC"
 
   # if we've run out of time, no need to sleep one more time at the end
-  if (( $( date -d "+ ${RETRY_SEC} seconds" '+%s' ) < "$END_TIMESTAMP" )); then
+  if (( $( "$DATE" -d "+ ${RETRY_SEC} seconds" '+%s' ) < "$END_TIMESTAMP" )); then
     sleep "$RETRY_SEC"
   else
     break
   fi
 done
 
+year="$( "$DATE" '+%Y' )"
+SRC_RIP_SUFFIX="_src"
+REENCODED_RIP_SUFFIX="_enc"
+
+# discover previously failed to convert rips and try to reencode them again
+# (for example, this helps with the case when `ffmpeg` after an update fails
+# to run (`GLIBC` ld error) and reencode the fresh rips, then a fix comes and
+# we can try reencoding those older ones again)
+# this needs to happen before reencoding fresh rips because if those fail, they
+# would be attempted to be reencoded again in this run, which isn't very useful
+if ls "$DONE_RIP_DIR"/*"$SRC_RIP_SUFFIX".mp3 &>/dev/null; then
+  for rip in "$DONE_RIP_DIR"/*"$SRC_RIP_SUFFIX".mp3; do
+    pod_title="$( sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' <<< "$rip" )"
+    REENCODED_RIP="${rip/$SRC_RIP_SUFFIX/$REENCODED_RIP_SUFFIX}"
+    if ! ffmpeg -nostdin -hide_banner -y -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$REENCODED_RIP"; then
+      echo "reencoding $rip failed again; leaving as is for now"
+      [[ -e "$REENCODED_RIP" ]] && rm -f "$REENCODED_RIP"
+    else
+      rm -f "$rip"
+    fi
+  done
+fi
+
 # after we've spent enough time ripping, reencode the files (to fix the mp3 headers and stuff)
-if [[ -n "$( ls -A "$RAW_RIP_DIR" )" ]]; then
-  year="$( date '+%Y' )"
+# the `if` here is to avoid printing an error from `for` when there are no
+# files in `$RAW_RIP_DIR`
+if ls "$RAW_RIP_DIR"/*.mp3 &>/dev/null; then
   for rip in "$RAW_RIP_DIR"/*.mp3; do
-    pod_title="$( echo "$rip" | sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' )"
-    if ! ffmpeg -hide_banner -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )_enc.mp3"; then
+    pod_title="$( sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' <<< "$rip" )"
+    REENCODED_RIP="$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )$REENCODED_RIP_SUFFIX.mp3"
+    if ! ffmpeg -nostdin -hide_banner -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$REENCODED_RIP"; then
       echo "reencoding $rip failed; moving the source"
-      mv "$rip" "$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )_src.mp3"
+      [[ -e "$REENCODED_RIP" ]] && rm -f "$REENCODED_RIP"
+      mv "$rip" "$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )$SRC_RIP_SUFFIX.mp3"
     else
       rm -f "$rip"
     fi
