@@ -24,11 +24,15 @@ CONF_NAME="${1:?no config name}.conf"
 # * `RETRY_SEC` -- The sleep duration between rip retries.
 # * `RIP_DIR_NAME` -- The base name of the rip directory
 # * `POD_ARTIST`, `POD_ALBUM` -- ID3 tag information.
+# * `LIVESTREAM_CHECK` -- optional, a command that should return exit code `0` in order to start trying the recording.
 
 set -o allexport
 # shellcheck source=/dev/null
 . "$CONF_DIR/$CONF_NAME"
 set +o allexport
+
+# when `LIVESTREAM_CHECK` is missing, try recording immediately
+LIVESTREAM_CHECK="${LIVESTREAM_CHECK:-true}"
 
 # /var/lib/podripper/               # set from outside, e.g. by `systemd`
 # +- $RIP_DIR_NAME                  # $RAW_RIP_DIR, local, raw recordings
@@ -51,11 +55,18 @@ RAW_RIP_DIR="$RIP_DIR_NAME"
 # at the start, figure out the duration until which keep on ripping the stream
 END_TIMESTAMP="${END_TIMESTAMP:-$( "$DATE" -d "+ ${DURATION_SEC} seconds" '+%s' )}"
 
+# the flag shows whether the live stream check has returned success since the start
+# we don't need to ask it anymore after that
+STREAM_IS_LIVE=
+
 while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
-  echo "starting the ripper"
-  # TODO the loop to restart ripper is unnecessary because the program itself
-  # should run for `$DURATION_SEC`
-  /usr/bin/ripper-exe ripper --verbose -d "$RAW_RIP_DIR" -l "$DURATION_SEC" -r "$RETRY_SEC" "$STREAM_URL" || true
+  if [[ -n "$STREAM_IS_LIVE" ]] || $LIVESTREAM_CHECK; then
+    STREAM_IS_LIVE=1
+    echo "starting the ripper"
+    # TODO the loop to restart ripper is unnecessary because the program itself
+    # should run for `$DURATION_SEC`
+    /usr/bin/ripper-exe ripper --verbose -d "$RAW_RIP_DIR" -l "$DURATION_SEC" -r "$RETRY_SEC" "$STREAM_URL" || true
+  fi
 
   # if we've run out of time, no need to sleep one more time at the end
   if (( $( "$DATE" -d "+ ${RETRY_SEC} seconds" '+%s' ) < "$END_TIMESTAMP" )); then
