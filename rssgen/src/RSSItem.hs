@@ -124,15 +124,23 @@ parseRipDate file = fmap mapResult . runWriterT $ do
     ripTypeBySrcSuffix True = SourceRip
     ripTypeBySrcSuffix False = ReencodedRip
 
--- | Extends the local time with the local timezone /at that time/.
-localTimeToZonedTime :: LocalTime -> IO (ZonedTime, UTCTime)
-localTimeToZonedTime localTime = do
-  currentTZ <- getCurrentTimeZone
+localTimeToZonedTime' :: TimeZone -> LocalTime -> IO (ZonedTime, UTCTime)
+localTimeToZonedTime' currentTZ localTime = do
   -- we need to have UTCTime to convert it to a zoned time,
   -- but converting local time to UTC also requires a timezone
-  let utcTime = localTimeToUTC currentTZ localTime
-  localTZ <- getTimeZone utcTime
+  localTZ <- getTimeZoneAtLocalTime currentTZ localTime
+  let utcTime = localTimeToUTC localTZ localTime
   return (utcToZonedTime localTZ utcTime, utcTime)
+
+getTimeZoneAtLocalTime :: TimeZone -> LocalTime -> IO TimeZone
+getTimeZoneAtLocalTime currentTZ localTime = do
+  -- TODO do we need currentTZ?
+  let utcTime = localTimeToUTC currentTZ localTime
+  getTimeZone utcTime
+
+-- | Extends the local time with the local timezone /at that time/.
+localTimeToZonedTime :: LocalTime -> IO (ZonedTime, UTCTime)
+localTimeToZonedTime localTime = getCurrentTimeZone >>= flip localTimeToZonedTime' localTime
 
 -- | Renders the RSS item into an XML element for the feed. First parameter
 -- is the base URL for the file.
