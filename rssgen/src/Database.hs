@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Database
-  ( closestUpstreamItemToTime
+  ( FileSpec(..)
+  , closeDatabase
+  , closestUpstreamItemToTime
   , openDatabase
   , saveUpstreamRSSItems
   ) where
@@ -14,10 +16,19 @@ import Data.Time.Format
 
 import qualified UpstreamRSSFeed
 
+data FileSpec
+  = DefaultFile -- ^ The default @episodes.sqlite@ file
+  | InMemory    -- ^ An in-memory database
+
+-- | Returns the SQLite database string for the given file spec.
+dbFileName :: FileSpec -> String
+dbFileName DefaultFile = "episodes.sqlite"
+dbFileName InMemory    = ""
+
 -- |Opens the episodes database and ensures the `episode` table is created.
-openDatabase :: IO Connection
-openDatabase = do
-  conn <- open "episodes.sqlite"
+openDatabase :: FileSpec -> IO Connection
+openDatabase fileSpec = do
+  conn <- open $ dbFileName fileSpec
   execute_ conn
     "CREATE TABLE IF NOT EXISTS episode (\
     \ id INTEGER PRIMARY KEY ASC NOT NULL,\
@@ -29,6 +40,9 @@ openDatabase = do
     \ addedAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),\
     \ UNIQUE (podcast, title, description, guid, publishedAt) ON CONFLICT IGNORE)"
   pure conn
+
+closeDatabase :: Connection -> IO ()
+closeDatabase = close
 
 -- |Saves all the parsed upstream RSS items into the database. The `episode`
 -- |table ignores duplicate records.

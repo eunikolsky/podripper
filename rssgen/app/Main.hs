@@ -68,7 +68,7 @@ main = withVersionAddendum $ do
       feedConfig <- fmap decode . liftIO . BL.readFile $ feedConfigFile
       case feedConfig of
         Just config -> do
-          conn <- liftIO openDatabase
+          conn <- liftIO $ openDatabase DefaultFile
           processUpstreamRSS upstreamRSS (T.pack podcastTitle) config conn
           generateFeed config conn out
           liftIO $ close conn
