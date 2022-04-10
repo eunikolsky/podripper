@@ -20,32 +20,24 @@ instance Eq EqZonedTime where
 spec :: Spec
 spec =
   describe "localTimeToZonedTime" $ do
-    -- TODO no DST context?
     -- TODO get timezone from local time?
-    it "returns original time for no-DST local time when there is no DST" $ do
+    it "returns original time for no-DST local time" $ do
       let localTime = LocalTime (fromGregorian 2022 03 26) (TimeOfDay 21 50 18)
           noDST = hoursToTimeZone 2
-      actual <- EqZonedTime . fst <$> localTimeToZonedTime' noDST localTime
+      actual <- EqZonedTime . fst <$> localTimeToZonedTime localTime
       let expected = EqZonedTime $ ZonedTime localTime noDST
       actual `shouldBe` expected
 
-    it "returns original time for no-DST local time when there is DST" $ do
-      let localTime = LocalTime (fromGregorian 2022 03 26) (TimeOfDay 21 50 18)
-          dst = hoursToTimeZone 3
-      actual <- EqZonedTime . fst <$> localTimeToZonedTime' dst localTime
-      let expected = EqZonedTime $ ZonedTime localTime (hoursToTimeZone 2)
-      actual `shouldBe` expected
-
-    it "returns original time for DST local time when there is DST" $ do
+    it "returns original time for DST local time" $ do
       let localTime = LocalTime (fromGregorian 2022 04 02) (TimeOfDay 22 50 18)
           dst = hoursToTimeZone 3
-      actual <- EqZonedTime . fst <$> localTimeToZonedTime' dst localTime
+      actual <- EqZonedTime . fst <$> localTimeToZonedTime localTime
       let expected = EqZonedTime $ ZonedTime localTime dst
       actual `shouldBe` expected
 
-    it "returns original time for DST local time when there is no DST" $ do
+    it "returns original time for DST local time" $ do
       let localTime = LocalTime (fromGregorian 2021 10 30) (TimeOfDay 22 50 18)
           noDST = hoursToTimeZone 2
-      actual <- EqZonedTime . fst <$> localTimeToZonedTime' noDST localTime
+      actual <- EqZonedTime . fst <$> localTimeToZonedTime localTime
       let expected = EqZonedTime $ ZonedTime localTime (hoursToTimeZone 3)
       actual `shouldBe` expected
