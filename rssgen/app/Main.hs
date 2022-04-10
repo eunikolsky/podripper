@@ -58,7 +58,7 @@ main = withVersionAddendum $ do
       --     arising from a use of ‘downloadRadioTRSS’
       liftIO $ runReaderT (runHTTPClientDownloadT $ downloadRSS url) manager
 
-    versioned 21 $ "*.rss" %> \out -> do
+    versioned 22 $ "*.rss" %> \out -> do
       getRSSGenVersion $ RSSGenVersion ()
 
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
@@ -68,7 +68,7 @@ main = withVersionAddendum $ do
       feedConfig <- fmap decode . liftIO . BL.readFile $ feedConfigFile
       case feedConfig of
         Just config -> do
-          conn <- liftIO openDatabase
+          conn <- liftIO $ openDatabase DefaultFile
           processUpstreamRSS upstreamRSS (T.pack podcastTitle) config conn
           generateFeed config conn out
           liftIO $ close conn
