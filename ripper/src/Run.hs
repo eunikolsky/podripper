@@ -5,11 +5,16 @@ module Run (run) where
 import Conduit
 import Network.HTTP.Simple
 import RIO.Time
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath ((</>))
 
 import Import
 
 run :: RIO App ()
-run =
+run = do
+  maybeOutputDir <- asks $ optionsOutputDirectory . appOptions
+  for_ maybeOutputDir ensureDirectory
+
   runResourceT $ httpSink "https://httpbin.org/drip?delay=1&duration=1&numbytes=5" $ \response -> do
     logInfo . displayShow . getResponseStatus $ response
 
@@ -21,7 +26,11 @@ run =
      -}
 
     filename <- liftIO getFilename
-    sinkFile filename
+    sinkFile $ maybe filename (</> filename) maybeOutputDir
+
+ensureDirectory :: MonadIO m => FilePath -> m ()
+ensureDirectory = liftIO . createDirectoryIfMissing createParents
+  where createParents = True
 
 -- | Returns a rip filename that follows the `streamripper`'s pattern:
 -- `sr_program_YYYY_mm_dd_HH_MM_SS.mp3` in the current timezone.

@@ -38,6 +38,8 @@ library:
   source-dirs: src
   dependencies:
     - conduit
+    - directory
+    - filepath
     - http-conduit
 
 executables:

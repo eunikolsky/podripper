@@ -19,6 +19,12 @@ main = do
                  <> short 'v'
                  <> help "Verbose output?"
                   )
+       <*> optional (
+            strOption ( short 'd'
+                     <> help "Directory to put rips into"
+                     <> metavar "DIR"
+                      )
+           )
     )
     empty
   lo <- logOptionsHandle stderr (optionsVerbose options)
