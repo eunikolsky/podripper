@@ -36,6 +36,9 @@ ghc-options:
 
 library:
   source-dirs: src
+  dependencies:
+    - conduit
+    - http-conduit
 
 executables:
   ripper-exe:
