@@ -18,7 +18,7 @@ run = do
   for_ maybeOutputDir ensureDirectory
 
   request <- parseRequestThrow . T.unpack . optionsStreamURL $ options
-  runResourceT $ httpSink request $ \response -> do
+  runResourceT . handle httpExceptionHandler . httpSink request $ \response -> do
     logInfo . displayShow . getResponseStatus $ response
 
     {-
@@ -30,6 +30,14 @@ run = do
 
     filename <- liftIO getFilename
     sinkFile $ maybe filename (</> filename) maybeOutputDir
+
+  where
+    httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m ()
+    httpExceptionHandler e = logError $ case e of
+      -- for http exceptions, we don't print the request, only the exception details
+      HttpExceptionRequest _ content -> displayShow content
+      -- for invalid url exceptions, we print it as is
+      _ -> displayShow e
 
 ensureDirectory :: MonadIO m => FilePath -> m ()
 ensureDirectory = liftIO . createDirectoryIfMissing createParents
