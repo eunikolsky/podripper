@@ -17,7 +17,7 @@ run = do
   let maybeOutputDir = optionsOutputDirectory options
   for_ maybeOutputDir ensureDirectory
 
-  request <- parseRequest . T.unpack . optionsStreamURL $ options
+  request <- parseRequestThrow . T.unpack . optionsStreamURL $ options
   runResourceT $ httpSink request $ \response -> do
     logInfo . displayShow . getResponseStatus $ response
 
