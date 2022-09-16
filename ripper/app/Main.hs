@@ -34,7 +34,7 @@ main = do
                        )
     )
     empty
-  lo <- logOptionsHandle stderr (optionsVerbose options)
+  lo <- setLogUseLoc False <$> logOptionsHandle stderr (optionsVerbose options)
   pc <- mkDefaultProcessContext
   withLogFunc lo $ \lf ->
     let app = App
