@@ -12,6 +12,10 @@ import System.FilePath ((</>))
 
 import Import
 
+ripTimeout :: Int
+ripTimeout = 4 * seconds
+  where seconds = 1_000_000
+
 run :: RIO App ()
 run = do
   options <- asks appOptions
@@ -19,7 +23,11 @@ run = do
   for_ maybeOutputDir ensureDirectory
 
   request <- parseRequestThrow . T.unpack . optionsStreamURL $ options
-  runResourceT . handle httpExceptionHandler . httpSink request $ \response -> do
+  runResourceT
+    . handle httpExceptionHandler
+    . void . timeout ripTimeout
+    . httpSink request
+    $ \response -> do
     logInfo . displayShow . getResponseStatus $ response
 
     {-

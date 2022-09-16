@@ -36,6 +36,8 @@ ghc-options:
 
 library:
   source-dirs: src
+  default-extensions:
+    - NumericUnderscores
   dependencies:
     - conduit
     - directory
