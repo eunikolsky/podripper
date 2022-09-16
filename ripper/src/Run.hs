@@ -12,15 +12,13 @@ import System.FilePath ((</>))
 
 import Import
 
-ripTimeout :: Int
-ripTimeout = 4 * seconds
-  where seconds = 1_000_000
-
 run :: RIO App ()
 run = do
   options <- asks appOptions
   let maybeOutputDir = optionsOutputDirectory options
   for_ maybeOutputDir ensureDirectory
+
+  let ripTimeout = secondsToTimeout $ optionsRipLengthSeconds options
 
   request <- parseRequestThrow . T.unpack . optionsStreamURL $ options
   runResourceT
@@ -49,6 +47,11 @@ run = do
         _ -> displayShow content
       -- for invalid url exceptions, we print it as is
       _ -> displayShow e
+
+-- | Converts the number of seconds to the number of microseconds expected by `timeout`.
+secondsToTimeout :: Int -> Int
+secondsToTimeout = (* seconds)
+  where seconds = 1_000_000
 
 ensureDirectory :: MonadIO m => FilePath -> m ()
 ensureDirectory = liftIO . createDirectoryIfMissing createParents

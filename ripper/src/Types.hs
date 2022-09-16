@@ -12,6 +12,9 @@ data Options = Options
   { optionsVerbose :: !Bool
   -- | The output directory for rips if set by the user.
   , optionsOutputDirectory :: !(Maybe FilePath)
+  -- | Record the stream for this number of seconds.
+  -- FIXME use a more appropriate type
+  , optionsRipLengthSeconds :: !Int
   , optionsStreamURL :: !Text
   }
 

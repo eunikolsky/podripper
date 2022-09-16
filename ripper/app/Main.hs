@@ -25,6 +25,10 @@ main = do
                      <> metavar "DIR"
                       )
            )
+       <*> option auto ( short 'l'
+                      <> help "How long to rip, in seconds"
+                      <> metavar "seconds"
+                       )
        <*> strArgument ( metavar "URL"
                       <> help "Stream URL"
                        )
