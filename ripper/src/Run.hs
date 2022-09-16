@@ -36,9 +36,9 @@ run = do
       filename <- liftIO getFilename
       sinkFile $ maybe filename (</> filename) maybeOutputDir
 
-    logInfo "Disconnected"
+    logDebug "Disconnected"
     threadDelay reconnectDelay
-    logInfo "Reconnecting"
+    logDebug "Reconnecting"
 
   where
     httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m ()
