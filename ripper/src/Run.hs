@@ -4,6 +4,7 @@ module Run (run) where
 
 import Conduit
 import Network.HTTP.Simple
+import qualified RIO.Text as T
 import RIO.Time
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>))
@@ -12,10 +13,12 @@ import Import
 
 run :: RIO App ()
 run = do
-  maybeOutputDir <- asks $ optionsOutputDirectory . appOptions
+  options <- asks appOptions
+  let maybeOutputDir = optionsOutputDirectory options
   for_ maybeOutputDir ensureDirectory
 
-  runResourceT $ httpSink "https://httpbin.org/drip?delay=1&duration=1&numbytes=5" $ \response -> do
+  request <- parseRequest . T.unpack . optionsStreamURL $ options
+  runResourceT $ httpSink request $ \response -> do
     logInfo . displayShow . getResponseStatus $ response
 
     {-

@@ -25,6 +25,9 @@ main = do
                      <> metavar "DIR"
                       )
            )
+       <*> strArgument ( metavar "URL"
+                      <> help "Stream URL"
+                       )
     )
     empty
   lo <- logOptionsHandle stderr (optionsVerbose options)

@@ -12,6 +12,7 @@ data Options = Options
   { optionsVerbose :: !Bool
   -- | The output directory for rips if set by the user.
   , optionsOutputDirectory :: !(Maybe FilePath)
+  , optionsStreamURL :: !Text
   }
 
 data App = App
