@@ -15,6 +15,8 @@ data Options = Options
   -- | Record the stream for this number of seconds.
   -- FIXME use a more appropriate type
   , optionsRipLengthSeconds :: !Int
+  -- | Wait this many seconds before trying to reconnect.
+  , optionsReconnectDelay :: !Int
   , optionsStreamURL :: !Text
   }
 

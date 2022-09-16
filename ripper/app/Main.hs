@@ -29,6 +29,12 @@ main = do
                       <> help "How long to rip, in seconds"
                       <> metavar "seconds"
                        )
+       <*> option auto ( short 'r'
+                      <> help "Reconnect delay, in seconds"
+                      <> metavar "reconnect_delay"
+                      <> value 5
+                      <> showDefault
+                       )
        <*> strArgument ( metavar "URL"
                       <> help "Stream URL"
                        )

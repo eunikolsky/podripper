@@ -19,6 +19,7 @@ run = do
   for_ maybeOutputDir ensureDirectory
 
   let ripTimeout = secondsToTimeout $ optionsRipLengthSeconds options
+      reconnectDelay = secondsToTimeout $ optionsReconnectDelay options
 
   request <- parseRequestThrow . T.unpack . optionsStreamURL $ options
   void . timeout ripTimeout . forever $ do
@@ -36,7 +37,7 @@ run = do
       sinkFile $ maybe filename (</> filename) maybeOutputDir
 
     logInfo "Disconnected"
-    threadDelay $ secondsToTimeout 2
+    threadDelay reconnectDelay
     logInfo "Reconnecting"
 
   where
