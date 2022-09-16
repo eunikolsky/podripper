@@ -39,7 +39,7 @@ DONE_BASE_DIR="complete"
 # The output directory for reencoded and processed rips. (It is possible
 # that it contains raw rips when `ffmpeg` fails to process them.)
 DONE_RIP_DIR="$DONE_BASE_DIR/$RIP_DIR_NAME"
-# The output directory for raw rips recorded by streamripper.
+# The output directory for raw rips recorded by ripper.
 RAW_RIP_DIR="$RIP_DIR_NAME"
 
 [[ -d "$RAW_RIP_DIR" ]] || mkdir -p "$RAW_RIP_DIR"
@@ -103,9 +103,6 @@ if ls "$RAW_RIP_DIR"/*.mp3 &>/dev/null; then
       rm -f "$rip"
     fi
   done
-
-  # clean up after `streamripper`
-  rm -f "$RAW_RIP_DIR"/*.cue
 else
   echo "no files in $RAW_RIP_DIR"
 fi
