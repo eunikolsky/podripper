@@ -3,6 +3,7 @@
 module Run (run) where
 
 import Conduit
+import Network.HTTP.Conduit (HttpExceptionContent(..))
 import Network.HTTP.Simple
 import qualified RIO.Text as T
 import RIO.Time
@@ -35,7 +36,9 @@ run = do
     httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m ()
     httpExceptionHandler e = logError $ case e of
       -- for http exceptions, we don't print the request, only the exception details
-      HttpExceptionRequest _ content -> displayShow content
+      HttpExceptionRequest _ content -> case content of
+        StatusCodeException response _ -> "Unsuccessful response: " <> displayShow (getResponseStatus response)
+        _ -> displayShow content
       -- for invalid url exceptions, we print it as is
       _ -> displayShow e
 
