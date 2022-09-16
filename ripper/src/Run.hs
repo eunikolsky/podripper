@@ -21,22 +21,23 @@ run = do
   let ripTimeout = secondsToTimeout $ optionsRipLengthSeconds options
 
   request <- parseRequestThrow . T.unpack . optionsStreamURL $ options
-  runResourceT
-    . handle httpExceptionHandler
-    . void . timeout ripTimeout
-    . httpSink request
-    $ \response -> do
-    logInfo . displayShow . getResponseStatus $ response
+  void . timeout ripTimeout . forever $ do
+    runResourceT . handle httpExceptionHandler . httpSink request $ \response -> do
+      logInfo . displayShow . getResponseStatus $ response
 
-    {-
-     - I want to include the time at which we start receiving the response body
-     - (ideally, the body's first byte, not the header) in the filename;
-     - in this block, we have the `response` and are ready to stream the body,
-     - so this time should be good enough
-     -}
+      {-
+      - I want to include the time at which we start receiving the response body
+      - (ideally, the body's first byte, not the header) in the filename;
+      - in this block, we have the `response` and are ready to stream the body,
+      - so this time should be good enough
+      -}
 
-    filename <- liftIO getFilename
-    sinkFile $ maybe filename (</> filename) maybeOutputDir
+      filename <- liftIO getFilename
+      sinkFile $ maybe filename (</> filename) maybeOutputDir
+
+    logInfo "Disconnected"
+    threadDelay $ secondsToTimeout 2
+    logInfo "Reconnecting"
 
   where
     httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m ()
