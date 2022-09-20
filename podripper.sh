@@ -39,7 +39,7 @@ DONE_BASE_DIR="complete"
 # The output directory for reencoded and processed rips. (It is possible
 # that it contains raw rips when `ffmpeg` fails to process them.)
 DONE_RIP_DIR="$DONE_BASE_DIR/$RIP_DIR_NAME"
-# The output directory for raw rips recorded by streamripper.
+# The output directory for raw rips recorded by ripper.
 RAW_RIP_DIR="$RIP_DIR_NAME"
 
 [[ -d "$RAW_RIP_DIR" ]] || mkdir -p "$RAW_RIP_DIR"
@@ -52,7 +52,10 @@ RAW_RIP_DIR="$RIP_DIR_NAME"
 END_TIMESTAMP="${END_TIMESTAMP:-$( "$DATE" -d "+ ${DURATION_SEC} seconds" '+%s' )}"
 
 while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
-  streamripper "$STREAM_URL" --quiet -d "$RAW_RIP_DIR" -s -r -R 3 -a -A -o version -t -m 5 -M 1000 -l "$DURATION_SEC"
+  echo "starting the ripper"
+  # TODO the loop to restart ripper is unnecessary because the program itself
+  # should run for `$DURATION_SEC`
+  /usr/bin/ripper-exe --verbose -d "$RAW_RIP_DIR" -l "$DURATION_SEC" -r "$RETRY_SEC" "$STREAM_URL"
 
   # if we've run out of time, no need to sleep one more time at the end
   if (( $( "$DATE" -d "+ ${RETRY_SEC} seconds" '+%s' ) < "$END_TIMESTAMP" )); then
@@ -100,9 +103,6 @@ if ls "$RAW_RIP_DIR"/*.mp3 &>/dev/null; then
       rm -f "$rip"
     fi
   done
-
-  # clean up after `streamripper`
-  rm -f "$RAW_RIP_DIR"/*.cue
 else
   echo "no files in $RAW_RIP_DIR"
 fi
