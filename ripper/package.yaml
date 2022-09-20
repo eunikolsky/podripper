@@ -40,8 +40,6 @@ library:
     - NumericUnderscores
   dependencies:
     - conduit
-    - directory
-    - filepath
     - http-conduit
 
 executables:
