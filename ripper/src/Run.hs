@@ -23,32 +23,36 @@ run = do
 
   request <- parseRequestThrow . T.unpack . optionsStreamURL $ options
   void . timeout ripTimeout . forever $ do
-    runResourceT . handle httpExceptionHandler . httpSink request $ \response -> do
-      logInfo . displayShow . getResponseStatus $ response
-
-      {-
-      - I want to include the time at which we start receiving the response body
-      - (ideally, the body's first byte, not the header) in the filename;
-      - in this block, we have the `response` and are ready to stream the body,
-      - so this time should be good enough
-      -}
-
-      filename <- liftIO getFilename
-      sinkFile $ maybe filename (</> filename) maybeOutputDir
+    ripOneStream request maybeOutputDir
 
     logDebug "Disconnected"
     threadDelay reconnectDelay
     logDebug "Reconnecting"
 
-  where
-    httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m ()
-    httpExceptionHandler e = logError $ case e of
-      -- for http exceptions, we don't print the request, only the exception details
-      HttpExceptionRequest _ content -> case content of
-        StatusCodeException response _ -> "Unsuccessful response: " <> displayShow (getResponseStatus response)
-        _ -> displayShow content
-      -- for invalid url exceptions, we print it as is
-      _ -> displayShow e
+-- | Rips a stream for as long as the connection is open.
+ripOneStream :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env) => Request -> Maybe FilePath -> m ()
+ripOneStream request maybeOutputDir =
+  runResourceT . handle httpExceptionHandler . httpSink request $ \response -> do
+    logInfo . displayShow . getResponseStatus $ response
+
+    {-
+    - I want to include the time at which we start receiving the response body
+    - (ideally, the body's first byte, not the header) in the filename;
+    - in this block, we have the `response` and are ready to stream the body,
+    - so this time should be good enough
+    -}
+
+    filename <- liftIO getFilename
+    sinkFile $ maybe filename (</> filename) maybeOutputDir
+
+httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m ()
+httpExceptionHandler e = logError $ case e of
+  -- for http exceptions, we don't print the request, only the exception details
+  HttpExceptionRequest _ content -> case content of
+    StatusCodeException response _ -> "Unsuccessful response: " <> displayShow (getResponseStatus response)
+    _ -> displayShow content
+  -- for invalid url exceptions, we print it as is
+  _ -> displayShow e
 
 -- | Converts the number of seconds to the number of microseconds expected by `timeout`.
 secondsToTimeout :: Int -> Int
