@@ -1,14 +1,39 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module UtilSpec (spec) where
 
 import Import
-import Util
+import Network.HTTP.Simple (parseRequest_)
+import RIO.Writer
+import Run
 import Test.Hspec
-import Test.Hspec.QuickCheck
 
 spec :: Spec
 spec = do
-  describe "plus2" $ do
-    it "basic check" $ plus2 0 `shouldBe` 2
-    it "overflow" $ plus2 maxBound `shouldBe` minBound + 1
-    prop "minus 2" $ \i -> plus2 i - 2 `shouldBe` i
+  describe "ripper" $
+    context "before first successful recording" $
+      it "uses the standard reconnect delay" $ do
+        let numActions = 3
+
+            delay = 10000
+            request = parseRequest_ "http://localhost/"
+            expectedDelays = replicate numActions delay
+
+            delays = runTestM numActions $ ripper request Nothing delay
+
+        delays `shouldBe` expectedDelays
+
+type NumActions = Int
+newtype TestM a = TestM (ReaderT NumActions (Writer [Int]) a)
+  deriving newtype (Functor, Applicative, Monad, MonadReader Int, MonadWriter [Int])
+
+runTestM :: NumActions -> TestM a -> [Int]
+runTestM numActions (TestM r) = execWriter $ runReaderT r numActions
+
+instance MonadRipper TestM where
+  rip _ _ = pure ()
+  delayReconnect delay = tell [delay]
+  repeatForever action = do
+    numActions <- ask
+    replicateM_ numActions action

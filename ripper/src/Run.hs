@@ -1,6 +1,9 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Run (run) where
+module Run
+  ( MonadRipper(..)
+  , run, ripper
+  ) where
 
 import Conduit
 import Network.HTTP.Conduit (HttpExceptionContent(..))
@@ -22,12 +25,29 @@ run = do
       reconnectDelay = secondsToTimeout $ optionsReconnectDelay options
 
   request <- parseRequestThrow . T.unpack . optionsStreamURL $ options
-  void . timeout ripTimeout . forever $ do
-    ripOneStream request maybeOutputDir
+  void . timeout ripTimeout $ ripper request maybeOutputDir reconnectDelay
 
-    logDebug "Disconnected"
-    threadDelay reconnectDelay
-    logDebug "Reconnecting"
+class Monad m => MonadRipper m where
+  rip :: Request -> Maybe FilePath -> m ()
+  delayReconnect :: Int -> m ()
+  repeatForever :: m a -> m ()
+
+instance HasLogFunc env => MonadRipper (RIO env) where
+  rip = ripOneStream
+  delayReconnect = delayWithLog
+  repeatForever = forever
+
+ripper :: (MonadRipper m) => Request -> Maybe FilePath -> Int -> m ()
+ripper request maybeOutputDir reconnectDelay =
+  repeatForever $ do
+    rip request maybeOutputDir
+    delayReconnect reconnectDelay
+
+delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => Int -> m ()
+delayWithLog reconnectDelay = do
+  logDebug "Disconnected"
+  threadDelay reconnectDelay
+  logDebug "Reconnecting"
 
 -- | Rips a stream for as long as the connection is open.
 ripOneStream :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env) => Request -> Maybe FilePath -> m ()
