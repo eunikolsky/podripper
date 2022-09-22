@@ -7,6 +7,7 @@ module Run
   ) where
 
 import Conduit
+import Data.Monoid (Any(..))
 import Network.HTTP.Conduit (HttpExceptionContent(..))
 import Network.HTTP.Simple
 import RIO.Directory (createDirectoryIfMissing)
@@ -33,25 +34,42 @@ run = do
 -- | The result of a single rip call. The information conveyed by this type
 -- is whether the call has received and saved any data.
 data RipResult = RipRecorded | RipNothing
+  deriving Eq
 
 class Monad m => MonadRipper m where
   rip :: Request -> Maybe FilePath -> m RipResult
   delayReconnect :: Int -> m ()
-  repeatForever :: m a -> m ()
+  shouldRepeat :: m Bool
 
 instance HasLogFunc env => MonadRipper (RIO env) where
   rip = ripOneStream
   delayReconnect = delayWithLog
-  repeatForever = forever
+  shouldRepeat = pure True
 
 -- | The endless ripping loop.
 ripper :: (MonadRipper m) => Request -> Maybe FilePath -> Int -> Int -> m ()
-ripper request maybeOutputDir reconnectDelay smallReconnectDelay =
-  repeatForever $ do
-    result <- rip request maybeOutputDir
-    delayReconnect $ case result of
-      RipNothing -> reconnectDelay
-      RipRecorded -> smallReconnectDelay
+ripper request maybeOutputDir reconnectDelay smallReconnectDelay = go mempty
+  {-
+   - I tried to use `StateT Any m` like a good citizen at first, but couldn't
+   - make it work:
+   -
+   - * `repeatForever` can't be used because its parameter is in monad `m`,
+   - which is the same as the output monad, and the inside monad can't be the
+   - same as the outside monad: `m != StateT Any m` ?!
+   -
+   - * explicit infinite recursion is hard to stop in tests; throwing an
+   - exception causes more issues (exception handling prevents the receiving of
+   - the result value in `runTestM`)
+   -}
+  where
+    go wasEverSuccessfulRip = do
+      result <- rip request maybeOutputDir
+
+      let isSuccessfulRip = result == RipRecorded
+          wasEverSuccessfulRip' = wasEverSuccessfulRip <> Any isSuccessfulRip
+
+      delayReconnect $ if getAny wasEverSuccessfulRip' then smallReconnectDelay else reconnectDelay
+      whenM shouldRepeat $ go wasEverSuccessfulRip'
 
 delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => Int -> m ()
 delayWithLog reconnectDelay = do

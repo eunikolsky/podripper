@@ -5,6 +5,9 @@ module UtilSpec (spec) where
 
 import Import
 import Network.HTTP.Simple (parseRequest_)
+import RIO.List
+import RIO.Partial (fromJust)
+import RIO.State
 import RIO.Writer
 import Run
 import Test.Hspec
@@ -15,46 +18,69 @@ spec = do
     context "before first successful recording" $
       it "uses the standard reconnect delay" $ do
         let numActions = 3
-            testData = TestData numActions RipNothing
+            testState = TestState (repeat RipNothing) numActions
 
             delay = 10000
             request = parseRequest_ "http://localhost/"
             expectedDelays = replicate numActions delay
 
-            delays = runTestM testData $ ripper request Nothing delay 999
+            delays = runTestM testState $ ripper request Nothing delay 999
 
         delays `shouldBe` expectedDelays
 
-    context "after a successful recording" $
+    context "after a successful recording" $ do
       it "uses a small reconnect delay" $ do
         let numActions = 3
-            testData = TestData numActions RipRecorded
+            testState = TestState (repeat RipRecorded) numActions
 
             smallDelay = 999
             request = parseRequest_ "http://localhost/"
             expectedDelays = replicate numActions smallDelay
 
-            delays = runTestM testData $ ripper request Nothing 10000 smallDelay
+            delays = runTestM testState $ ripper request Nothing 10000 smallDelay
+
+        delays `shouldBe` expectedDelays
+
+      it "uses a small reconnect delay since the first successful recording" $ do
+        let numActions = 3
+            testState = TestState (RipRecorded : repeat RipNothing) numActions
+
+            smallDelay = 999
+            request = parseRequest_ "http://localhost/"
+            expectedDelays = replicate numActions smallDelay
+
+            delays = runTestM testState $ ripper request Nothing 10000 smallDelay
 
         delays `shouldBe` expectedDelays
 
 type NumActions = Int
-data TestData = TestData
-  { tdNumActions :: NumActions
-  , tdRipResult :: RipResult
+
+data TestState = TestState
+  { tsRipResult :: ![RipResult]
+  -- ^ this is in a state because we need to change the result during the test,
+  -- which is done by removing the head at every step
+  , tsNumAction :: !NumActions
+  -- ^ the test should terminate when the number reaches zero
   }
 
-newtype TestM a = TestM (ReaderT TestData (Writer [Int]) a)
-  deriving newtype (Functor, Applicative, Monad, MonadReader TestData, MonadWriter [Int])
+newtype TestM a = TestM (StateT TestState (Writer [Int]) a)
+  deriving newtype (Functor, Applicative, Monad, MonadState TestState, MonadWriter [Int])
 
-runTestM :: TestData -> TestM a -> [Int]
-runTestM testData (TestM r) = execWriter $ runReaderT r testData
+runTestM :: TestState -> TestM a -> [Int]
+runTestM testState (TestM r) = execWriter $ evalStateT r testState
 
 instance MonadRipper TestM where
-  rip _ _ = asks tdRipResult
+  rip _ _ = do
+    s <- get
+    let (head, tail) = fromJust . uncons $ tsRipResult s
+    put $ s { tsRipResult = tail }
+    pure head
 
   delayReconnect delay = tell [delay]
 
-  repeatForever action = do
-    numActions <- asks tdNumActions
-    replicateM_ numActions action
+  shouldRepeat = do
+    s <- get
+    let iteration = tsNumAction s - 1
+    put $ s { tsNumAction = iteration }
+
+    pure $ iteration > 0
