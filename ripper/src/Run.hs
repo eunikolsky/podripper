@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Run
   ( MonadRipper(..)
+  , RipResult(..)
   , run, ripper
   ) where
 
@@ -23,12 +24,18 @@ run = do
 
   let ripTimeout = secondsToTimeout $ optionsRipLengthSeconds options
       reconnectDelay = secondsToTimeout $ optionsReconnectDelay options
+      smallReconnectDelay = secondsToTimeout $ optionsSmallReconnectDelay options
 
   request <- parseRequestThrow . T.unpack . optionsStreamURL $ options
-  void . timeout ripTimeout $ ripper request maybeOutputDir reconnectDelay
+  void . timeout ripTimeout
+    $ ripper request maybeOutputDir reconnectDelay smallReconnectDelay
+
+-- | The result of a single rip call. The information conveyed by this type
+-- is whether the call has received and saved any data.
+data RipResult = RipRecorded | RipNothing
 
 class Monad m => MonadRipper m where
-  rip :: Request -> Maybe FilePath -> m ()
+  rip :: Request -> Maybe FilePath -> m RipResult
   delayReconnect :: Int -> m ()
   repeatForever :: m a -> m ()
 
@@ -37,11 +44,14 @@ instance HasLogFunc env => MonadRipper (RIO env) where
   delayReconnect = delayWithLog
   repeatForever = forever
 
-ripper :: (MonadRipper m) => Request -> Maybe FilePath -> Int -> m ()
-ripper request maybeOutputDir reconnectDelay =
+-- | The endless ripping loop.
+ripper :: (MonadRipper m) => Request -> Maybe FilePath -> Int -> Int -> m ()
+ripper request maybeOutputDir reconnectDelay smallReconnectDelay =
   repeatForever $ do
-    rip request maybeOutputDir
-    delayReconnect reconnectDelay
+    result <- rip request maybeOutputDir
+    delayReconnect $ case result of
+      RipNothing -> reconnectDelay
+      RipRecorded -> smallReconnectDelay
 
 delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => Int -> m ()
 delayWithLog reconnectDelay = do
@@ -50,7 +60,7 @@ delayWithLog reconnectDelay = do
   logDebug "Reconnecting"
 
 -- | Rips a stream for as long as the connection is open.
-ripOneStream :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env) => Request -> Maybe FilePath -> m ()
+ripOneStream :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env) => Request -> Maybe FilePath -> m RipResult
 ripOneStream request maybeOutputDir =
   runResourceT . handle httpExceptionHandler . httpSink request $ \response -> do
     logInfo . displayShow . getResponseStatus $ response
@@ -64,19 +74,26 @@ ripOneStream request maybeOutputDir =
 
     filename <- liftIO getFilename
     sinkFile $ maybe filename (</> filename) maybeOutputDir
+    pure RipRecorded
 
-httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m ()
-httpExceptionHandler e = logError $ case e of
-  -- for http exceptions, we don't print the request, only the exception details
-  HttpExceptionRequest _ content -> case content of
-    StatusCodeException response _ -> "Unsuccessful response: " <> displayShow (getResponseStatus response)
-    _ -> displayShow content
-  -- for invalid url exceptions, we print it as is
-  _ -> displayShow e
+httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m RipResult
+httpExceptionHandler e = do
+  logError $ case e of
+    -- for http exceptions, we don't print the request, only the exception details
+    HttpExceptionRequest _ content -> case content of
+      StatusCodeException response _ -> "Unsuccessful response: " <> displayShow (getResponseStatus response)
+      _ -> displayShow content
+    -- for invalid url exceptions, we print it as is
+    _ -> displayShow e
+
+  -- FIXME this is not necessarily true because, based on logs, the recording
+  -- started, but after 16 minutes the library threw an `IncompleteHeaders`
+  -- exception
+  pure RipNothing
 
 -- | Converts the number of seconds to the number of microseconds expected by `timeout`.
-secondsToTimeout :: Int -> Int
-secondsToTimeout = (* seconds)
+secondsToTimeout :: Float -> Int
+secondsToTimeout = round . (* seconds)
   where seconds = 1_000_000
 
 ensureDirectory :: MonadIO m => FilePath -> m ()

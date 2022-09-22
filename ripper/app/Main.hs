@@ -35,6 +35,12 @@ main = do
                       <> value 5
                       <> showDefault
                        )
+       <*> option auto ( short 's'
+                      <> help "Small reconnect delay, in seconds"
+                      <> metavar "reconnect_delay"
+                      <> value 1
+                      <> showDefault
+                       )
        <*> strArgument ( metavar "URL"
                       <> help "Stream URL"
                        )
