@@ -1,5 +1,5 @@
 name:                ripper
-version:             0.1.0.0
+version:             0.2.0
 github:              githubuser/ripper
 license:             BSD3
 author:              Author name here
@@ -33,6 +33,7 @@ ghc-options:
 - -Wmissing-home-modules
 - -Wpartial-fields
 - -Wredundant-constraints
+- -Werror=missing-methods
 
 library:
   source-dirs: src
@@ -40,8 +41,6 @@ library:
     - NumericUnderscores
   dependencies:
     - conduit
-    - directory
-    - filepath
     - http-conduit
 
 executables:
@@ -64,8 +63,10 @@ tests:
     dependencies:
     - ripper
     - hspec
+    - http-conduit
 
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -Wno-missing-export-lists

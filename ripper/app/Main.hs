@@ -1,10 +1,13 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Main (main) where
 
+import Data.Version (showVersion)
 import Import
 import Run
 import RIO.Process
+import qualified RIO.Text as T
 import Options.Applicative.Simple
 import qualified Paths_ripper
 
@@ -35,6 +38,12 @@ main = do
                       <> value 5
                       <> showDefault
                        )
+       <*> option auto ( short 's'
+                      <> help "Small reconnect delay, in seconds"
+                      <> metavar "reconnect_delay"
+                      <> value 1
+                      <> showDefault
+                       )
        <*> strArgument ( metavar "URL"
                       <> help "Stream URL"
                        )
@@ -47,5 +56,6 @@ main = do
           { appLogFunc = lf
           , appProcessContext = pc
           , appOptions = options
+          , appUserAgent = "ripper/" <> T.pack (showVersion Paths_ripper.version)
           }
      in runRIO app run

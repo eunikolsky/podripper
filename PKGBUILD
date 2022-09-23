@@ -1,7 +1,7 @@
 # Maintainer: Eugene Nikolsky <e@egeek.me>
 pkgname=podripper
 # FIXME define one version
-pkgver=0.6.1
+pkgver=0.6.2
 pkgrel=1
 pkgdesc="Rips online podcast streams and generates RSS for them"
 arch=('x86_64')
