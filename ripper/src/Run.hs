@@ -28,9 +28,14 @@ run = do
       reconnectDelay = secondsToTimeout $ optionsReconnectDelay options
       smallReconnectDelay = secondsToTimeout $ optionsSmallReconnectDelay options
 
-  request <- parseRequestThrow . T.unpack . optionsStreamURL $ options
+  userAgent <- asks appUserAgent
+
+  request <- fmap (setUserAgent userAgent) . parseRequestThrow . T.unpack . optionsStreamURL $ options
   void . timeout ripTimeout
     $ ripper request maybeOutputDir reconnectDelay smallReconnectDelay
+
+setUserAgent :: Text -> Request -> Request
+setUserAgent = addRequestHeader "User-Agent" . encodeUtf8
 
 -- | The result of a single rip call. The information conveyed by this type
 -- is whether the call has received and saved any data.
