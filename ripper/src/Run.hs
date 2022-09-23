@@ -79,9 +79,22 @@ delayWithLog reconnectDelay = do
 
 -- | Rips a stream for as long as the connection is open.
 ripOneStream :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env) => Request -> Maybe FilePath -> m RipResult
-ripOneStream request maybeOutputDir =
-  runResourceT . handle httpExceptionHandler . httpSink request $ \response -> do
+ripOneStream request maybeOutputDir = do
+  {-
+   - I need to know if `httpSink` receives a successful response and records
+   - anything even in the case an exception is then thrown; I couldn't find a
+   - better (purer) way to extract a flag from within the closure than an `IORef`,
+   - using a `WriterT` complained about:
+   - `• Could not deduce (MonadUnliftIO (WriterT Any m)) arising from a use of ‘runResourceT’
+        from the context: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)`
+   - As the doc says, `MonadUnliftIO` doesn't work with stateful monads :(
+   -}
+  recordedAnythingVar <- newIORef False
+
+  ripResult <- runResourceT . handle httpExceptionHandler . httpSink request $ \response -> do
     logInfo . displayShow . getResponseStatus $ response
+
+    writeIORef recordedAnythingVar True
 
     {-
     - I want to include the time at which we start receiving the response body
@@ -94,6 +107,18 @@ ripOneStream request maybeOutputDir =
     sinkFile $ maybe filename (</> filename) maybeOutputDir
     pure RipRecorded
 
+  {-
+   - after a possible http exception is handled, we need to figure out if
+   - anything was recorded (i.e. we got a successful response): because an
+   - exception can be thrown in the middle of the connection, we also need to
+   - consider the value of `recordedAnythingVar`
+   -}
+  case ripResult of
+    RipRecorded -> pure RipRecorded
+    RipNothing -> do
+      recordedAnything <- readIORef recordedAnythingVar
+      pure $ if recordedAnything then RipRecorded else RipNothing
+
 httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m RipResult
 httpExceptionHandler e = do
   logError $ case e of
@@ -104,9 +129,10 @@ httpExceptionHandler e = do
     -- for invalid url exceptions, we print it as is
     _ -> displayShow e
 
-  -- FIXME this is not necessarily true because, based on logs, the recording
+  -- this is not necessarily true because, based on logs, the recording
   -- started, but after 16 minutes the library threw an `IncompleteHeaders`
-  -- exception
+  -- exception, so there is an extra step to verify it *after* the exception
+  -- handler; see `ripOneStream`
   pure RipNothing
 
 -- | Converts the number of seconds to the number of microseconds expected by `timeout`.
