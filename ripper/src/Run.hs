@@ -3,6 +3,7 @@
 module Run
   ( MonadRipper(..)
   , RipResult(..)
+  , handleResourceVanished
   , run, ripper
   ) where
 
@@ -15,6 +16,7 @@ import RIO.FilePath ((</>))
 import RIO.State
 import qualified RIO.Text as T
 import RIO.Time
+import System.IO.Error (isResourceVanishedError)
 
 import Import
 
@@ -40,7 +42,7 @@ setUserAgent = addRequestHeader "User-Agent" . encodeUtf8
 -- | The result of a single rip call. The information conveyed by this type
 -- is whether the call has received and saved any data.
 data RipResult = RipRecorded | RipNothing
-  deriving Eq
+  deriving (Eq, Show)
 
 class Monad m => MonadRipper m where
   rip :: Request -> Maybe FilePath -> m RipResult
@@ -96,21 +98,24 @@ ripOneStream request maybeOutputDir = do
    -}
   recordedAnythingVar <- newIORef False
 
-  ripResult <- runResourceT . handle httpExceptionHandler . httpSink request $ \response -> do
-    logInfo . displayShow . getResponseStatus $ response
+  ripResult <- runResourceT
+    . handleResourceVanished
+    . handle httpExceptionHandler
+    . httpSink request $ \response -> do
+      logInfo . displayShow . getResponseStatus $ response
 
-    writeIORef recordedAnythingVar True
+      writeIORef recordedAnythingVar True
 
-    {-
-    - I want to include the time at which we start receiving the response body
-    - (ideally, the body's first byte, not the header) in the filename;
-    - in this block, we have the `response` and are ready to stream the body,
-    - so this time should be good enough
-    -}
+      {-
+      - I want to include the time at which we start receiving the response body
+      - (ideally, the body's first byte, not the header) in the filename;
+      - in this block, we have the `response` and are ready to stream the body,
+      - so this time should be good enough
+      -}
 
-    filename <- liftIO getFilename
-    sinkFile $ maybe filename (</> filename) maybeOutputDir
-    pure RipRecorded
+      filename <- liftIO getFilename
+      sinkFile $ maybe filename (</> filename) maybeOutputDir
+      pure RipRecorded
 
   {-
    - after a possible http exception is handled, we need to figure out if
@@ -139,6 +144,15 @@ httpExceptionHandler e = do
   -- exception, so there is an extra step to verify it *after* the exception
   -- handler; see `ripOneStream`
   pure RipNothing
+
+-- | Handles the `ResourceVanished` IOError in order not to crash the program.
+-- It's now handled because "Network.Socket.recvBuf: resource vanished (Connection reset by peer)"
+-- crashed the ripper once while recording RCMP, apparently caused by a
+-- TCP RST packet.
+handleResourceVanished :: (MonadUnliftIO m) => m RipResult -> m RipResult
+handleResourceVanished = handleJust
+  (\e -> if isResourceVanishedError e then Just () else Nothing)
+  (const $ pure RipNothing)
 
 -- | Converts the number of seconds to the number of microseconds expected by `timeout`.
 secondsToTimeout :: Float -> Int
