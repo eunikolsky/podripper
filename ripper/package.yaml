@@ -1,5 +1,5 @@
 name:                ripper
-version:             0.2.0
+version:             0.2.1
 github:              githubuser/ripper
 license:             BSD3
 author:              Author name here
@@ -22,6 +22,9 @@ description:         Please see the README on Github at <https://github.com/gith
 dependencies:
 - base >= 4.11 && < 10
 - rio >= 0.1.12.0
+
+default-extensions:
+- OverloadedStrings
 
 ghc-options:
 - -Wall
@@ -62,6 +65,7 @@ tests:
     source-dirs:         test
     dependencies:
     - ripper
+    - bytestring
     - hspec
     - http-conduit
 

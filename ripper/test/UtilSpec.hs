@@ -3,13 +3,15 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module UtilSpec (spec) where
 
-import Import
+import Data.ByteString.Builder (toLazyByteString)
+import Import hiding (error)
 import Network.HTTP.Simple (parseRequest_)
 import RIO.List
 import RIO.Partial (fromJust)
 import RIO.State
 import RIO.Writer
 import Run
+import System.IO.Error
 import Test.Hspec
 
 spec :: Spec
@@ -52,6 +54,36 @@ spec = do
             delays = runTestM testState $ ripper request Nothing 10000 smallDelay
 
         delays `shouldBe` expectedDelays
+
+  describe "handleResourceVanished" $ do
+    it "catches ResourceVanished IOError" $ do
+      let io = liftIO . ioError $ mkIOError resourceVanishedErrorType "Network.Socket.recvBuf" Nothing Nothing
+      (_, logOpts) <- logOptionsMemory
+      withLogFunc logOpts $ \logFunc -> do
+        actual <- flip runReaderT logFunc $ handleResourceVanished io
+        actual `shouldBe` RipNothing
+
+    it "doesn't do anything on no exception" $ do
+      let io = pure RipRecorded
+      (_, logOpts) <- logOptionsMemory
+      withLogFunc logOpts $ \logFunc -> do
+        actual <- flip runReaderT logFunc $ handleResourceVanished io
+        actual `shouldBe` RipRecorded
+
+    it "ignores another IOError" $ do
+      let error = mkIOError fullErrorType "" Nothing Nothing
+          io = liftIO $ ioError error
+      (_, logOpts) <- logOptionsMemory
+      withLogFunc logOpts $ \logFunc -> do
+        flip runReaderT logFunc (handleResourceVanished io) `shouldThrow` (== error)
+
+    it "logs the exception" $ do
+      let io = liftIO . ioError $ mkIOError resourceVanishedErrorType "Network.Socket.recvBuf" Nothing Nothing
+      (builderRef, logOpts) <- logOptionsMemory
+      _ <- withLogFunc logOpts $ \logFunc ->
+        flip runReaderT logFunc $ handleResourceVanished io
+      builder <- readIORef builderRef
+      toLazyByteString builder `shouldBe` "Network.Socket.recvBuf: resource vanished\n"
 
 type NumActions = Int
 
