@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module UtilSpec (spec) where
 
+import Data.ByteString.Builder (toLazyByteString)
 import Import hiding (error)
 import Network.HTTP.Simple (parseRequest_)
 import RIO.List
@@ -56,19 +57,33 @@ spec = do
 
   describe "handleResourceVanished" $ do
     it "catches ResourceVanished IOError" $ do
-      let io = ioError $ mkIOError resourceVanishedErrorType "Network.Socket.recvBuf" Nothing Nothing
-      actual <- handleResourceVanished io
-      actual `shouldBe` RipNothing
+      let io = liftIO . ioError $ mkIOError resourceVanishedErrorType "Network.Socket.recvBuf" Nothing Nothing
+      (_, logOpts) <- logOptionsMemory
+      withLogFunc logOpts $ \logFunc -> do
+        actual <- flip runReaderT logFunc $ handleResourceVanished io
+        actual `shouldBe` RipNothing
 
     it "doesn't do anything on no exception" $ do
       let io = pure RipRecorded
-      actual <- handleResourceVanished io
-      actual `shouldBe` RipRecorded
+      (_, logOpts) <- logOptionsMemory
+      withLogFunc logOpts $ \logFunc -> do
+        actual <- flip runReaderT logFunc $ handleResourceVanished io
+        actual `shouldBe` RipRecorded
 
     it "ignores another IOError" $ do
       let error = mkIOError fullErrorType "" Nothing Nothing
-          io = ioError error
-      handleResourceVanished io `shouldThrow` (== error)
+          io = liftIO $ ioError error
+      (_, logOpts) <- logOptionsMemory
+      withLogFunc logOpts $ \logFunc -> do
+        flip runReaderT logFunc (handleResourceVanished io) `shouldThrow` (== error)
+
+    it "logs the exception" $ do
+      let io = liftIO . ioError $ mkIOError resourceVanishedErrorType "Network.Socket.recvBuf" Nothing Nothing
+      (builderRef, logOpts) <- logOptionsMemory
+      _ <- withLogFunc logOpts $ \logFunc ->
+        flip runReaderT logFunc $ handleResourceVanished io
+      builder <- readIORef builderRef
+      toLazyByteString builder `shouldBe` "Network.Socket.recvBuf: resource vanished\n"
 
 type NumActions = Int
 

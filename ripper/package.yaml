@@ -23,6 +23,9 @@ dependencies:
 - base >= 4.11 && < 10
 - rio >= 0.1.12.0
 
+default-extensions:
+- OverloadedStrings
+
 ghc-options:
 - -Wall
 - -Wcompat
@@ -62,6 +65,7 @@ tests:
     source-dirs:         test
     dependencies:
     - ripper
+    - bytestring
     - hspec
     - http-conduit
 

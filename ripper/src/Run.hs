@@ -149,10 +149,13 @@ httpExceptionHandler e = do
 -- It's now handled because "Network.Socket.recvBuf: resource vanished (Connection reset by peer)"
 -- crashed the ripper once while recording RCMP, apparently caused by a
 -- TCP RST packet.
-handleResourceVanished :: (MonadUnliftIO m) => m RipResult -> m RipResult
+handleResourceVanished :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env) => m RipResult -> m RipResult
 handleResourceVanished = handleJust
-  (\e -> if isResourceVanishedError e then Just () else Nothing)
-  (const $ pure RipNothing)
+  (\e -> if isResourceVanishedError e then Just e else Nothing)
+  -- note: it may look strange that the same exception `e` is passed to the handler
+  -- after filtering, so I could use `handle` to avoid that, but that implementation
+  -- would require manual rethrowing of all other types of exceptions
+  (\e -> logError (displayShow e) >> pure RipNothing)
 
 -- | Converts the number of seconds to the number of microseconds expected by `timeout`.
 secondsToTimeout :: Float -> Int
