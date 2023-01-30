@@ -1,8 +1,8 @@
 [Timer]
 # The official start time is around Fri 16:00 Toronto
 # https://rcmp.me/live_stream/
-# but recent streams started around 13:45
-OnCalendar=Fri 13:00 America/Toronto
+# but streams now typically start around 14:50
+OnCalendar=Fri 14:00 America/Toronto
 # Extra streams started happening on some Saturdays
 OnCalendar=Sat 05:45 America/Toronto
 # Some previous streams were on Thursdays
