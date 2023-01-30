@@ -20,7 +20,7 @@ data RSSFeedConfig = RSSFeedConfig
   , selfLink :: T.Text
   , upstreamRSSURL :: Maybe T.Text
   }
-  deriving (Eq, Generic, FromJSON, Show, ToJSON)
+  deriving (Eq, Generic, FromJSON, Show)
 
 -- | The program version to use in the RSS feed.
 newtype ProgramVersion = ProgramVersion String
