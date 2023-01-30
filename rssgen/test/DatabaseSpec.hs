@@ -69,6 +69,17 @@ spec =
       liftIO $ closeDatabase conn
       actual `shouldBe` Just newer
 
+    it "returns the closest item within specified interval in the past" $ do
+      let item0 = UpstreamRSSItem "item0" (utcTime 2023 01 04 02 01 00) "" "" podcastId
+          item1 = UpstreamRSSItem "item1" (utcTime 2023 01 03 01 01 00) "" "" podcastId
+          time = utcTime 2023 01 03 13 00 00
+
+      conn <- liftIO $ openDatabase InMemory
+      saveUpstreamRSSItems conn [item0, item1]
+      actual <- closestUpstreamItemToTime (Hours 12) podcastId conn time
+      liftIO $ closeDatabase conn
+      actual `shouldBe` Just item1
+
   where
     utcTime :: Integer -> Int -> Int -> Int -> Int -> Int -> UTCTime
     utcTime year month day hour minute second = UTCTime
