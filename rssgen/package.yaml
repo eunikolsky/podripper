@@ -64,5 +64,6 @@ tests:
     dependencies:
     - hspec
     - hspec-discover
+    - raw-strings-qq
     - rssgen
     - time
