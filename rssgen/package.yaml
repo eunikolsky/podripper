@@ -32,6 +32,9 @@ dependencies:
 - time
 - transformers
 
+ghc-options:
+- -Werror=missing-fields
+
 library:
   source-dirs: src
   dependencies:

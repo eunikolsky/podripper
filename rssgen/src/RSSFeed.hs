@@ -1,14 +1,13 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module RSSFeed where
 
 import Data.Aeson
 import qualified Data.Text as T
-import GHC.Generics
 import Text.XML.Light
 
 import RSSItem
+import Types
 
 -- | Values for the RSS feed tags.
 data RSSFeedConfig = RSSFeedConfig
@@ -19,8 +18,24 @@ data RSSFeedConfig = RSSFeedConfig
   , imageLink :: T.Text
   , selfLink :: T.Text
   , upstreamRSSURL :: Maybe T.Text
+  -- TODO extract this with `upstreamRSSURL` into a separate type because this
+  -- interval doesn't make sense if there is no upstream URL?
+  , closestUpstreamItemInterval :: Hours
   }
-  deriving (Eq, Generic, FromJSON, Show)
+  deriving (Eq, Show)
+
+instance FromJSON RSSFeedConfig where
+  parseJSON = withObject "RSSFeedConfig" $ \v -> RSSFeedConfig
+    <$> v .: "title"
+    <*> v .: "description"
+    <*> v .: "language"
+    <*> v .: "podcastLink"
+    <*> v .: "imageLink"
+    <*> v .: "selfLink"
+    <*> v .:? "upstreamRSSURL"
+    -- note: the JSON key is slightly more specific because there is no type information there
+    -- TODO is it possible to override the key in `FromJSON Hours` itself?
+    <*> v .: "closestUpstreamItemIntervalHours"
 
 -- | The program version to use in the RSS feed.
 newtype ProgramVersion = ProgramVersion String
@@ -29,7 +44,7 @@ newtype ProgramVersion = ProgramVersion String
 feed :: ProgramVersion -> RSSFeedConfig -> [RSSItem] -> String
 feed
     (ProgramVersion version)
-    (RSSFeedConfig fcTitle fcDescription fcLanguage fcPodcastLink fcImageLink fcSelfLink _)
+    (RSSFeedConfig fcTitle fcDescription fcLanguage fcPodcastLink fcImageLink fcSelfLink _ _)
     rssItems =
   ppcElement config rss
   where

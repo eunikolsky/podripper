@@ -7,6 +7,7 @@ import Data.Time.Calendar
 import Data.Time.Clock
 
 import Database
+import Types
 import UpstreamRSSFeed
 
 import Test.Hspec

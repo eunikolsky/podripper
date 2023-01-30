@@ -1,4 +1,5 @@
 {
+    "closestUpstreamItemIntervalHours": 24,
     "description": "Запись потока Радио-Т",
     "imageLink": "https://podcasts.example.org/radiot/cover.jpg",
     "language": "ru",

@@ -1,4 +1,5 @@
 {
+    "closestUpstreamItemIntervalHours": 10,
     "description": "Запись потока RCMP",
     "imageLink": "https://podcasts.example.org/rcmp/cover.jpg",
     "language": "ru",

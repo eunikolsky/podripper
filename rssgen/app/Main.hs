@@ -58,7 +58,7 @@ main = withVersionAddendum $ do
       --     arising from a use of ‘downloadRadioTRSS’
       liftIO $ runReaderT (runHTTPClientDownloadT $ downloadRSS url) manager
 
-    versioned 22 $ "*.rss" %> \out -> do
+    versioned 23 $ "*.rss" %> \out -> do
       getRSSGenVersion $ RSSGenVersion ()
 
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
@@ -81,8 +81,10 @@ generateFeed feedConfig conn out = do
   -- directory of the same name as the podcast title
   let podcastTitle = dropExtension out
   mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
-  let day = Hours 24
-      findUpstreamItem = closestUpstreamItemToTime day (T.pack podcastTitle) conn
+  let findUpstreamItem = closestUpstreamItemToTime
+        (closestUpstreamItemInterval feedConfig)
+        (T.pack podcastTitle)
+        conn
   rssItems <- liftIO . fmap (newestFirst . catMaybes) $ traverse (rssItemFromFile podcastTitle findUpstreamItem) mp3Files
 
   version <- askOracle $ RSSGenVersion ()

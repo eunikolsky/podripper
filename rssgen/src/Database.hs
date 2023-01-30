@@ -2,7 +2,6 @@
 
 module Database
   ( FileSpec(..)
-  , Hours(..)
   , closeDatabase
   , closestUpstreamItemToTime
   , openDatabase
@@ -15,6 +14,7 @@ import Data.Maybe (listToMaybe)
 import Data.Time.Clock
 import Data.Time.Format
 
+import Types
 import qualified UpstreamRSSFeed
 
 data FileSpec
@@ -55,9 +55,6 @@ saveUpstreamRSSItems conn
   . oldestFirst
 
   where oldestFirst = sortOn UpstreamRSSFeed.pubDate
-
--- | Represents an integer number of hours.
-newtype Hours = Hours { getHours :: Int }
 
 -- | Returns an upstream RSS item closest to @time@ if it's within the specified amount of hours.
 closestUpstreamItemToTime :: Hours -> UpstreamRSSFeed.PodcastId -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)

@@ -4,6 +4,7 @@
 module RSSFeedSpec where
 
 import RSSFeed
+import Types
 
 import Data.Aeson
 import Test.Hspec
@@ -17,7 +18,8 @@ spec = do
         let text = [r|{
         "title": "foo", "description": "bar", "language": "en",
         "podcastLink": "podcast.link", "imageLink": "image.link",
-        "selfLink": "self.link", "upstreamRSSURL": "url"
+        "selfLink": "self.link", "upstreamRSSURL": "url",
+        "closestUpstreamItemIntervalHours": 8
         }|]
             expected = RSSFeedConfig
               { title = "foo"
@@ -27,6 +29,7 @@ spec = do
               , imageLink = "image.link"
               , selfLink = "self.link"
               , upstreamRSSURL = Just "url"
+              , closestUpstreamItemInterval = Hours 8
               }
         eitherDecode' text `shouldBe` Right expected
 
@@ -34,7 +37,7 @@ spec = do
         let text = [r|{
         "title": "foo", "description": "bar", "language": "en",
         "podcastLink": "podcast.link", "imageLink": "image.link",
-        "selfLink": "self.link"
+        "selfLink": "self.link", "closestUpstreamItemIntervalHours": 24
         }|]
             expected = RSSFeedConfig
               { title = "foo"
@@ -44,5 +47,6 @@ spec = do
               , imageLink = "image.link"
               , selfLink = "self.link"
               , upstreamRSSURL = Nothing
+              , closestUpstreamItemInterval = Hours 24
               }
         eitherDecode' text `shouldBe` Right expected
