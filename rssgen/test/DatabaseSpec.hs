@@ -16,7 +16,7 @@ podcastId = "radiot" :: PodcastId
 spec :: Spec
 spec =
   describe "closestUpstreamItemToTime" $ do
-    it "returns the closest item by time" $ do
+    it "returns the closest item by time within one day" $ do
       let item0 = UpstreamRSSItem "item0" (utcTime 2020 01 01 10 15 00) "" "" podcastId
           item1 = UpstreamRSSItem "item1" (utcTime 2020 01 04 10 15 00) "" "" podcastId
           time = utcTime 2020 01 03 12 00 00
@@ -54,6 +54,18 @@ spec =
       conn <- liftIO $ openDatabase InMemory
       saveUpstreamRSSItems conn [newer, older]
       actual <- closestUpstreamItemToTime (Hours 24) podcastId conn time
+      liftIO $ closeDatabase conn
+      actual `shouldBe` Just newer
+
+    it "returns newest item when there are multiple items within specified interval" $ do
+      let tooNew = UpstreamRSSItem "tooNew" (utcTime 2021 08 14 01 14 30) "" "" podcastId
+          newer = UpstreamRSSItem "newer" (utcTime 2021 08 14 00 14 30) "" "" podcastId
+          older = UpstreamRSSItem "older" (utcTime 2021 08 13 23 04 06) "" "" podcastId
+          time = utcTime 2021 08 13 22 47 09
+
+      conn <- liftIO $ openDatabase InMemory
+      saveUpstreamRSSItems conn [tooNew, newer, older]
+      actual <- closestUpstreamItemToTime (Hours 2) podcastId conn time
       liftIO $ closeDatabase conn
       actual `shouldBe` Just newer
 

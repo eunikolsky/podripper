@@ -59,14 +59,14 @@ saveUpstreamRSSItems conn
 -- | Represents an integer number of hours.
 newtype Hours = Hours { getHours :: Int }
 
--- | Returns an upstream RSS item closest to @time@ if it's within one day.
+-- | Returns an upstream RSS item closest to @time@ if it's within the specified amount of hours.
 closestUpstreamItemToTime :: Hours -> UpstreamRSSFeed.PodcastId -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
-closestUpstreamItemToTime _ podcast conn time = do
+closestUpstreamItemToTime (Hours maxHours) podcast conn time = do
   r <- queryNamed conn
     "SELECT podcast,title,description,guid,publishedAt FROM episode\
     \ WHERE podcast = :podcast AND\
-      \ (publishedAt BETWEEN strftime('%s', :date, '-1 days') AND strftime('%s', :date, '+1 days'))\
+      \ (publishedAt BETWEEN strftime('%s', :date, '-' || :hours || ' hours') AND strftime('%s', :date, '+' || :hours || ' hours'))\
     \ ORDER BY abs(publishedAt - strftime('%s', :date)) DESC, publishedAt DESC\
     \ LIMIT 1"
-    [":podcast" := podcast, ":date" := formatTime defaultTimeLocale "%F %T" time]
+    [":podcast" := podcast, ":date" := formatTime defaultTimeLocale "%F %T" time, ":hours" := maxHours]
   pure $ listToMaybe r
