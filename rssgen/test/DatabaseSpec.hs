@@ -23,7 +23,7 @@ spec =
 
       conn <- liftIO $ openDatabase InMemory
       saveUpstreamRSSItems conn [item0, item1]
-      actual <- closestUpstreamItemToTime podcastId conn time
+      actual <- closestUpstreamItemToTime (Hours 24) podcastId conn time
       liftIO $ closeDatabase conn
       actual `shouldBe` Just item1
 
@@ -34,7 +34,7 @@ spec =
 
       conn <- liftIO $ openDatabase InMemory
       saveUpstreamRSSItems conn [item0, item1]
-      actual <- closestUpstreamItemToTime podcastId conn time
+      actual <- closestUpstreamItemToTime (Hours 24) podcastId conn time
       liftIO $ closeDatabase conn
       actual `shouldBe` Nothing
 
@@ -42,7 +42,7 @@ spec =
       let time = utcTime 2020 01 03 12 00 00
 
       conn <- liftIO $ openDatabase InMemory
-      actual <- closestUpstreamItemToTime podcastId conn time
+      actual <- closestUpstreamItemToTime (Hours 24) podcastId conn time
       liftIO $ closeDatabase conn
       actual `shouldBe` Nothing
 
@@ -53,7 +53,7 @@ spec =
 
       conn <- liftIO $ openDatabase InMemory
       saveUpstreamRSSItems conn [newer, older]
-      actual <- closestUpstreamItemToTime podcastId conn time
+      actual <- closestUpstreamItemToTime (Hours 24) podcastId conn time
       liftIO $ closeDatabase conn
       actual `shouldBe` Just newer
 

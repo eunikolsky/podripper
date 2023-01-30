@@ -2,6 +2,7 @@
 
 module Database
   ( FileSpec(..)
+  , Hours(..)
   , closeDatabase
   , closestUpstreamItemToTime
   , openDatabase
@@ -55,9 +56,12 @@ saveUpstreamRSSItems conn
 
   where oldestFirst = sortOn UpstreamRSSFeed.pubDate
 
+-- | Represents an integer number of hours.
+newtype Hours = Hours { getHours :: Int }
+
 -- | Returns an upstream RSS item closest to @time@ if it's within one day.
-closestUpstreamItemToTime :: UpstreamRSSFeed.PodcastId -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
-closestUpstreamItemToTime podcast conn time = do
+closestUpstreamItemToTime :: Hours -> UpstreamRSSFeed.PodcastId -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+closestUpstreamItemToTime _ podcast conn time = do
   r <- queryNamed conn
     "SELECT podcast,title,description,guid,publishedAt FROM episode\
     \ WHERE podcast = :podcast AND\

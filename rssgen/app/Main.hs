@@ -81,7 +81,8 @@ generateFeed feedConfig conn out = do
   -- directory of the same name as the podcast title
   let podcastTitle = dropExtension out
   mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
-  let findUpstreamItem = closestUpstreamItemToTime (T.pack podcastTitle) conn
+  let day = Hours 24
+      findUpstreamItem = closestUpstreamItemToTime day (T.pack podcastTitle) conn
   rssItems <- liftIO . fmap (newestFirst . catMaybes) $ traverse (rssItemFromFile podcastTitle findUpstreamItem) mp3Files
 
   version <- askOracle $ RSSGenVersion ()
