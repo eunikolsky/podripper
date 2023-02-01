@@ -14,6 +14,7 @@ import Data.Maybe (listToMaybe)
 import Data.Time.Clock
 import Data.Time.Format
 
+import Types
 import qualified UpstreamRSSFeed
 
 data FileSpec
@@ -55,14 +56,14 @@ saveUpstreamRSSItems conn
 
   where oldestFirst = sortOn UpstreamRSSFeed.pubDate
 
--- | Returns an upstream RSS item closest to @time@ if it's within one day.
-closestUpstreamItemToTime :: UpstreamRSSFeed.PodcastId -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
-closestUpstreamItemToTime podcast conn time = do
+-- | Returns an upstream RSS item closest to @time@ if it's within the specified amount of hours.
+closestUpstreamItemToTime :: Hours -> UpstreamRSSFeed.PodcastId -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+closestUpstreamItemToTime (Hours maxHours) podcast conn time = do
   r <- queryNamed conn
     "SELECT podcast,title,description,guid,publishedAt FROM episode\
     \ WHERE podcast = :podcast AND\
-      \ (publishedAt BETWEEN strftime('%s', :date, '-1 days') AND strftime('%s', :date, '+1 days'))\
+      \ (publishedAt BETWEEN strftime('%s', :date, '-' || :hours || ' hours') AND strftime('%s', :date, '+' || :hours || ' hours'))\
     \ ORDER BY abs(publishedAt - strftime('%s', :date)) DESC, publishedAt DESC\
     \ LIMIT 1"
-    [":podcast" := podcast, ":date" := formatTime defaultTimeLocale "%F %T" time]
+    [":podcast" := podcast, ":date" := formatTime defaultTimeLocale "%F %T" time, ":hours" := maxHours]
   pure $ listToMaybe r

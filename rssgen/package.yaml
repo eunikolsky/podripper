@@ -1,5 +1,5 @@
 name:                rssgen
-version:             0.5.1.0
+version:             0.6.0.0
 github:              "githubuser/rssgen"
 license:             MIT
 author:              "Eugene Nikolsky <e@egeek.me>"
@@ -31,6 +31,9 @@ dependencies:
 - text
 - time
 - transformers
+
+ghc-options:
+- -Werror=missing-fields
 
 library:
   source-dirs: src
@@ -64,5 +67,6 @@ tests:
     dependencies:
     - hspec
     - hspec-discover
+    - raw-strings-qq
     - rssgen
     - time

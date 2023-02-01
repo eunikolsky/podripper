@@ -1,4 +1,5 @@
 {
+    "closestUpstreamItemIntervalHours": 24,
     "description": "Тестовая запись потока интернет-радио",
     "imageLink": "",
     "language": "en",
