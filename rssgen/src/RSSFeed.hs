@@ -74,6 +74,6 @@ feed
 
 type PodcastTitle = String
 
-parseFeed :: FilePath -> PodcastTitle -> IO (Either String RSSFeedConfig)
-parseFeed dir podcastTitle = eitherDecodeFileStrict' filename
+parseFeed :: FilePath -> PodcastTitle -> IO (Either String RSSFeedConfig, FilePath)
+parseFeed dir podcastTitle = (,) <$> eitherDecodeFileStrict' filename <*> pure filename
   where filename = dir </> podcastTitle <> "_feed" <.> "json"
