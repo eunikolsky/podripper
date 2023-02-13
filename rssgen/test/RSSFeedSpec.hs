@@ -85,6 +85,13 @@ spec = do
       (_, actualFilename) <- parseFeed dir feedName
       actualFilename `shouldBe` filename
 
+    it "returns an error when parsing fails" $ do
+      ensureDirectory dir
+      BS.writeFile filename BS.empty
+
+      (error, _) <- parseFeed dir feedName
+      isLeft error `shouldBe` True
+
 ensureDirectory :: FilePath -> IO ()
 ensureDirectory dir = catchJust
   (\e -> if isAlreadyExistsError e then Just () else Nothing)
