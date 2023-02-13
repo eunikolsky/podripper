@@ -4,6 +4,7 @@ module RSSFeed where
 
 import Data.Aeson
 import qualified Data.Text as T
+import System.FilePath
 import Text.XML.Light
 
 import RSSItem
@@ -70,3 +71,9 @@ feed
     items = renderItem (T.unpack fcPodcastLink) <$> rssItems
 
     unodet name = unode name . T.unpack
+
+type PodcastTitle = String
+
+parseFeed :: FilePath -> PodcastTitle -> IO (Either String RSSFeedConfig)
+parseFeed dir podcastTitle = eitherDecodeFileStrict' filename
+  where filename = dir </> podcastTitle <> "_feed" <.> "json"

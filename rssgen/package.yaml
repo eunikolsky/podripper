@@ -65,6 +65,8 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - directory
+    - filepath
     - hspec
     - hspec-discover
     - raw-strings-qq
