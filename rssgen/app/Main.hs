@@ -62,15 +62,17 @@ main = withVersionAddendum $ do
 
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
       let podcastTitle = dropExtension out
-      (feedConfig, feedConfigFile) <- liftIO $ parseFeed configDir podcastTitle
-      need [feedConfigFile]
+      (feedConfig, feedConfigFiles) <- liftIO $ parseFeed configDir podcastTitle
+      need feedConfigFiles
       case feedConfig of
         Just config -> do
           conn <- liftIO $ openDatabase DefaultFile
           processUpstreamRSS upstreamRSS (T.pack podcastTitle) config conn
           generateFeed config conn out
           liftIO $ close conn
-        Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
+        Nothing -> fail
+          $ "Couldn't parse feed config files "
+          <> intercalate ", " feedConfigFiles
 
 -- | Generates the feed at the requested path.
 generateFeed :: RSSFeedConfig -> Connection -> FilePattern -> Action ()

@@ -6,7 +6,7 @@ module RSSFeedSpec where
 import RSSFeed
 import Types
 
-import Control.Exception
+import Control.Monad
 import Data.Aeson
 import Data.Maybe
 import Data.String
@@ -73,31 +73,31 @@ spec = do
 
     describe "no overlay file" $ do
       it "parses RSSFeedConfig from file based on feed name" $ do
-        ensureDirectory dir
+        ensureEmptyDirectory dir
         BS.writeFile filename validConfigString
 
         (feed, _) <- parseFeed dir feedName
         isJust feed `shouldBe` True
 
       it "returns the feed filename" $ do
-        ensureDirectory dir
+        ensureEmptyDirectory dir
         BS.writeFile filename validConfigString
 
-        (_, actualFilename) <- parseFeed dir feedName
-        actualFilename `shouldBe` filename
+        (_, actualFilenames) <- parseFeed dir feedName
+        actualFilenames `shouldBe` [filename]
 
       it "returns an error when parsing fails" $ do
-        ensureDirectory dir
+        ensureEmptyDirectory dir
         BS.writeFile filename BS.empty
 
         (error, _) <- parseFeed dir feedName
         isNothing error `shouldBe` True
 
     describe "overlay file support" $ do
-      it "overwrites fields from overlay file" $ do
-        let overlayFilename = dir </> feedName <> "_feed_overlay.json"
+      let overlayFilename = dir </> feedName <> "_feed_overlay.json"
 
-        ensureDirectory dir
+      it "overwrites fields from overlay file" $ do
+        ensureEmptyDirectory dir
         BS.writeFile filename validConfigString
         BS.writeFile overlayFilename [r|{"podcastLink": "overwrite", "imageLink": "newImage"}|]
 
@@ -115,8 +115,16 @@ spec = do
         (feed, _) <- parseFeed dir feedName
         feed `shouldBe` Just expected
 
-ensureDirectory :: FilePath -> IO ()
-ensureDirectory dir = catchJust
-  (\e -> if isAlreadyExistsError e then Just () else Nothing)
-  (createDirectory dir)
-  (const $ pure ())
+      it "returns the feed and overlay filenames" $ do
+        ensureEmptyDirectory dir
+        BS.writeFile filename validConfigString
+        BS.writeFile overlayFilename [r|{"podcastLink": "overwrite", "imageLink": "newImage"}|]
+
+        (_, actualFilenames) <- parseFeed dir feedName
+        actualFilenames `shouldMatchList` [filename, overlayFilename]
+
+ensureEmptyDirectory :: FilePath -> IO ()
+ensureEmptyDirectory dir = do
+  exists <- doesDirectoryExist dir
+  when exists $ removeDirectoryRecursive dir
+  createDirectory dir

@@ -80,15 +80,27 @@ feed
 
 type PodcastTitle = String
 
-parseFeed :: FilePath -> PodcastTitle -> IO (Maybe RSSFeedConfig, FilePath)
-parseFeed dir podcastTitle = fmap (, filename) . runMaybeT $ do
-  baseConfigValue <- MaybeT $ decodeFileStrict' filename
-  let decodeOverlayFile = MaybeT $ decodeFileStrict' overlayFilename
-      emptyOverlayFile = pure . Object $ KM.empty
-  overlayFileExists <- liftIO $ doesFileExist overlayFilename
-  overlayConfigValue <- if overlayFileExists then decodeOverlayFile else emptyOverlayFile
-  let configValue = mergeJSONValues baseConfigValue overlayConfigValue
-  MaybeT . pure $ parseMaybe parseJSON configValue
+-- | Parses `RSSFeedConfig` for podcast with `podcastTitle` from one or two
+-- config files in the directory `dir`, returns the result and the used filenames
+-- (this is necessary for Shake to keep track of file changes). To parse the
+-- config successfully:
+-- * the base config file must exist and have a valid json object;
+-- * if the overlay file exists, it must contain a valid json object, otherwise
+--   it's ignored; the fields are added or overwrite the fields in the base object;
+-- * the resulting object must be parseable into `RSSFeedConfig`.
+parseFeed :: FilePath -> PodcastTitle -> IO (Maybe RSSFeedConfig, [FilePath])
+parseFeed dir podcastTitle = do
+  overlayFileExists <- doesFileExist overlayFilename
+  maybeConfig <- runMaybeT $ do
+    baseConfigValue <- MaybeT $ decodeFileStrict' filename
+    let decodeOverlayFile = MaybeT $ decodeFileStrict' overlayFilename
+        emptyOverlayFile = pure . Object $ KM.empty
+    overlayConfigValue <- if overlayFileExists then decodeOverlayFile else emptyOverlayFile
+    let configValue = mergeJSONValues baseConfigValue overlayConfigValue
+    MaybeT . pure $ parseMaybe parseJSON configValue
+
+  let filenames = (if overlayFileExists then (overlayFilename :) else id) [filename]
+  pure (maybeConfig, filenames)
 
   where
     filename = dir </> podcastTitle <> "_feed" <.> "json"
