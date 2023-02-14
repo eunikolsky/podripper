@@ -62,7 +62,7 @@ main = withVersionAddendum $ do
 
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
       let podcastTitle = dropExtension out
-      (feedConfig, feedConfigFiles) <- liftIO $ parseFeed configDir podcastTitle
+      (feedConfig, feedConfigFiles) <- liftIO $ parseFeedConfig configDir podcastTitle
       need feedConfigFiles
       case feedConfig of
         Just config -> do

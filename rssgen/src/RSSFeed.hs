@@ -88,8 +88,8 @@ type PodcastTitle = String
 -- * if the overlay file exists, it must contain a valid json object, otherwise
 --   it's ignored; the fields are added or overwrite the fields in the base object;
 -- * the resulting object must be parseable into `RSSFeedConfig`.
-parseFeed :: FilePath -> PodcastTitle -> IO (Maybe RSSFeedConfig, [FilePath])
-parseFeed dir podcastTitle = do
+parseFeedConfig :: FilePath -> PodcastTitle -> IO (Maybe RSSFeedConfig, [FilePath])
+parseFeedConfig dir podcastTitle = do
   overlayFileExists <- doesFileExist overlayFilename
   maybeConfig <- runMaybeT $ do
     baseConfigValue <- MaybeT $ decodeFileStrict' filename

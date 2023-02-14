@@ -61,12 +61,12 @@ spec = do
         eitherDecode' text `shouldBe` Right expected
 
   -- warning: currently not `parallel`-safe!
-  -- the real filesystem IO is used for testing `parseFeed` here because the
+  -- the real filesystem IO is used for testing `parseFeedConfig` here because the
   -- implementation may or may not use a function like `eitherDecodeFileStrict`
   -- from `aeson`, which works in `IO`; using a custom monad for FS access,
   -- namely reading files, would force the implementation to read the file and
   -- parse JSON separately (which may or may not be fine)
-  describe "parseFeed" $ do
+  describe "parseFeedConfig" $ do
     let dir = "test/sandbox"
         feedName = "foo"
         filename = dir </> feedName <> "_feed.json"
@@ -76,22 +76,22 @@ spec = do
         ensureEmptyDirectory dir
         BS.writeFile filename validConfigString
 
-        (feed, _) <- parseFeed dir feedName
-        isJust feed `shouldBe` True
+        (config, _) <- parseFeedConfig dir feedName
+        isJust config `shouldBe` True
 
       it "returns the feed filename" $ do
         ensureEmptyDirectory dir
         BS.writeFile filename validConfigString
 
-        (_, actualFilenames) <- parseFeed dir feedName
+        (_, actualFilenames) <- parseFeedConfig dir feedName
         actualFilenames `shouldBe` [filename]
 
       it "returns an error when parsing fails" $ do
         ensureEmptyDirectory dir
         BS.writeFile filename BS.empty
 
-        (error, _) <- parseFeed dir feedName
-        isNothing error `shouldBe` True
+        (config, _) <- parseFeedConfig dir feedName
+        config `shouldBe` Nothing
 
     describe "overlay file support" $ do
       let overlayFilename = dir </> feedName <> "_feed_overlay.json"
@@ -112,15 +112,15 @@ spec = do
               , closestUpstreamItemInterval = Hours 8
               }
 
-        (feed, _) <- parseFeed dir feedName
-        feed `shouldBe` Just expected
+        (config, _) <- parseFeedConfig dir feedName
+        config `shouldBe` Just expected
 
       it "returns the feed and overlay filenames" $ do
         ensureEmptyDirectory dir
         BS.writeFile filename validConfigString
         BS.writeFile overlayFilename [r|{"podcastLink": "overwrite", "imageLink": "newImage"}|]
 
-        (_, actualFilenames) <- parseFeed dir feedName
+        (_, actualFilenames) <- parseFeedConfig dir feedName
         actualFilenames `shouldMatchList` [filename, overlayFilename]
 
 ensureEmptyDirectory :: FilePath -> IO ()
