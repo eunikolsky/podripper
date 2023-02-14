@@ -71,26 +71,27 @@ spec = do
         feedName = "foo"
         filename = dir </> feedName <> "_feed.json"
 
-    it "parses RSSFeedConfig from file based on feed name" $ do
-      ensureDirectory dir
-      BS.writeFile filename validConfigString
+    describe "no overlay file" $ do
+      it "parses RSSFeedConfig from file based on feed name" $ do
+        ensureDirectory dir
+        BS.writeFile filename validConfigString
 
-      (feed, _) <- parseFeed dir feedName
-      isJust feed `shouldBe` True
+        (feed, _) <- parseFeed dir feedName
+        isJust feed `shouldBe` True
 
-    it "returns the feed filename" $ do
-      ensureDirectory dir
-      BS.writeFile filename validConfigString
+      it "returns the feed filename" $ do
+        ensureDirectory dir
+        BS.writeFile filename validConfigString
 
-      (_, actualFilename) <- parseFeed dir feedName
-      actualFilename `shouldBe` filename
+        (_, actualFilename) <- parseFeed dir feedName
+        actualFilename `shouldBe` filename
 
-    it "returns an error when parsing fails" $ do
-      ensureDirectory dir
-      BS.writeFile filename BS.empty
+      it "returns an error when parsing fails" $ do
+        ensureDirectory dir
+        BS.writeFile filename BS.empty
 
-      (error, _) <- parseFeed dir feedName
-      isNothing error `shouldBe` True
+        (error, _) <- parseFeed dir feedName
+        isNothing error `shouldBe` True
 
     describe "overlay file support" $ do
       it "overwrites fields from overlay file" $ do
