@@ -6,7 +6,6 @@ module Main where
 
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
-import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
 import Data.Functor
 import Data.List
@@ -63,9 +62,8 @@ main = withVersionAddendum $ do
 
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
       let podcastTitle = dropExtension out
-          feedConfigFile = configDir </> podcastTitle <> "_feed.json"
+      (feedConfig, feedConfigFile) <- liftIO $ parseFeed configDir podcastTitle
       need [feedConfigFile]
-      feedConfig <- fmap decode . liftIO . BL.readFile $ feedConfigFile
       case feedConfig of
         Just config -> do
           conn <- liftIO $ openDatabase DefaultFile
