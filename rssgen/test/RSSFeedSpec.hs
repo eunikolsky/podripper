@@ -8,7 +8,7 @@ import Types
 
 import Control.Exception
 import Data.Aeson
-import Data.Either
+import Data.Maybe
 import Data.String
 import System.Directory
 import System.FilePath
@@ -76,7 +76,7 @@ spec = do
       BS.writeFile filename validConfigString
 
       (feed, _) <- parseFeed dir feedName
-      isRight feed `shouldBe` True
+      isJust feed `shouldBe` True
 
     it "returns the feed filename" $ do
       ensureDirectory dir
@@ -90,7 +90,7 @@ spec = do
       BS.writeFile filename BS.empty
 
       (error, _) <- parseFeed dir feedName
-      isLeft error `shouldBe` True
+      isNothing error `shouldBe` True
 
 ensureDirectory :: FilePath -> IO ()
 ensureDirectory dir = catchJust
