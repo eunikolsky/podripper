@@ -92,6 +92,28 @@ spec = do
       (error, _) <- parseFeed dir feedName
       isNothing error `shouldBe` True
 
+    describe "overlay file support" $ do
+      it "overwrites fields from overlay file" $ do
+        let overlayFilename = dir </> feedName <> "_feed_overlay.json"
+
+        ensureDirectory dir
+        BS.writeFile filename validConfigString
+        BS.writeFile overlayFilename [r|{"podcastLink": "overwrite", "imageLink": "newImage"}|]
+
+        let expected = RSSFeedConfig
+              { title = "foo"
+              , description = "bar"
+              , language = "en"
+              , podcastLink = "overwrite"
+              , imageLink = "newImage"
+              , selfLink = "self.link"
+              , upstreamRSSURL = Just "url"
+              , closestUpstreamItemInterval = Hours 8
+              }
+
+        (feed, _) <- parseFeed dir feedName
+        feed `shouldBe` Just expected
+
 ensureDirectory :: FilePath -> IO ()
 ensureDirectory dir = catchJust
   (\e -> if isAlreadyExistsError e then Just () else Nothing)

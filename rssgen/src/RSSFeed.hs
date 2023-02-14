@@ -1,9 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module RSSFeed where
 
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Maybe
 import Data.Aeson
+import qualified Data.Aeson.KeyMap as KM
+import Data.Aeson.Types
 import qualified Data.Text as T
+import System.Directory
 import System.FilePath
 import Text.XML.Light
 
@@ -75,5 +81,19 @@ feed
 type PodcastTitle = String
 
 parseFeed :: FilePath -> PodcastTitle -> IO (Maybe RSSFeedConfig, FilePath)
-parseFeed dir podcastTitle = (,) <$> decodeFileStrict' filename <*> pure filename
-  where filename = dir </> podcastTitle <> "_feed" <.> "json"
+parseFeed dir podcastTitle = fmap (, filename) . runMaybeT $ do
+  baseConfigValue <- MaybeT $ decodeFileStrict' filename
+  let decodeOverlayFile = MaybeT $ decodeFileStrict' overlayFilename
+      emptyOverlayFile = pure . Object $ KM.empty
+  overlayFileExists <- liftIO $ doesFileExist overlayFilename
+  overlayConfigValue <- if overlayFileExists then decodeOverlayFile else emptyOverlayFile
+  let configValue = mergeJSONValues baseConfigValue overlayConfigValue
+  MaybeT . pure $ parseMaybe parseJSON configValue
+
+  where
+    filename = dir </> podcastTitle <> "_feed" <.> "json"
+    overlayFilename = dir </> podcastTitle <> "_feed_overlay" <.> "json"
+
+mergeJSONValues :: Value -> Value -> Value
+mergeJSONValues (Object base) (Object overlay) = Object $ KM.union overlay base
+mergeJSONValues _ _ = error "mergeJSONValues expects to merge only objects"
