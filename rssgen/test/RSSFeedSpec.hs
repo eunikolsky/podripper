@@ -93,6 +93,12 @@ spec = do
         (config, _) <- parseFeedConfig dir feedName
         config `shouldBe` Nothing
 
+      it "returns an error when feed file is missing" $ do
+        ensureEmptyDirectory dir
+
+        (config, _) <- parseFeedConfig dir feedName
+        config `shouldBe` Nothing
+
     describe "overlay file support" $ do
       let overlayFilename = dir </> feedName <> "_feed_overlay.json"
 

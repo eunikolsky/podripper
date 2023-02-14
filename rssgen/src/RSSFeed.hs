@@ -3,6 +3,7 @@
 
 module RSSFeed where
 
+import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.Aeson
@@ -92,6 +93,8 @@ parseFeedConfig :: FilePath -> PodcastTitle -> IO (Maybe RSSFeedConfig, [FilePat
 parseFeedConfig dir podcastTitle = do
   overlayFileExists <- doesFileExist overlayFilename
   maybeConfig <- runMaybeT $ do
+    baseFileExists <- liftIO $ doesFileExist filename
+    guard baseFileExists
     baseConfigValue <- MaybeT $ decodeFileStrict' filename
     let decodeOverlayFile = MaybeT $ decodeFileStrict' overlayFilename
         emptyOverlayFile = pure . Object $ KM.empty
