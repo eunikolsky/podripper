@@ -85,7 +85,7 @@ type PodcastTitle = String
 -- config files in the directory `dir`, returns the result and the used filenames
 -- (this is necessary for Shake to keep track of file changes). To parse the
 -- config successfully:
--- * the base config file must exist and have a valid json object;
+-- * the base config file must exist and have a valid json object (could be empty);
 -- * if the overlay file exists, it must contain a valid json object, otherwise
 --   it's ignored; the fields are added or overwrite the fields in the base object;
 -- * the resulting object must be parseable into `RSSFeedConfig`.

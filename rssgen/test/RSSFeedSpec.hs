@@ -129,6 +129,13 @@ spec = do
         (_, actualFilenames) <- parseFeedConfig dir feedName
         actualFilenames `shouldMatchList` [filename, overlayFilename]
 
+      it "requires the base file" $ do
+        ensureEmptyDirectory dir
+        BS.writeFile overlayFilename validConfigString
+
+        (config, _) <- parseFeedConfig dir feedName
+        config `shouldBe` Nothing
+
 ensureEmptyDirectory :: FilePath -> IO ()
 ensureEmptyDirectory dir = do
   exists <- doesDirectoryExist dir
