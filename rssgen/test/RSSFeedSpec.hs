@@ -121,6 +121,31 @@ spec = do
         (config, _) <- parseFeedConfig dir feedName
         config `shouldBe` Just expected
 
+      it "adds fields from overlay file" $ do
+        ensureEmptyDirectory dir
+        BS.writeFile filename [r|{
+          "title": "foo", "description": "bar", "language": "en",
+          "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8
+          }|]
+        BS.writeFile overlayFilename [r|{
+          "podcastLink": "podcast.link", "imageLink": "image.link",
+          "selfLink": "self.link"
+          }|]
+
+        let expected = RSSFeedConfig
+              { title = "foo"
+              , description = "bar"
+              , language = "en"
+              , podcastLink = "podcast.link"
+              , imageLink = "image.link"
+              , selfLink = "self.link"
+              , upstreamRSSURL = Just "url"
+              , closestUpstreamItemInterval = Hours 8
+              }
+
+        (config, _) <- parseFeedConfig dir feedName
+        config `shouldBe` Just expected
+
       it "returns the feed and overlay filenames" $ do
         ensureEmptyDirectory dir
         BS.writeFile filename validConfigString
