@@ -144,6 +144,15 @@ spec = do
         (config, _) <- parseFeedConfig dir feedName
         config `shouldBe` Nothing
 
+      -- TODO return a more specific error for this case?
+      it "returns an error when config is incomplete" $ do
+        ensureEmptyDirectory dir
+        BS.writeFile filename [r|{"podcastLink": "link"}|]
+        BS.writeFile overlayFilename [r|{"imageLink": "image"}|]
+
+        (config, _) <- parseFeedConfig dir feedName
+        config `shouldBe` Nothing
+
 ensureEmptyDirectory :: FilePath -> IO ()
 ensureEmptyDirectory dir = do
   exists <- doesDirectoryExist dir
