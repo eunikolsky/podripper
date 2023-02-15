@@ -136,6 +136,14 @@ spec = do
         (config, _) <- parseFeedConfig dir feedName
         config `shouldBe` Nothing
 
+      it "returns an error when overlay parsing fails" $ do
+        ensureEmptyDirectory dir
+        BS.writeFile filename validConfigString
+        BS.writeFile overlayFilename [r|{"foo":bar}|]
+
+        (config, _) <- parseFeedConfig dir feedName
+        config `shouldBe` Nothing
+
 ensureEmptyDirectory :: FilePath -> IO ()
 ensureEmptyDirectory dir = do
   exists <- doesDirectoryExist dir
