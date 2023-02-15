@@ -1,2 +1,3 @@
 # built ArchLinux packages
 *.pkg.*
+conf/*_feed_overlay.json

@@ -13,7 +13,7 @@ COPY podripper.sh LICENSE \
     ripper/.stack-work/install/x86_64-linux-*/*/*/bin/ripper-exe \
     podripper/
 # multiple steps are necessary to copy every individual directory
-ADD conf podripper/conf
+COPY conf/*.conf conf/*.json podripper/conf/
 ADD systemd podripper/systemd
 
 # setup a regular build user because makepkg refuses to run as root
