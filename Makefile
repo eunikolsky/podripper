@@ -10,6 +10,10 @@ upload-pkg:
 	scp podripper*pkg* podripper:'~'
 
 .PHONY:
+test-pkg:
+	tar tvf podripper*pkg* usr/share/podripper/ >/dev/null
+
+.PHONY:
 clean-pkg:
 	trash podripper*pkg.tar* || true
 
