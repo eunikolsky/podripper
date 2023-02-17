@@ -1,10 +1,7 @@
 {
     "closestUpstreamItemIntervalHours": 24,
     "description": "Запись потока Радио-Т",
-    "imageLink": "https://podcasts.example.org/radiot/cover.jpg",
     "language": "ru",
-    "podcastLink": "https://podcasts.example.org/",
-    "selfLink": "https://podcasts.example.org/radiot.rss",
     "title": "Радио-Т Поток",
     "upstreamRSSURL": "https://radio-t.com/podcast.rss"
 }

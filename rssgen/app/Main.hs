@@ -6,7 +6,6 @@ module Main where
 
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
-import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
 import Data.Functor
 import Data.List
@@ -58,21 +57,22 @@ main = withVersionAddendum $ do
       --     arising from a use of ‘downloadRadioTRSS’
       liftIO $ runReaderT (runHTTPClientDownloadT $ downloadRSS url) manager
 
-    versioned 23 $ "*.rss" %> \out -> do
+    versioned 24 $ "*.rss" %> \out -> do
       getRSSGenVersion $ RSSGenVersion ()
 
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
       let podcastTitle = dropExtension out
-          feedConfigFile = configDir </> podcastTitle <> "_feed.json"
-      need [feedConfigFile]
-      feedConfig <- fmap decode . liftIO . BL.readFile $ feedConfigFile
+      (feedConfig, feedConfigFiles) <- liftIO $ parseFeedConfig configDir podcastTitle
+      need feedConfigFiles
       case feedConfig of
         Just config -> do
           conn <- liftIO $ openDatabase DefaultFile
           processUpstreamRSS upstreamRSS (T.pack podcastTitle) config conn
           generateFeed config conn out
           liftIO $ close conn
-        Nothing -> fail $ "Couldn't parse feed config file " <> feedConfigFile
+        Nothing -> fail
+          $ "Couldn't parse feed config files "
+          <> intercalate ", " feedConfigFiles
 
 -- | Generates the feed at the requested path.
 generateFeed :: RSSFeedConfig -> Connection -> FilePattern -> Action ()

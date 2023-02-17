@@ -3,7 +3,5 @@
     "description": "Тестовая запись потока интернет-радио",
     "imageLink": "",
     "language": "en",
-    "podcastLink": "https://podcasts.example.org/",
-    "selfLink": "https://podcasts.example.org/eradio.rss",
     "title": "Planet Music"
 }
