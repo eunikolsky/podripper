@@ -1,15 +1,30 @@
 .PHONY:
-sbf:
-	@stack build --fast
+check: check-build check-test
+# FIXME add check-hlint
 
 .PHONY:
-sbfw:
+check-build:
+	stack --verbosity error build --fast
+
+.PHONY:
+check-test:
+	stack --verbosity error test --fast --ta='-f silent' $(MAIN_TEST_TARGET)
+
+.PHONY:
+testd:
+	@ghcid -c "stack ghci --test --main-is $(MAIN_TEST_TARGET) --ghci-options=-fobject-code" --test "main"
+
+.PHONY:
+buildd:
+	@ghcid -c "stack ghci"
+
+.PHONY:
+buildfw:
 	@stack build --fast --file-watch
 
 .PHONY:
-ghcid-test:
-	@ghcid --command "stack ghci --test --main-is ripper:test:ripper-test --ghci-options=-fobject-code" --test "main"
+install-precommit-hook:
+	# GNU ln supports the `-r` option to create a relative symlink
+	gln -srv .git-pre-commit ../.git/hooks/pre-commit
 
-.PHONY:
-ghcid:
-	@ghcid --command "stack ghci"
+MAIN_TEST_TARGET = ripper:test:ripper-test
