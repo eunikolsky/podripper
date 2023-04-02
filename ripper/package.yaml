@@ -27,12 +27,13 @@ default-extensions:
 - OverloadedStrings
 
 ghc-options:
-- -Wall
-- -Wcompat
+# FIXME fix and reenable warnings
+#- -Wall
+#- -Wcompat
 - -Widentities
 - -Wincomplete-record-updates
 - -Wincomplete-uni-patterns
-- -Wmissing-export-lists
+#- -Wmissing-export-lists
 - -Wmissing-home-modules
 - -Wpartial-fields
 - -Wredundant-constraints
@@ -43,8 +44,22 @@ library:
   default-extensions:
     - NumericUnderscores
   dependencies:
+    - aeson
+    - bytestring
+    - directory
+    - exceptions
+    - filepath
     - conduit
     - http-conduit
+    - http-client
+    - http-client-tls
+    - http-types
+    - mtl
+    - sqlite-simple
+    - text
+    - time
+    - transformers
+    - xml
 
 executables:
   ripper-exe:
@@ -65,9 +80,15 @@ tests:
     source-dirs:         test
     dependencies:
     - ripper
+    - aeson
     - bytestring
+    - directory
+    - filepath
     - hspec
     - http-conduit
+    - raw-strings-qq
+    - text
+    - time
 
     ghc-options:
     - -threaded
