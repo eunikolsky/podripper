@@ -67,6 +67,7 @@ library
 executable ripper-exe
   main-is: Main.hs
   other-modules:
+      Main_Ripper
       Paths_ripper
   hs-source-dirs:
       app
