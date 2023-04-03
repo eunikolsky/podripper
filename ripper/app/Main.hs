@@ -10,7 +10,7 @@ import qualified Paths_ripper
 
 main :: IO ()
 main = do
-  ((), options) <- simpleOptions
+  ((), progOptions) <- simpleOptions
     $(simpleVersion Paths_ripper.version)
     "Header for command line arguments"
     "Program description, also for command line arguments"
@@ -18,7 +18,19 @@ main = do
       addCommand
         "ripper"
         "Rip a podcast live stream"
-        id
+        RipperOptions
         Ripper.ripperParser
 
-  Ripper.main options
+      addCommand
+        "rssgen"
+        "Generate the RSS for the podcast"
+        RSSGenOptions
+        (pure ())
+
+  case progOptions of
+    RipperOptions options -> Ripper.main options
+    RSSGenOptions options -> error "FIXME not implemented yet"
+
+-- | Defines the options parsed either for the `ripper` or `rssgen` command.
+-- This type is needed to combine the incompatible command options.
+data ProgramOptions = RipperOptions Options | RSSGenOptions ()
