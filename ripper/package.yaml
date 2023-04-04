@@ -24,16 +24,16 @@ dependencies:
 - rio >= 0.1.12.0
 
 default-extensions:
+- NamedFieldPuns
 - OverloadedStrings
 
 ghc-options:
-# FIXME fix and reenable warnings
-#- -Wall
-#- -Wcompat
+- -Wall
+- -Wcompat
 - -Widentities
 - -Wincomplete-record-updates
 - -Wincomplete-uni-patterns
-#- -Wmissing-export-lists
+- -Wmissing-export-lists
 - -Wmissing-home-modules
 - -Wpartial-fields
 - -Wredundant-constraints

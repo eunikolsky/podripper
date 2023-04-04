@@ -6,7 +6,7 @@ module RSSGen.UpstreamRSSFeed
   , parse
   ) where
 
-import Data.List
+import Data.List (find)
 import qualified Data.Text as T
 import Data.Time.Clock
 import Data.Time.Format
@@ -34,7 +34,7 @@ instance FromRow UpstreamRSSItem where
     guid <- field
     publishedAt <- field @Int
     let pubDate = parseTimeOrError acceptSurroundingWhitespace defaultTimeLocale "%s" (show publishedAt)
-    pure $ UpstreamRSSItem title pubDate description guid podcast
+    pure UpstreamRSSItem { title, pubDate, description, guid, podcast }
 
 instance ToRow UpstreamRSSItem where
   toRow (UpstreamRSSItem title pubDate description guid podcast) = toRow
@@ -68,6 +68,7 @@ parse podcast = parseRSS . parseXML
     parsePubDate :: String -> Maybe UTCTime
     parsePubDate = parseTimeM acceptSurroundingWhitespace defaultTimeLocale rfc822DateFormat
 
+acceptSurroundingWhitespace :: Bool
 acceptSurroundingWhitespace = False
 
 ensure :: (a -> Bool) -> a -> Maybe a

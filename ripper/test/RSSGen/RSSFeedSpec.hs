@@ -12,7 +12,6 @@ import Data.Maybe
 import Data.String
 import System.Directory
 import System.FilePath
-import System.IO.Error
 import Test.Hspec
 import Text.RawString.QQ
 import qualified Data.ByteString as BS

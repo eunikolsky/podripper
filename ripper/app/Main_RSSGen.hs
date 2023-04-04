@@ -11,12 +11,11 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import qualified Data.ByteString.Lazy as BL
 import Data.Functor
-import Data.List
+import Data.List (intercalate, sortOn)
 import Data.Maybe
 import Data.Ord (Down(..))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import qualified Data.Text.Lazy as TL
 import Data.Version (Version, showVersion)
 import Database.SQLite.Simple
 import Development.Shake
@@ -56,7 +55,7 @@ rssGenParser = many $ strArgument
   )
 
 main :: [FilePath] -> IO ()
-main filenames = {-withVersionAddendum $-} do
+main filenames = do
   shakeDir <- fromMaybe "/var/lib/podripper/shake" <$> Env.lookupEnv "SHAKE_DIR"
 
   let wantFilenames r = if null filenames
@@ -91,7 +90,7 @@ mainRules = do
       liftIO $ runReaderT (runHTTPClientDownloadT $ downloadRSS url) manager
 
     versioned 24 $ "*.rss" %> \out -> do
-      getRSSGenVersion $ RSSGenVersion ()
+      void . getRSSGenVersion $ RSSGenVersion ()
 
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
       let podcastTitle = dropExtension out
@@ -144,15 +143,3 @@ eitherToMaybe (Right x) = Just x
 
 downloadRSS :: MonadDownload m => URL -> m (Maybe T.Text)
 downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict)) . getFile
-
--- | Prints @rssgen@'s version prior to shake's version when `--version` is passed.
--- It's a workaround since shake doesn't support extending the output. Note that
--- shake also supports `-v` and `--numeric-version` for version output.
-withVersionAddendum :: IO () -> IO ()
-withVersionAddendum rest = printVersionWhenRequested >> rest
-  where
-    printVersionWhenRequested = do
-      args <- Env.getArgs
-      case args of
-        ["--version"] -> putStrLn $ "rssgen " <> showVersion Paths.version
-        _ -> pure ()

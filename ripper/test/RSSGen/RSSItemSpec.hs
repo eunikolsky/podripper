@@ -17,6 +17,7 @@ instance Eq EqZonedTime where
     == (EqZonedTime (ZonedTime time1 (TimeZone tzMinutes1 _ _)))
     = time0 == time1 && tzMinutes0 == tzMinutes1
 
+noDST, dst :: TimeZone
 noDST = hoursToTimeZone 2 -- EET
 dst = hoursToTimeZone 3   -- EEST
 

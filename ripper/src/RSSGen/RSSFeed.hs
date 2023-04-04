@@ -1,7 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module RSSGen.RSSFeed where
+module RSSGen.RSSFeed
+  ( ProgramVersion(..)
+  , RSSFeedConfig(..)
+  , feed
+  , parseFeedConfig
+  ) where
 
 import Control.Monad
 import Control.Monad.IO.Class

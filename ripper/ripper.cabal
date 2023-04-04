@@ -40,9 +40,10 @@ library
   hs-source-dirs:
       src
   default-extensions:
+      NamedFieldPuns
       OverloadedStrings
       NumericUnderscores
-  ghc-options: -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods
   build-depends:
       aeson
     , base >=4.11 && <10
@@ -73,8 +74,9 @@ executable ripper-exe
   hs-source-dirs:
       app
   default-extensions:
+      NamedFieldPuns
       OverloadedStrings
-  ghc-options: -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.11 && <10
     , bytestring
@@ -103,8 +105,9 @@ test-suite ripper-test
   hs-source-dirs:
       test
   default-extensions:
+      NamedFieldPuns
       OverloadedStrings
-  ghc-options: -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -threaded -rtsopts -with-rtsopts=-N -Wno-missing-export-lists
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -threaded -rtsopts -with-rtsopts=-N -Wno-missing-export-lists
   build-depends:
       aeson
     , base >=4.11 && <10

@@ -12,7 +12,8 @@ import RSSGen.UpstreamRSSFeed
 
 import Test.Hspec
 
-podcastId = "radiot" :: PodcastId
+podcastId :: PodcastId
+podcastId = "radiot"
 
 spec :: Spec
 spec =

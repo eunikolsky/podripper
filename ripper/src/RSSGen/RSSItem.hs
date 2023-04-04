@@ -1,16 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module RSSGen.RSSItem where
+module RSSGen.RSSItem
+  ( RSSItem(..)
+  , localTimeToZonedTime
+  , renderItem
+  , rssItemFromFile
+  ) where
 
-import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer.Strict
 import Data.Function
-import Data.List
+import Data.List (isSuffixOf, stripPrefix)
 import Data.Maybe (fromMaybe)
-import Data.Monoid (Any(..))
 import qualified Data.Text as T
 import Data.Time
 import System.Directory
