@@ -68,6 +68,7 @@ executable ripper-exe
   main-is: Main.hs
   other-modules:
       Main_Ripper
+      Main_RSSGen
       Paths_ripper
   hs-source-dirs:
       app
@@ -76,9 +77,17 @@ executable ripper-exe
   ghc-options: -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.11 && <10
+    , bytestring
+    , http-client
+    , http-client-tls
+    , mtl
     , optparse-simple
     , rio >=0.1.12.0
     , ripper
+    , shake
+    , sqlite-simple
+    , text
+    , transformers
   default-language: Haskell2010
 
 test-suite ripper-test

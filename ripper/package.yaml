@@ -67,7 +67,15 @@ executables:
     source-dirs:         app
     dependencies:
     - ripper
+    - bytestring
+    - http-client
+    - http-client-tls
+    - mtl
     - optparse-simple
+    - shake
+    - sqlite-simple
+    - text
+    - transformers
 
     ghc-options:
     - -threaded

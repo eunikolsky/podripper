@@ -4,6 +4,7 @@
 module Main (main) where
 
 import Import
+import qualified Main_RSSGen as RSSGen
 import qualified Main_Ripper as Ripper
 import Options.Applicative.Simple
 import qualified Paths_ripper
@@ -25,12 +26,12 @@ main = do
         "rssgen"
         "Generate the RSS for the podcast"
         RSSGenOptions
-        (pure ())
+        RSSGen.rssGenParser
 
   case progOptions of
     RipperOptions options -> Ripper.main options
-    RSSGenOptions options -> error "FIXME not implemented yet"
+    RSSGenOptions files -> RSSGen.main files
 
 -- | Defines the options parsed either for the `ripper` or `rssgen` command.
 -- This type is needed to combine the incompatible command options.
-data ProgramOptions = RipperOptions Options | RSSGenOptions ()
+data ProgramOptions = RipperOptions Options | RSSGenOptions [FilePath]
