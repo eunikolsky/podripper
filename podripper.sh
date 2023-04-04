@@ -109,6 +109,6 @@ fi
 
 # finally, we should update the RSS feed
 cd "$DONE_BASE_DIR"
-/usr/bin/rssgen-exe "${RIP_DIR_NAME}.rss"
+/usr/bin/ripper-exe rssgen "${RIP_DIR_NAME}.rss"
 
 # vim: et ts=2 sw=2

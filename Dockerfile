@@ -9,7 +9,6 @@ WORKDIR /build
 
 COPY PKGBUILD .
 COPY podripper.sh LICENSE \
-    rssgen/.stack-work/install/x86_64-linux-*/*/*/bin/rssgen-exe \
     ripper/.stack-work/install/x86_64-linux-*/*/*/bin/ripper-exe \
     podripper/
 # multiple steps are necessary to copy every individual directory
