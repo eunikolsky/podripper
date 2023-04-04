@@ -38,6 +38,7 @@ ghc-options:
 - -Wpartial-fields
 - -Wredundant-constraints
 - -Werror=missing-methods
+- -Werror=missing-fields
 
 library:
   source-dirs: src
