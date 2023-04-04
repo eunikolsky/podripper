@@ -10,8 +10,9 @@ module Main_RSSGen
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import qualified Data.ByteString.Lazy as BL
-import Data.Functor
 import Data.List (intercalate, sortOn)
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NE
 import Data.Maybe
 import Data.Ord (Down(..))
 import qualified Data.Text as T
@@ -48,37 +49,25 @@ type instance RuleResult UpstreamRSS = Maybe T.Text
 -- This replaces `shake`'s built-in parser as it can't be used now since this
 -- RSS generator is one of the commands in the executable. This parser only
 -- parses target filenames, so all `shake` options are hardcoded.
-rssGenParser :: Parser [FilePath]
-rssGenParser = many $ strArgument
-  ( help "RSS filename to build"
-  <> metavar "RSS_FILE"
+rssGenParser :: Parser (NonEmpty FilePath)
+rssGenParser = fmap (fromMaybe handleNothing . NE.nonEmpty) . some $ strArgument
+  ( help "RSS filenames to build"
+  <> metavar "RSS_FILE..."
   )
 
-main :: [FilePath] -> IO ()
+  where handleNothing = error "Impossible: empty list from `some`"
+
+main :: NonEmpty FilePath -> IO ()
 main filenames = do
   shakeDir <- fromMaybe "/var/lib/podripper/shake" <$> Env.lookupEnv "SHAKE_DIR"
-
-  let wantFilenames r = if null filenames
-        then r
-        else want filenames >> withoutActions r
 
   -- `shake` doesn't parse any CLI options itself, unlike `shakeArgs`
   -- see also: https://stackoverflow.com/questions/51355993/how-to-extend-shake-with-additional-command-line-arguments/51355994#51355994
   -- TODO this function doesn't print the final status message "Build completed in Xs"
   -- even though `shakeArgs` did that by default
-  shake shakeOptions { shakeFiles = shakeDir, shakeColor = True } . wantFilenames $ do
-    defaultRules
-    mainRules
+  shake shakeOptions { shakeFiles = shakeDir, shakeColor = True } $ do
+    want $ NE.toList filenames
 
--- | Defines the default files to build if no program options are specified.
--- See also: https://stackoverflow.com/questions/24701566/what-is-the-equivalent-of-default-in-shake/24701567#24701567
-defaultRules :: Rules ()
-defaultRules = do
-  -- TODO do we need the defaults?
-  want $ ["radiot", "rcmp"] <&> (<.> "rss")
-
-mainRules :: Rules ()
-mainRules = do
     getRSSGenVersion <- addOracle $ \RSSGenVersion{} -> return Paths.version
 
     upstreamRSS <- addOracle $ \(UpstreamRSS url) -> do
