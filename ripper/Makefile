@@ -12,7 +12,7 @@ check-test:
 
 .PHONY:
 testd:
-	@ghcid -c "stack ghci --test --main-is $(MAIN_TEST_TARGET) --ghci-options=-fobject-code" --test "main"
+	@ghcid -c "stack ghci --test ripper:lib $(MAIN_TEST_TARGET) --ghci-options=-fobject-code" --test "main"
 
 .PHONY:
 testfw:
