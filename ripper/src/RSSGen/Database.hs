@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Database
+module RSSGen.Database
   ( FileSpec(..)
   , closeDatabase
   , closestUpstreamItemToTime
@@ -14,8 +14,8 @@ import Data.Maybe (listToMaybe)
 import Data.Time.Clock
 import Data.Time.Format
 
-import Types
-import qualified UpstreamRSSFeed
+import RSSGen.Types
+import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 
 data FileSpec
   = DefaultFile -- ^ The default @episodes.sqlite@ file

@@ -1,9 +1,9 @@
-module RSSItemSpec where
+module RSSGen.RSSItemSpec where
 
 import Data.Time.Calendar
 import Data.Time.LocalTime
 
-import RSSItem
+import RSSGen.RSSItem
 
 import Test.Hspec
 
@@ -17,6 +17,7 @@ instance Eq EqZonedTime where
     == (EqZonedTime (ZonedTime time1 (TimeZone tzMinutes1 _ _)))
     = time0 == time1 && tzMinutes0 == tzMinutes1
 
+noDST, dst :: TimeZone
 noDST = hoursToTimeZone 2 -- EET
 dst = hoursToTimeZone 3   -- EEST
 

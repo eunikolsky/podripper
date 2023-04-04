@@ -1,9 +1,9 @@
 .PHONY:
 build-pkg: clean-pkg
-	docker build --progress plain -t rssgen-build -o . .
+	docker build --progress plain -t podripper-build -o . .
 
 .PHONY:
-rebuild-pkg: clean-build-linux build-rssgen-linux build-ripper-linux build-pkg
+rebuild-pkg: clean-build-linux build-ripper-linux build-pkg
 
 .PHONY:
 upload-pkg:
@@ -19,11 +19,7 @@ clean-pkg:
 
 .PHONY:
 clean-build-linux:
-	trash {rssgen,ripper}/.stack-work/install/x86_64-linux-* || true
-
-.PHONY:
-build-rssgen-linux:
-	cd rssgen && stack --docker build
+	trash ripper/.stack-work/install/x86_64-linux-* || true
 
 .PHONY:
 build-ripper-linux:

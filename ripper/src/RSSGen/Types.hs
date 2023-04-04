@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Types
+module RSSGen.Types
   ( Hours(..)
   ) where
 

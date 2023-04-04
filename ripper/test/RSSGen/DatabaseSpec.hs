@@ -1,18 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module DatabaseSpec where
+module RSSGen.DatabaseSpec where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Time.Calendar
 import Data.Time.Clock
 
-import Database
-import Types
-import UpstreamRSSFeed
+import RSSGen.Database
+import RSSGen.Types
+import RSSGen.UpstreamRSSFeed
 
 import Test.Hspec
 
-podcastId = "radiot" :: PodcastId
+podcastId :: PodcastId
+podcastId = "radiot"
 
 spec :: Spec
 spec =

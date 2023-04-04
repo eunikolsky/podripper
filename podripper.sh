@@ -55,7 +55,7 @@ while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
   echo "starting the ripper"
   # TODO the loop to restart ripper is unnecessary because the program itself
   # should run for `$DURATION_SEC`
-  /usr/bin/ripper-exe --verbose -d "$RAW_RIP_DIR" -l "$DURATION_SEC" -r "$RETRY_SEC" "$STREAM_URL" || true
+  /usr/bin/ripper-exe ripper --verbose -d "$RAW_RIP_DIR" -l "$DURATION_SEC" -r "$RETRY_SEC" "$STREAM_URL" || true
 
   # if we've run out of time, no need to sleep one more time at the end
   if (( $( "$DATE" -d "+ ${RETRY_SEC} seconds" '+%s' ) < "$END_TIMESTAMP" )); then
@@ -109,6 +109,6 @@ fi
 
 # finally, we should update the RSS feed
 cd "$DONE_BASE_DIR"
-/usr/bin/rssgen-exe "${RIP_DIR_NAME}.rss"
+/usr/bin/ripper-exe rssgen "${RIP_DIR_NAME}.rss"
 
 # vim: et ts=2 sw=2

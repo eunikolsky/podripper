@@ -1,23 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module RSSItem where
+module RSSGen.RSSItem
+  ( RSSItem(..)
+  , localTimeToZonedTime
+  , renderItem
+  , rssItemFromFile
+  ) where
 
-import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Control.Monad.Writer.Strict
 import Data.Function
-import Data.List
+import Data.List (isSuffixOf, stripPrefix)
 import Data.Maybe (fromMaybe)
-import Data.Monoid (Any(..))
 import qualified Data.Text as T
 import Data.Time
 import System.Directory
 import System.FilePath.Posix
 import Text.XML.Light
 
-import qualified UpstreamRSSFeed
+import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 
 -- | Specifies the type of the rip file (based on the filename).
 data RipType

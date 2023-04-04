@@ -1,7 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module RSSFeed where
+module RSSGen.RSSFeed
+  ( ProgramVersion(..)
+  , RSSFeedConfig(..)
+  , feed
+  , parseFeedConfig
+  ) where
 
 import Control.Monad
 import Control.Monad.IO.Class
@@ -14,8 +19,8 @@ import System.Directory
 import System.FilePath
 import Text.XML.Light
 
-import RSSItem
-import Types
+import RSSGen.RSSItem
+import RSSGen.Types
 
 -- | Values for the RSS feed tags.
 data RSSFeedConfig = RSSFeedConfig

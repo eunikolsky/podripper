@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module UpstreamRSSFeedSpec where
+module RSSGen.UpstreamRSSFeedSpec where
 
 import Control.Monad.IO.Class
 import qualified Data.Text.IO as TIO
 import Data.Time.Calendar
 import Data.Time.Clock
 
-import UpstreamRSSFeed
+import RSSGen.UpstreamRSSFeed
 
 import Test.Hspec
 
@@ -15,7 +15,7 @@ spec :: Spec
 spec =
   describe "parse" $
     it "parses the real valid RSS" $ do
-      testRSS <- liftIO $ TIO.readFile "test/data/radiot.rss"
+      testRSS <- liftIO $ TIO.readFile "test/RSSGen/data/radiot.rss"
       parse "radiot" testRSS `shouldBe` Right episodes
 
       where

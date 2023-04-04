@@ -1,14 +1,18 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Downloader where
+module RSSGen.Downloader
+  ( FakeDownloadT(..)
+  , HTTPClientDownloadT(..)
+  , MonadDownload(..)
+  , URL
+  ) where
 
 import Control.Monad.Catch
 import Control.Monad.Reader
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as CL
 import Network.HTTP.Client
-import Network.HTTP.Client.TLS
 import Network.HTTP.Types.Status
 
 type URL = String

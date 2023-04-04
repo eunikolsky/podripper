@@ -4,3 +4,5 @@ tarballs/
 .stack-work/
 
 sr_program_*.mp3
+test/RSSGen/sandbox/
+_testing/

@@ -1,7 +1,6 @@
 # Maintainer: Eugene Nikolsky <e@egeek.me>
 pkgname=podripper
-# FIXME define one version
-pkgver=0.6.5
+pkgver=0.7.0
 pkgrel=1
 pkgdesc="Rips online podcast streams and generates RSS for them"
 arch=('x86_64')
@@ -14,7 +13,7 @@ md5sums=('SKIP')
 package() {
   cd "$pkgname"
 
-  install -Dm 755 -t "$pkgdir"/usr/bin podripper.sh rssgen-exe ripper-exe
+  install -Dm 755 -t "$pkgdir"/usr/bin podripper.sh ripper-exe
   install -Dm 644 LICENSE "$pkgdir/usr/share/license/$pkgname/LICENSE"
 
   find conf -maxdepth 1 -type f \( -name '*.conf' -or -name '*.json' \) \

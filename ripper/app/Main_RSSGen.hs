@@ -2,18 +2,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Main where
+module Main_RSSGen
+  ( main
+  , rssGenParser
+  ) where
 
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import qualified Data.ByteString.Lazy as BL
 import Data.Functor
-import Data.List
+import Data.List (intercalate, sortOn)
 import Data.Maybe
 import Data.Ord (Down(..))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import qualified Data.Text.Lazy as TL
 import Data.Version (Version, showVersion)
 import Database.SQLite.Simple
 import Development.Shake
@@ -21,14 +23,15 @@ import Development.Shake.Classes
 import Development.Shake.FilePath
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
+import Options.Applicative.Simple
 import qualified System.Environment as Env
 
-import qualified Paths_rssgen as Paths (version)
-import Database
-import Downloader
-import RSSFeed
-import RSSItem
-import qualified UpstreamRSSFeed
+import qualified Paths_ripper as Paths (version)
+import RSSGen.Database
+import RSSGen.Downloader
+import RSSGen.RSSFeed
+import RSSGen.RSSItem
+import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 
 newtype RSSGenVersion = RSSGenVersion ()
   deriving (Show, Typeable, Eq, Hashable, Binary, NFData)
@@ -41,12 +44,41 @@ newtype UpstreamRSS = UpstreamRSS URL
   deriving (Show, Typeable, Eq, Hashable, Binary, NFData)
 type instance RuleResult UpstreamRSS = Maybe T.Text
 
-main :: IO ()
-main = withVersionAddendum $ do
-  shakeDir <- fromMaybe "/var/lib/podripper/shake" <$> Env.lookupEnv "SHAKE_DIR"
-  shakeArgs shakeOptions { shakeFiles = shakeDir, shakeColor = True } $ do
-    want $ ["radiot", "rcmp"] <&> (<.> "rss")
+-- | CLI options parser to get the RSS filenames (if any) that should be built.
+-- This replaces `shake`'s built-in parser as it can't be used now since this
+-- RSS generator is one of the commands in the executable. This parser only
+-- parses target filenames, so all `shake` options are hardcoded.
+rssGenParser :: Parser [FilePath]
+rssGenParser = many $ strArgument
+  ( help "RSS filename to build"
+  <> metavar "RSS_FILE"
+  )
 
+main :: [FilePath] -> IO ()
+main filenames = do
+  shakeDir <- fromMaybe "/var/lib/podripper/shake" <$> Env.lookupEnv "SHAKE_DIR"
+
+  let wantFilenames r = if null filenames
+        then r
+        else want filenames >> withoutActions r
+
+  -- `shake` doesn't parse any CLI options itself, unlike `shakeArgs`
+  -- see also: https://stackoverflow.com/questions/51355993/how-to-extend-shake-with-additional-command-line-arguments/51355994#51355994
+  -- TODO this function doesn't print the final status message "Build completed in Xs"
+  -- even though `shakeArgs` did that by default
+  shake shakeOptions { shakeFiles = shakeDir, shakeColor = True } . wantFilenames $ do
+    defaultRules
+    mainRules
+
+-- | Defines the default files to build if no program options are specified.
+-- See also: https://stackoverflow.com/questions/24701566/what-is-the-equivalent-of-default-in-shake/24701567#24701567
+defaultRules :: Rules ()
+defaultRules = do
+  -- TODO do we need the defaults?
+  want $ ["radiot", "rcmp"] <&> (<.> "rss")
+
+mainRules :: Rules ()
+mainRules = do
     getRSSGenVersion <- addOracle $ \RSSGenVersion{} -> return Paths.version
 
     upstreamRSS <- addOracle $ \(UpstreamRSS url) -> do
@@ -58,7 +90,7 @@ main = withVersionAddendum $ do
       liftIO $ runReaderT (runHTTPClientDownloadT $ downloadRSS url) manager
 
     versioned 24 $ "*.rss" %> \out -> do
-      getRSSGenVersion $ RSSGenVersion ()
+      void . getRSSGenVersion $ RSSGenVersion ()
 
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
       let podcastTitle = dropExtension out
@@ -111,15 +143,3 @@ eitherToMaybe (Right x) = Just x
 
 downloadRSS :: MonadDownload m => URL -> m (Maybe T.Text)
 downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict)) . getFile
-
--- | Prints @rssgen@'s version prior to shake's version when `--version` is passed.
--- It's a workaround since shake doesn't support extending the output. Note that
--- shake also supports `-v` and `--numeric-version` for version output.
-withVersionAddendum :: IO () -> IO ()
-withVersionAddendum rest = printVersionWhenRequested >> rest
-  where
-    printVersionWhenRequested = do
-      args <- Env.getArgs
-      case args of
-        ["--version"] -> putStrLn $ "rssgen " <> showVersion Paths.version
-        _ -> pure ()

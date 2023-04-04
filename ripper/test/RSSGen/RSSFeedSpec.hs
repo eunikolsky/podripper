@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module RSSFeedSpec where
+module RSSGen.RSSFeedSpec where
 
-import RSSFeed
-import Types
+import RSSGen.RSSFeed
+import RSSGen.Types
 
 import Control.Monad
 import Data.Aeson
@@ -12,7 +12,6 @@ import Data.Maybe
 import Data.String
 import System.Directory
 import System.FilePath
-import System.IO.Error
 import Test.Hspec
 import Text.RawString.QQ
 import qualified Data.ByteString as BS
@@ -67,7 +66,7 @@ spec = do
   -- namely reading files, would force the implementation to read the file and
   -- parse JSON separately (which may or may not be fine)
   describe "parseFeedConfig" $ do
-    let dir = "test/sandbox"
+    let dir = "test/RSSGen/sandbox"
         feedName = "foo"
         filename = dir </> feedName <> "_feed.json"
 
