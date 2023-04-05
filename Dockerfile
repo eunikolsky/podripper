@@ -9,7 +9,7 @@ WORKDIR /build
 
 COPY PKGBUILD .
 COPY podripper.sh LICENSE \
-    ripper/.stack-work/install/x86_64-linux-*/*/*/bin/ripper-exe \
+    .stack-work/install/x86_64-linux-*/*/*/bin/ripper-exe \
     podripper/
 # multiple steps are necessary to copy every individual directory
 COPY conf/*.conf conf/*.json podripper/conf/

@@ -1,3 +1,11 @@
 # built ArchLinux packages
 *.pkg.*
 conf/*_feed_overlay.json
+
+*~
+*.swp
+tarballs/
+.stack-work/
+
+test/RSSGen/sandbox/
+_testing/

@@ -1,7 +1,7 @@
 name:                ripper
 version:             0.7.0
 github:              githubuser/ripper
-license:             BSD3
+license:             MIT
 author:              Author name here
 maintainer:          example@example.com
 copyright:           2022 Author name here
