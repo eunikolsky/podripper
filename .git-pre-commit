@@ -3,4 +3,4 @@
 # git `pre-commit` hook to run various checks before a commit
 # install it with `gln -srv .git-pre-commit .git/hooks/pre-commit`
 
-cd ripper && make -j4 check
+make -j4 check

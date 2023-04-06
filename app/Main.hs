@@ -34,4 +34,4 @@ main = do
 
 -- | Defines the options parsed either for the `ripper` or `rssgen` command.
 -- This type is needed to combine the incompatible command options.
-data ProgramOptions = RipperOptions Options | RSSGenOptions [FilePath]
+data ProgramOptions = RipperOptions Options | RSSGenOptions (NonEmpty FilePath)
