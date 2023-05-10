@@ -63,6 +63,9 @@ while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
   if [[ -n "$STREAM_IS_LIVE" ]] || $LIVESTREAM_CHECK; then
     STREAM_IS_LIVE=1
     echo "starting the ripper"
+    if [[ "$1" == atp ]]; then
+      curl -sS https://atp.fm/livestream_status
+    fi
     # TODO the loop to restart ripper is unnecessary because the program itself
     # should run for `$DURATION_SEC`
     /usr/bin/ripper-exe ripper --verbose -d "$RAW_RIP_DIR" -l "$DURATION_SEC" -r "$RETRY_SEC" "$STREAM_URL" || true
