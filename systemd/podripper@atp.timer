@@ -1,0 +1,6 @@
+[Timer]
+OnCalendar=Wed 19:00 America/New_York
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
