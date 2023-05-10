@@ -6,7 +6,7 @@ pkgdesc="Rips online podcast streams and generates RSS for them"
 arch=('x86_64')
 url=""
 license=('MIT')
-depends=('bash' 'ffmpeg' 'glibc' 'gmp' 'curl' 'jq')
+depends=('bash' 'ffmpeg' 'glibc' 'gmp' 'curl' 'jq' 'htmlq')
 source=($pkgname.tar)
 md5sums=('SKIP')
 
