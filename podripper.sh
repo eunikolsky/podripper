@@ -32,7 +32,7 @@ set -o allexport
 set +o allexport
 
 # when `LIVESTREAM_CHECK` is missing, try recording immediately
-LIVESTREAM_CHECK="${LIVESTREAM_CHECK:-true}"
+#LIVESTREAM_CHECK="${LIVESTREAM_CHECK:-true}"
 
 # /var/lib/podripper/               # set from outside, e.g. by `systemd`
 # +- $RIP_DIR_NAME                  # $RAW_RIP_DIR, local, raw recordings
@@ -60,13 +60,21 @@ END_TIMESTAMP="${END_TIMESTAMP:-$( "$DATE" -d "+ ${DURATION_SEC} seconds" '+%s' 
 STREAM_IS_LIVE=
 
 while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
-  if [[ -n "$STREAM_IS_LIVE" ]] || $LIVESTREAM_CHECK; then
-    STREAM_IS_LIVE=1
+  STATUS="$(curl -sS https://atp.fm/livestream_status)"
+  echo "$STATUS"
+
+  if [[ -z "$STREAM_IS_LIVE" ]]; then
+    # no live stream yet
+    if [[ "$1" == atp ]]; then
+      if jq -e .live <<< "$STATUS" >/dev/null; then
+        STREAM_IS_LIVE=1
+      fi
+    fi
+  fi
+
+  if [[ -n "$STREAM_IS_LIVE" ]]; then
     echo "starting the ripper"
     if [[ "$1" == atp ]]; then
-      STATUS="$(curl -sS https://atp.fm/livestream_status)"
-      echo "$STATUS"
-
       # try to parse the stream url from the status response
       ORIG_STREAM_URL="$STREAM_URL"
       PLAYER="$( jq -r .player <<< "$STATUS" || true )"
