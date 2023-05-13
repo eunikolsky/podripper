@@ -12,6 +12,7 @@ esac
 # These environment variables can override the default values for debugging:
 # * `END_TIMESTAMP` -- when to stop recording.
 #     Note: you can set `END_TIMESTAMP=0` in order to skip the ripping step.
+# * `RIPPER` -- path to the `ripper-exe` binary.
 
 # The directory with the config files.
 CONF_DIR="${CONF_DIR:-/usr/share/podripper}"
@@ -46,60 +47,66 @@ DONE_RIP_DIR="$DONE_BASE_DIR/$RIP_DIR_NAME"
 # The output directory for raw rips recorded by ripper.
 RAW_RIP_DIR="$RIP_DIR_NAME"
 
-[[ -d "$RAW_RIP_DIR" ]] || mkdir -p "$RAW_RIP_DIR"
-[[ -d "$DONE_RIP_DIR" ]] || mkdir -p "$DONE_RIP_DIR"
-
 # TODO cleanup complete rips on S3 after a year?
 # local raw rip `mp3`s are removed/moved in the reencoding cycle below
 
-# at the start, figure out the duration until which keep on ripping the stream
-END_TIMESTAMP="${END_TIMESTAMP:-$( "$DATE" -d "+ ${DURATION_SEC} seconds" '+%s' )}"
+RIPPER="${RIPPER:-/usr/bin/ripper-exe}"
 
-# the flag shows whether the live stream check has returned success since the start
-# we don't need to ask it anymore after that
-STREAM_IS_LIVE=
+ensure_dirs() {
+  [[ -d "$RAW_RIP_DIR" ]] || mkdir -p "$RAW_RIP_DIR"
+  [[ -d "$DONE_RIP_DIR" ]] || mkdir -p "$DONE_RIP_DIR"
+}
 
-while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
-  if [[ "$1" == atp ]]; then
-    STATUS="$(curl -sS https://atp.fm/livestream_status)"
-    echo "$STATUS"
+rip() {
+  # at the start, figure out the duration until which keep on ripping the stream
+  END_TIMESTAMP="${END_TIMESTAMP:-$( "$DATE" -d "+ ${DURATION_SEC} seconds" '+%s' )}"
 
-    if [[ -z "$STREAM_IS_LIVE" ]]; then
-      # no live stream yet
-      if jq -e .live <<< "$STATUS" >/dev/null; then
-        STREAM_IS_LIVE=1
+  # the flag shows whether the live stream check has returned success since the start
+  # we don't need to ask it anymore after that
+  STREAM_IS_LIVE=
 
-        # try to parse the stream url from the status response
-        ORIG_STREAM_URL="$STREAM_URL"
-        PLAYER="$( jq -r .player <<< "$STATUS" || true )"
-        STREAM_URL="$( htmlq -a src 'audio source' <<< "$PLAYER" || true )"
-        echo "  0 stream url (audio source): $STREAM_URL"
-        [[ -z "$STREAM_URL" ]] && STREAM_URL="$( htmlq -a src audio <<< "$PLAYER" || true )"
-        echo "  1 stream url (audio): $STREAM_URL"
-        [[ -z "$STREAM_URL" ]] && STREAM_URL="$( sed -nE 's/.*"(http[^"]+)".*/\1/p' <<< "$PLAYER" || true )"
-        echo "  2 stream url (sed): $STREAM_URL"
-        [[ -z "$STREAM_URL" ]] && STREAM_URL="$ORIG_STREAM_URL"
-        echo "  3 stream url (original): $STREAM_URL"
+  while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
+    if [[ "$1" == atp ]]; then
+      STATUS="$(curl -sS https://atp.fm/livestream_status)"
+      echo "$STATUS"
+
+      if [[ -z "$STREAM_IS_LIVE" ]]; then
+        # no live stream yet
+        if jq -e .live <<< "$STATUS" >/dev/null; then
+          STREAM_IS_LIVE=1
+
+          # try to parse the stream url from the status response
+          ORIG_STREAM_URL="$STREAM_URL"
+          PLAYER="$( jq -r .player <<< "$STATUS" || true )"
+          STREAM_URL="$( htmlq -a src 'audio source' <<< "$PLAYER" || true )"
+          echo "  0 stream url (audio source): $STREAM_URL"
+          [[ -z "$STREAM_URL" ]] && STREAM_URL="$( htmlq -a src audio <<< "$PLAYER" || true )"
+          echo "  1 stream url (audio): $STREAM_URL"
+          [[ -z "$STREAM_URL" ]] && STREAM_URL="$( sed -nE 's/.*"(http[^"]+)".*/\1/p' <<< "$PLAYER" || true )"
+          echo "  2 stream url (sed): $STREAM_URL"
+          [[ -z "$STREAM_URL" ]] && STREAM_URL="$ORIG_STREAM_URL"
+          echo "  3 stream url (original): $STREAM_URL"
+        fi
       fi
+    else
+      STREAM_IS_LIVE=1
     fi
-  else
-    STREAM_IS_LIVE=1
-  fi
 
-  if [[ -n "$STREAM_IS_LIVE" ]]; then
-    echo "starting the ripper"
-    # TODO the loop to restart ripper is unnecessary because the program itself
-    # should run for `$DURATION_SEC`
-    /usr/bin/ripper-exe ripper --verbose -d "$RAW_RIP_DIR" -l "$DURATION_SEC" -r "$RETRY_SEC" "$STREAM_URL" || true
-  fi
+    if [[ -n "$STREAM_IS_LIVE" ]]; then
+      echo "starting the ripper"
+      # TODO the loop to restart ripper is unnecessary because the program itself
+      # should run for `$DURATION_SEC`
+      "$RIPPER" ripper --verbose -d "$RAW_RIP_DIR" -l "$DURATION_SEC" -r "$RETRY_SEC" "$STREAM_URL" || true
+    fi
 
-  # if we've run out of time, no need to sleep one more time at the end
-  if (( $( "$DATE" -d "+ ${RETRY_SEC} seconds" '+%s' ) < "$END_TIMESTAMP" )); then
-    sleep "$RETRY_SEC"
-  else
-    break
-  fi
-done
+    # if we've run out of time, no need to sleep one more time at the end
+    if (( $( "$DATE" -d "+ ${RETRY_SEC} seconds" '+%s' ) < "$END_TIMESTAMP" )); then
+      sleep "$RETRY_SEC"
+    else
+      break
+    fi
+  done
+}
 
 year="$( "$DATE" '+%Y' )"
 SRC_RIP_SUFFIX="_src"
@@ -111,40 +118,52 @@ REENCODED_RIP_SUFFIX="_enc"
 # we can try reencoding those older ones again)
 # this needs to happen before reencoding fresh rips because if those fail, they
 # would be attempted to be reencoded again in this run, which isn't very useful
-if ls "$DONE_RIP_DIR"/*"$SRC_RIP_SUFFIX".mp3 &>/dev/null; then
-  for rip in "$DONE_RIP_DIR"/*"$SRC_RIP_SUFFIX".mp3; do
-    pod_title="$( sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' <<< "$rip" )"
-    REENCODED_RIP="${rip/$SRC_RIP_SUFFIX/$REENCODED_RIP_SUFFIX}"
-    if ! ffmpeg -nostdin -hide_banner -y -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$REENCODED_RIP"; then
-      echo "reencoding $rip failed again; leaving as is for now"
-      [[ -e "$REENCODED_RIP" ]] && rm -f "$REENCODED_RIP"
-    else
-      rm -f "$rip"
-    fi
-  done
-fi
+reencode_previous_rips() {
+  if ls "$DONE_RIP_DIR"/*"$SRC_RIP_SUFFIX".mp3 &>/dev/null; then
+    for rip in "$DONE_RIP_DIR"/*"$SRC_RIP_SUFFIX".mp3; do
+      pod_title="$( sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' <<< "$rip" )"
+      REENCODED_RIP="${rip/$SRC_RIP_SUFFIX/$REENCODED_RIP_SUFFIX}"
+      if ! ffmpeg -nostdin -hide_banner -y -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$REENCODED_RIP"; then
+        echo "reencoding $rip failed again; leaving as is for now"
+        [[ -e "$REENCODED_RIP" ]] && rm -f "$REENCODED_RIP"
+      else
+        rm -f "$rip"
+      fi
+    done
+  fi
+}
 
 # after we've spent enough time ripping, reencode the files (to fix the mp3 headers and stuff)
-# the `if` here is to avoid printing an error from `for` when there are no
-# files in `$RAW_RIP_DIR`
-if ls "$RAW_RIP_DIR"/*.mp3 &>/dev/null; then
-  for rip in "$RAW_RIP_DIR"/*.mp3; do
-    pod_title="$( sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' <<< "$rip" )"
-    REENCODED_RIP="$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )$REENCODED_RIP_SUFFIX.mp3"
-    if ! ffmpeg -nostdin -hide_banner -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$REENCODED_RIP"; then
-      echo "reencoding $rip failed; moving the source"
-      [[ -e "$REENCODED_RIP" ]] && rm -f "$REENCODED_RIP"
-      mv "$rip" "$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )$SRC_RIP_SUFFIX.mp3"
-    else
-      rm -f "$rip"
-    fi
-  done
-else
-  echo "no files in $RAW_RIP_DIR"
-fi
+reencode_rips() {
+  # the `if` here is to avoid printing an error from `for` when there are no
+  # files in `$RAW_RIP_DIR`
+  if ls "$RAW_RIP_DIR"/*.mp3 &>/dev/null; then
+    for rip in "$RAW_RIP_DIR"/*.mp3; do
+      pod_title="$( sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' <<< "$rip" )"
+      REENCODED_RIP="$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )$REENCODED_RIP_SUFFIX.mp3"
+      if ! ffmpeg -nostdin -hide_banner -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$REENCODED_RIP"; then
+        echo "reencoding $rip failed; moving the source"
+        [[ -e "$REENCODED_RIP" ]] && rm -f "$REENCODED_RIP"
+        mv "$rip" "$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )$SRC_RIP_SUFFIX.mp3"
+      else
+        rm -f "$rip"
+      fi
+    done
+  else
+    echo "no files in $RAW_RIP_DIR"
+  fi
+}
 
 # finally, we should update the RSS feed
-cd "$DONE_BASE_DIR"
-/usr/bin/ripper-exe rssgen "${RIP_DIR_NAME}.rss"
+update_rss() {
+  cd "$DONE_BASE_DIR"
+  "$RIPPER" rssgen "${RIP_DIR_NAME}.rss"
+}
+
+ensure_dirs
+rip
+reencode_previous_rips
+reencode_rips
+update_rss
 
 # vim: et ts=2 sw=2

@@ -63,3 +63,9 @@ clean-build-linux:
 .PHONY:
 build-ripper-linux:
 	stack --docker build
+
+### local testing actions
+
+.PHONY:
+local-eradio:
+	@export RIPPER="$$( stack path --local-install-root )/bin/ripper-exe" CONF_DIR="$$PWD/conf" SHAKE_DIR="$$PWD/_testing/.shake"; cd _testing; ../podripper.sh eradio
