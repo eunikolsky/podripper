@@ -14,10 +14,12 @@ esac
 #     Note: you can set `END_TIMESTAMP=0` in order to skip the ripping step.
 # * `RIPPER` -- path to the `ripper-exe` binary.
 
+STREAM_NAME="$1"
+
 # The directory with the config files.
 CONF_DIR="${CONF_DIR:-/usr/share/podripper}"
 # Config name should be passed as the single parameter.
-CONF_NAME="${1:?no config name}.conf"
+CONF_NAME="${STREAM_NAME:?no config name}.conf"
 
 # The configuration file should set the following variables:
 # * `STREAM_URL`
@@ -66,7 +68,7 @@ rip() {
   STREAM_IS_LIVE=
 
   while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
-    if [[ "$1" == atp ]]; then
+    if [[ "$STREAM_NAME" == atp ]]; then
       STATUS="$(curl -sS https://atp.fm/livestream_status)"
       echo "$STATUS"
 
