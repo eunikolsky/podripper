@@ -64,6 +64,11 @@ rip() {
   STREAM_IS_LIVE=
 
   while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
+    # FIXME the `atp` support is hardcoded in the program because its live
+    # stream check is more complicated and the stream URL needs to be extracted
+    # from the status endpoint; implementing a DSL in `conf` files and shell
+    # isn't easy, so this should be more easily done when the script is
+    # rewritten in Haskell
     if [[ "$STREAM_NAME" == atp ]]; then
       STATUS="$(curl -sS https://atp.fm/livestream_status)"
       echo "$STATUS"
