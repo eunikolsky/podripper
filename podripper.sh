@@ -27,15 +27,11 @@ CONF_NAME="${STREAM_NAME:?no config name}.conf"
 # * `RETRY_SEC` -- The sleep duration between rip retries.
 # * `RIP_DIR_NAME` -- The base name of the rip directory
 # * `POD_ARTIST`, `POD_ALBUM` -- ID3 tag information.
-# * `LIVESTREAM_CHECK` -- optional, a command that should return exit code `0` in order to start trying the recording.
 
 set -o allexport
 # shellcheck source=/dev/null
 . "$CONF_DIR/$CONF_NAME"
 set +o allexport
-
-# when `LIVESTREAM_CHECK` is missing, try recording immediately
-#LIVESTREAM_CHECK="${LIVESTREAM_CHECK:-true}"
 
 # /var/lib/podripper/               # set from outside, e.g. by `systemd`
 # +- $RIP_DIR_NAME                  # $RAW_RIP_DIR, local, raw recordings
