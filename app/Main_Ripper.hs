@@ -4,12 +4,12 @@ module Main_Ripper
   ) where
 
 import Data.Version (showVersion)
-import Import
+import Ripper.Import
 import Options.Applicative.Simple
 import qualified Paths_ripper
 import RIO.Process
 import qualified RIO.Text as T
-import Run
+import Ripper.Run
 
 main :: Options -> IO ()
 main options = do

@@ -1,6 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Run
+module Ripper.Run
   ( MonadRipper(..)
   , RipResult(..)
   , handleResourceVanished
@@ -18,7 +18,7 @@ import qualified RIO.Text as T
 import RIO.Time
 import System.IO.Error (isResourceVanishedError)
 
-import Import
+import Ripper.Import
 
 run :: RIO App ()
 run = do

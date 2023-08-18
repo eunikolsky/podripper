@@ -1,5 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
-module Types
+module Ripper.Types
   ( App (..)
   , Options (..)
   ) where

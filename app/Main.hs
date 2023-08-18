@@ -4,10 +4,11 @@
 module Main (main) where
 
 import Data.Version (showVersion)
-import Import
 import qualified Main_RSSGen as RSSGen
 import qualified Main_Ripper as Ripper
 import Options.Applicative.Simple
+import RIO
+import Ripper.Types
 import qualified Paths_ripper
 
 main :: IO ()

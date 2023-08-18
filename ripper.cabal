@@ -25,16 +25,16 @@ source-repository head
 
 library
   exposed-modules:
-      Import
+      Ripper.Import
+      Ripper.Run
+      Ripper.Types
+      Ripper.Util
       RSSGen.Database
       RSSGen.Downloader
       RSSGen.RSSFeed
       RSSGen.RSSItem
       RSSGen.Types
       RSSGen.UpstreamRSSFeed
-      Run
-      Types
-      Util
   other-modules:
       Paths_ripper
   hs-source-dirs:
@@ -96,11 +96,11 @@ test-suite ripper-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Ripper.UtilSpec
       RSSGen.DatabaseSpec
       RSSGen.RSSFeedSpec
       RSSGen.RSSItemSpec
       RSSGen.UpstreamRSSFeedSpec
-      UtilSpec
       Paths_ripper
   hs-source-dirs:
       test

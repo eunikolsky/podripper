@@ -1,8 +1,8 @@
 {-# LANGUAGE NoImplicitPrelude #-}
-module Import
+module Ripper.Import
   ( module RIO
-  , module Types
+  , module Ripper.Types
   ) where
 
 import RIO
-import Types
+import Ripper.Types

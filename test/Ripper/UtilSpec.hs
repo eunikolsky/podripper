@@ -1,16 +1,16 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module UtilSpec (spec) where
+module Ripper.UtilSpec (spec) where
 
 import Data.ByteString.Builder (toLazyByteString)
-import Import hiding (error)
+import Ripper.Import hiding (error)
 import Network.HTTP.Simple (parseRequest_)
 import RIO.List
 import RIO.Partial (fromJust)
 import RIO.State
 import RIO.Writer
-import Run
+import Ripper.Run
 import System.IO.Error
 import Test.Hspec
 
