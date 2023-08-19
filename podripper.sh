@@ -55,13 +55,13 @@ ensure_dirs() {
   [[ -d "$DONE_RIP_DIR" ]] || mkdir -p "$DONE_RIP_DIR"
 }
 
-rip() {
-  # at the start, figure out the duration until which keep on ripping the stream
-  END_TIMESTAMP="${END_TIMESTAMP:-$( "$DATE" -d "+ ${DURATION_SEC} seconds" '+%s' )}"
+# the flag shows whether the live stream check has returned success since the start
+# we don't need to ask it anymore after that
+STREAM_IS_LIVE=
 
-  # the flag shows whether the live stream check has returned success since the start
-  # we don't need to ask it anymore after that
-  STREAM_IS_LIVE=
+wait_for_stream() {
+  # at the start, figure out the duration until which keep on waiting for the stream
+  END_TIMESTAMP="${END_TIMESTAMP:-$( "$DATE" -d "+ ${DURATION_SEC} seconds" '+%s' )}"
 
   while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
     # FIXME the `atp` support is hardcoded in the program because its live
@@ -81,6 +81,7 @@ rip() {
           # try to parse the stream url from the status response
           ORIG_STREAM_URL="$STREAM_URL"
           PLAYER="$( jq -r .player <<< "$STATUS" || true )"
+          # this overwrites the global variable
           STREAM_URL="$( htmlq -a src 'audio source' <<< "$PLAYER" || true )"
           echo "  0 stream url (audio source): $STREAM_URL"
           [[ -z "$STREAM_URL" ]] && STREAM_URL="$( htmlq -a src audio <<< "$PLAYER" || true )"
@@ -95,13 +96,6 @@ rip() {
       STREAM_IS_LIVE=1
     fi
 
-    if [[ -n "$STREAM_IS_LIVE" ]]; then
-      echo "starting the ripper"
-      # TODO the loop to restart ripper is unnecessary because the program itself
-      # should run for `$DURATION_SEC`
-      "$RIPPER" ripper --verbose -d "$RAW_RIP_DIR" -l "$DURATION_SEC" -r "$RETRY_SEC" "$STREAM_URL" || true
-    fi
-
     # if we've run out of time, no need to sleep one more time at the end
     if (( $( "$DATE" -d "+ ${RETRY_SEC} seconds" '+%s' ) < "$END_TIMESTAMP" )); then
       sleep "$RETRY_SEC"
@@ -109,6 +103,13 @@ rip() {
       break
     fi
   done
+}
+
+rip() {
+  if [[ -n "$STREAM_IS_LIVE" ]]; then
+    echo "starting the ripper"
+    "$RIPPER" ripper --verbose -d "$RAW_RIP_DIR" -l "$DURATION_SEC" -r "$RETRY_SEC" "$STREAM_URL" || true
+  fi
 }
 
 year="$( "$DATE" '+%Y' )"
@@ -164,6 +165,7 @@ update_rss() {
 }
 
 ensure_dirs
+wait_for_stream
 rip
 reencode_previous_rips
 reencode_rips
