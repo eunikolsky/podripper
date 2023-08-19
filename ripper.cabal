@@ -71,6 +71,7 @@ executable ripper-exe
   other-modules:
       Main_Ripper
       Main_RSSGen
+      Main_Run
       Paths_ripper
   hs-source-dirs:
       app

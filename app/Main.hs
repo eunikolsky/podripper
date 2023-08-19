@@ -1,13 +1,16 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ImportQualifiedPost #-}
 
 module Main (main) where
 
 import Data.Version (showVersion)
 import qualified Main_RSSGen as RSSGen
 import qualified Main_Ripper as Ripper
+import qualified Main_Run as Run
 import Options.Applicative.Simple
 import RIO
+import RIO.Text qualified as T
 import Ripper.Types
 import qualified Paths_ripper
 import System.Exit (die)
@@ -22,8 +25,8 @@ main = do
       addCommand
         "run"
         "Run the program"
-        (const RunOptions)
-        (pure ())
+        RunOptions
+        Run.runParser
 
       addCommand
         "ripper"
@@ -38,13 +41,13 @@ main = do
         RSSGen.rssGenParser
 
   case progOptions of
-    RunOptions -> die "TODO implement!"
+    RunOptions ripName -> die $ mconcat ["TODO implement ripping ", T.unpack ripName, "!"]
     RipperOptions options -> Ripper.main options
     RSSGenOptions files -> RSSGen.main files
 
 -- | Defines the options parsed for the request command.
 -- This type is needed to combine the incompatible command options.
 data ProgramOptions
-  = RunOptions
+  = RunOptions Run.RipName
   | RipperOptions Options
   | RSSGenOptions (NonEmpty FilePath)
