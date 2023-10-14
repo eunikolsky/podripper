@@ -1,4 +1,4 @@
-module Main_Ripper
+module Ripper.Main
   ( main
   , ripperParser
   ) where

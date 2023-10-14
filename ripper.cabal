@@ -28,6 +28,7 @@ library
       Podripper
       RipConfig
       Ripper.Import
+      Ripper.Main
       Ripper.Run
       Ripper.Types
       Ripper.Util
@@ -60,6 +61,7 @@ library
     , http-conduit
     , http-types
     , mtl
+    , optparse-simple
     , rio >=0.1.12.0
     , sqlite-simple
     , text
@@ -71,7 +73,6 @@ library
 executable ripper-exe
   main-is: Main.hs
   other-modules:
-      Main_Ripper
       Main_RSSGen
       Main_Run
       Paths_ripper

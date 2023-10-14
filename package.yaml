@@ -57,6 +57,7 @@ library:
     - http-client-tls
     - http-types
     - mtl
+    - optparse-simple
     - sqlite-simple
     - text
     - time
