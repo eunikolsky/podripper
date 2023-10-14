@@ -44,6 +44,7 @@ library
   default-extensions:
       NamedFieldPuns
       OverloadedStrings
+      TypeApplications
       NumericUnderscores
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields
   build-depends:
@@ -79,6 +80,7 @@ executable ripper-exe
   default-extensions:
       NamedFieldPuns
       OverloadedStrings
+      TypeApplications
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.11 && <10
@@ -111,6 +113,7 @@ test-suite ripper-test
   default-extensions:
       NamedFieldPuns
       OverloadedStrings
+      TypeApplications
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -threaded -rtsopts -with-rtsopts=-N -Wno-missing-export-lists
   build-depends:
       aeson
