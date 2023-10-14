@@ -39,6 +39,7 @@ library
       RSSGen.RSSItem
       RSSGen.Types
       RSSGen.UpstreamRSSFeed
+      Run
   other-modules:
       Paths_ripper
   hs-source-dirs:
@@ -75,7 +76,6 @@ library
 executable ripper-exe
   main-is: Main.hs
   other-modules:
-      Main_Run
       Paths_ripper
   hs-source-dirs:
       app

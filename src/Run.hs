@@ -1,4 +1,4 @@
-module Main_Run
+module Run
   ( RipName
   , runParser
   ) where
