@@ -1,17 +1,5 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
-IFS=$'\n\t'
-
-case "$OSTYPE" in
-  linux*)  DATE="date" ;;
-  darwin*) DATE="gdate" ;;
-  *)       >&2 echo "unsupported OS type $OSTYPE" ;;
-esac
-
-# These environment variables can override the default values for debugging:
-# * `RIPPER` -- path to the `ripper-exe` binary.
-
 STREAM_NAME="$1"
 
 # The directory with the config files.
@@ -25,11 +13,6 @@ CONF_NAME="${STREAM_NAME:?no config name}.conf"
 # * `RETRY_SEC` -- The sleep duration between rip retries.
 # * `RIP_DIR_NAME` -- The base name of the rip directory
 # * `POD_ARTIST`, `POD_ALBUM` -- ID3 tag information.
-
-set -o allexport
-# shellcheck source=/dev/null
-. "$CONF_DIR/$CONF_NAME"
-set +o allexport
 
 # /var/lib/podripper/               # set from outside, e.g. by `systemd`
 # +- $RIP_DIR_NAME                  # $RAW_RIP_DIR, local, raw recordings
@@ -46,18 +29,11 @@ RAW_RIP_DIR="$RIP_DIR_NAME"
 # TODO cleanup complete rips on S3 after a year?
 # local raw rip `mp3`s are removed/moved in the reencoding cycle below
 
-RIPPER="${RIPPER:-/usr/bin/ripper-exe}"
-
-ensure_dirs() {
-  [[ -d "$RAW_RIP_DIR" ]] || mkdir -p "$RAW_RIP_DIR"
-  [[ -d "$DONE_RIP_DIR" ]] || mkdir -p "$DONE_RIP_DIR"
-}
-
 # the flag shows whether the live stream check has returned success since the start
 # we don't need to ask it anymore after that
-STREAM_IS_LIVE=
+#STREAM_IS_LIVE=
 
-wait_for_stream() {
+#wait_for_stream() {
   # at the start, figure out the duration until which keep on waiting for the stream
   #END_TIMESTAMP="${END_TIMESTAMP:-$( "$DATE" -d "+ ${DURATION_SEC} seconds" '+%s' )}"
 
@@ -91,7 +67,7 @@ wait_for_stream() {
         #fi
       #fi
     #else
-      STREAM_IS_LIVE=1
+      #STREAM_IS_LIVE=1
     #fi
 
     # if we've run out of time, no need to sleep one more time at the end
@@ -101,13 +77,13 @@ wait_for_stream() {
       #break
     #fi
   #done
-}
+#}
 
 rip() {
-  if [[ -n "$STREAM_IS_LIVE" ]]; then
+  #if [[ -n "$STREAM_IS_LIVE" ]]; then
     echo "starting the ripper"
     "$RIPPER" ripper --verbose -d "$RAW_RIP_DIR" -l "$DURATION_SEC" -r "$RETRY_SEC" "$STREAM_URL" || true
-  fi
+  #fi
 }
 
 year="$( "$DATE" '+%Y' )"
@@ -120,20 +96,20 @@ REENCODED_RIP_SUFFIX="_enc"
 # we can try reencoding those older ones again)
 # this needs to happen before reencoding fresh rips because if those fail, they
 # would be attempted to be reencoded again in this run, which isn't very useful
-reencode_previous_rips() {
-  if ls "$DONE_RIP_DIR"/*"$SRC_RIP_SUFFIX".mp3 &>/dev/null; then
-    for rip in "$DONE_RIP_DIR"/*"$SRC_RIP_SUFFIX".mp3; do
-      pod_title="$( sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' <<< "$rip" )"
-      REENCODED_RIP="${rip/$SRC_RIP_SUFFIX/$REENCODED_RIP_SUFFIX}"
-      if ! ffmpeg -nostdin -hide_banner -y -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$REENCODED_RIP"; then
-        echo "reencoding $rip failed again; leaving as is for now"
-        [[ -e "$REENCODED_RIP" ]] && rm -f "$REENCODED_RIP"
-      else
-        rm -f "$rip"
-      fi
-    done
-  fi
-}
+#reencode_previous_rips() {
+  #if ls "$DONE_RIP_DIR"/*"$SRC_RIP_SUFFIX".mp3 &>/dev/null; then
+    #for rip in "$DONE_RIP_DIR"/*"$SRC_RIP_SUFFIX".mp3; do
+      #pod_title="$( sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' <<< "$rip" )"
+      #REENCODED_RIP="${rip/$SRC_RIP_SUFFIX/$REENCODED_RIP_SUFFIX}"
+      #if ! ffmpeg -nostdin -hide_banner -y -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$REENCODED_RIP"; then
+        #echo "reencoding $rip failed again; leaving as is for now"
+        #[[ -e "$REENCODED_RIP" ]] && rm -f "$REENCODED_RIP"
+      #else
+        #rm -f "$rip"
+      #fi
+    #done
+  #fi
+#}
 
 # after we've spent enough time ripping, reencode the files (to fix the mp3 headers and stuff)
 reencode_rips() {
@@ -162,10 +138,10 @@ update_rss() {
   "$RIPPER" rssgen "${RIP_DIR_NAME}.rss"
 }
 
-ensure_dirs
-wait_for_stream
+#ensure_dirs
+#wait_for_stream
 rip
-reencode_previous_rips
+#reencode_previous_rips
 reencode_rips
 update_rss
 
