@@ -81,8 +81,7 @@ RAW_RIP_DIR="$RIP_DIR_NAME"
 
 rip() {
   #if [[ -n "$STREAM_IS_LIVE" ]]; then
-    echo "starting the ripper"
-    "$RIPPER" ripper --verbose -d "$RAW_RIP_DIR" -l "$DURATION_SEC" -r "$RETRY_SEC" "$STREAM_URL" || true
+    #_ || true
   #fi
 }
 
@@ -140,7 +139,7 @@ update_rss() {
 
 #ensure_dirs
 #wait_for_stream
-rip
+#rip
 #reencode_previous_rips
 reencode_rips
 update_rss
