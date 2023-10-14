@@ -58,6 +58,7 @@ library:
     - http-types
     - mtl
     - optparse-simple
+    - shake
     - sqlite-simple
     - text
     - time
@@ -75,7 +76,6 @@ executables:
     - http-client-tls
     - mtl
     - optparse-simple
-    - shake
     - sqlite-simple
     - text
     - transformers

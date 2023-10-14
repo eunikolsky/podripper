@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Main_RSSGen
+module RSSGen.Main
   ( main
   , rssGenParser
   ) where

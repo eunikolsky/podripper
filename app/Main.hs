@@ -5,11 +5,11 @@
 module Main (main) where
 
 import Data.Version (showVersion)
-import qualified Main_RSSGen as RSSGen
 import qualified Main_Run as Run
 import Options.Applicative.Simple
 import qualified Podripper
 import RIO
+import qualified RSSGen.Main as RSSGen
 import qualified Ripper.Main as Ripper
 import Ripper.Types
 import qualified Paths_ripper
