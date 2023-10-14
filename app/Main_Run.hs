@@ -3,10 +3,8 @@ module Main_Run
   , runParser
   ) where
 
-import Data.Text (Text)
 import Options.Applicative.Simple
-
-type RipName = Text
+import Podripper (RipName)
 
 runParser :: Parser RipName
 runParser = strArgument
