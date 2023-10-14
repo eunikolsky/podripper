@@ -6,8 +6,10 @@ module Podripper
 import Control.Monad
 import Data.Aeson
 import Data.Maybe
+import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified RSSGen.Main as RSSGen (main)
 import RipConfig
 import qualified Ripper.Main as Ripper (main)
 import qualified Ripper.Types as Ripper (Options(..))
@@ -22,6 +24,7 @@ data RipConfigExt = RipConfigExt
   { config :: !RipConfig
   , rawRipDir :: !FilePath
   , doneRipDir :: !FilePath
+  , doneBaseDir :: !FilePath
   }
 
 main :: RipName -> IO ()
@@ -30,6 +33,7 @@ main ripName = do
   let configExt = extendConfig config
   ensureDirs configExt
   rip configExt
+  updateRSS configExt
   -- FIXME remove `exitFailure` when the script has been migrated
   exitFailure
 
@@ -59,6 +63,12 @@ rip RipConfigExt{config, rawRipDir} = do
         }
   Ripper.main options
 
+updateRSS :: RipConfigExt -> IO ()
+updateRSS RipConfigExt{config, doneBaseDir} =
+  withCurrentDirectory doneBaseDir $ RSSGen.main rssName
+  -- FIXME replace `ripDirName` with the requested rip name and remove the field
+  where rssName = NE.singleton $ T.unpack (ripDirName config) <.> "rss"
+
 extendConfig :: RipConfig -> RipConfigExt
 extendConfig config =
   let
@@ -67,7 +77,7 @@ extendConfig config =
       -- | The base directory for complete rips; this should be mounted from S3.
       doneBaseDir = "complete"
       doneRipDir = doneBaseDir </> rawRipDir
-  in RipConfigExt{config, rawRipDir, doneRipDir}
+  in RipConfigExt{config, rawRipDir, doneRipDir, doneBaseDir}
 
 getConfDir :: IO FilePath
 getConfDir = do

@@ -131,17 +131,11 @@ reencode_rips() {
   fi
 }
 
-# finally, we should update the RSS feed
-update_rss() {
-  cd "$DONE_BASE_DIR"
-  "$RIPPER" rssgen "${RIP_DIR_NAME}.rss"
-}
-
 #ensure_dirs
 #wait_for_stream
 #rip
 #reencode_previous_rips
 reencode_rips
-update_rss
+#update_rss
 
 # vim: et ts=2 sw=2

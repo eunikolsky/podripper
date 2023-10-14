@@ -68,4 +68,4 @@ build-ripper-linux:
 
 .PHONY:
 local-stream:
-	@CONF_DIR=../conf SHAKE_DIR=.shake stack run --cwd _testing -- run "$${STREAM:-eradio}"
+	@CONF_DIR=$$PWD/conf SHAKE_DIR=.shake stack run --cwd _testing -- run "$${STREAM:-eradio}"
