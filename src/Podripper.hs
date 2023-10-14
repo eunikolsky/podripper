@@ -11,7 +11,7 @@ import qualified Data.Text as T
 import RipConfig
 import System.Directory
 import System.Environment
-import System.Exit (die)
+import System.Exit (die, exitFailure)
 import System.FilePath
 
 type RipName = Text
@@ -20,8 +20,8 @@ main :: RipName -> IO ()
 main ripName = do
   config <- loadConfig ripName
   ensureDirs config
-  -- FIXME remove `die` when the script has been migrated
-  die $ "Loaded config: " <> show config
+  -- FIXME remove `exitFailure` when the script has been migrated
+  exitFailure
 
 loadConfig :: RipName -> IO RipConfig
 loadConfig ripName = do
