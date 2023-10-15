@@ -41,8 +41,6 @@ main ripName = do
   reencodePreviousRips configExt
   reencodeRips configExt
   updateRSS configExt
-  -- FIXME remove `exitFailure` when the script has been migrated
-  exitFailure
 
 loadConfig :: RipName -> IO RipConfig
 loadConfig ripName = do
