@@ -3,6 +3,7 @@ module Podripper
   , main
   ) where
 
+import Control.Exception
 import Control.Monad
 import Data.Aeson
 import Data.Maybe
@@ -67,7 +68,22 @@ rip RipConfigExt{config, rawRipDir} = do
         , Ripper.optionsSmallReconnectDelay = 1
         , Ripper.optionsStreamURL = streamURL config
         }
-  Ripper.main options
+  catchExceptions $ Ripper.main options
+
+-- | Catches synchronous exceptions (most importantly, IO exceptions) from the
+-- given IO action so that they don't crash the program (this should emulate the
+-- `_ || true` behavior in the former shell script). Interruption via `Ctrl+c`
+-- (along with other "asynchronous exceptions") is propagated further normally
+-- so that the program can be interrupted that way.
+catchExceptions :: IO () -> IO ()
+catchExceptions = handle $ \(e :: SomeException) ->
+  -- based on https://stackoverflow.com/questions/38032076/catching-every-exception-except-for-asyncexception/38032304#38032304
+  case asyncExceptionFromException @AsyncException e of
+    Just ae -> do
+      putStrLn $ mconcat ["async exception ", show ae, "; propagating"]
+      throw ae
+    Nothing ->
+      putStrLn $ mconcat ["operation failed: ", show e]
 
 sourceRipSuffix, reencodedRipSuffix :: IsString s => s
 sourceRipSuffix = "_src"
