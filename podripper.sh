@@ -110,32 +110,11 @@ REENCODED_RIP_SUFFIX="_enc"
   #fi
 #}
 
-# after we've spent enough time ripping, reencode the files (to fix the mp3 headers and stuff)
-reencode_rips() {
-  # the `if` here is to avoid printing an error from `for` when there are no
-  # files in `$RAW_RIP_DIR`
-  if ls "$RAW_RIP_DIR"/*.mp3 &>/dev/null; then
-    for rip in "$RAW_RIP_DIR"/*.mp3; do
-      pod_title="$( sed -nE 's/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\1-\2-\3 \4:\5:\6/p' <<< "$rip" )"
-      REENCODED_RIP="$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )$REENCODED_RIP_SUFFIX.mp3"
-      if ! ffmpeg -nostdin -hide_banner -i "$rip" -vn -v warning -codec:a libmp3lame -b:a 96k -metadata title="$pod_title" -metadata artist="$POD_ARTIST" -metadata album="$POD_ALBUM" -metadata date="$year" -metadata genre=Podcast "$REENCODED_RIP"; then
-        echo "reencoding $rip failed; moving the source"
-        [[ -e "$REENCODED_RIP" ]] && rm -f "$REENCODED_RIP"
-        mv "$rip" "$DONE_RIP_DIR/$( basename -s .mp3 "$rip" )$SRC_RIP_SUFFIX.mp3"
-      else
-        rm -f "$rip"
-      fi
-    done
-  else
-    echo "no files in $RAW_RIP_DIR"
-  fi
-}
-
 #ensure_dirs
 #wait_for_stream
 #rip
 #reencode_previous_rips
-reencode_rips
+#reencode_rips
 #update_rss
 
 # vim: et ts=2 sw=2

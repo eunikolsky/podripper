@@ -9,14 +9,18 @@ import Data.Maybe
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Time
+import Data.Time.Calendar.OrdinalDate
+import RIO (whenM)
 import qualified RSSGen.Main as RSSGen (main)
 import RipConfig
 import qualified Ripper.Main as Ripper (main)
 import qualified Ripper.Types as Ripper (Options(..))
 import System.Directory
 import System.Environment
-import System.Exit (die, exitFailure)
+import System.Exit
 import System.FilePath
+import System.Process
 
 type RipName = Text
 
@@ -33,6 +37,7 @@ main ripName = do
   let configExt = extendConfig config
   ensureDirs configExt
   rip configExt
+  reencodeRips configExt
   updateRSS configExt
   -- FIXME remove `exitFailure` when the script has been migrated
   exitFailure
@@ -62,6 +67,55 @@ rip RipConfigExt{config, rawRipDir} = do
         , Ripper.optionsStreamURL = streamURL config
         }
   Ripper.main options
+
+reencodeRips :: RipConfigExt -> IO ()
+reencodeRips RipConfigExt{config, rawRipDir, doneRipDir} = do
+  rips <- fmap (rawRipDir </>) . filter ((== ".mp3") . takeExtension) <$> listDirectory rawRipDir
+  year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
+  if not (null rips)
+  then forM_ rips (reencodeRip year)
+  else putStrLn $ "no files in " <> rawRipDir
+
+  where
+    reencodeRip year ripName = do
+      podTitle <- podTitleFromFilename ripName
+      let reencodedRipSuffix = "_enc"
+          sourceRipSuffix = "_src"
+
+          reencodedRip = doneRipDir </> takeBaseName ripName <> reencodedRipSuffix <.> "mp3"
+          ffmpegArgs =
+            [ "-nostdin"
+            , "-hide_banner"
+            , "-i", ripName
+            , "-vn"
+            , "-v", "warning"
+            , "-codec:a", "libmp3lame"
+            , "-b:a", "96k"
+            , "-metadata", "title=" <> podTitle
+            , "-metadata", "artist=" <> T.unpack (podArtist config)
+            , "-metadata", "album=" <> T.unpack (podAlbum config)
+            , "-metadata", "date=" <> year
+            , "-metadata", "genre=Podcast"
+            , reencodedRip
+            ]
+      (code, out, err) <- readProcessWithExitCode "ffmpeg" ffmpegArgs ""
+      unless (null out) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stdout: ", out]
+      unless (null err) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stderr: ", err]
+      if code == ExitSuccess
+        then removeFile ripName
+        else do
+          putStrLn $ mconcat ["reencoding ", ripName, " failed; moving the source"]
+          whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
+          renameFile ripName $ doneRipDir </> takeBaseName ripName <> sourceRipSuffix <.> "mp3"
+
+    podTitleFromFilename name = do
+      -- FIXME replace with a native Haskell solution
+      (code, out, err) <- readProcessWithExitCode "sed" ["-nE", "s/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\\1-\\2-\\3 \\4:\\5:\\6/p"] name
+      if code == ExitSuccess
+        then pure out
+        else do
+          putStrLn $ mconcat ["podTitleFromFilename " <> name <> ": exit code ", show code, "; stderr: ", err]
+          pure ""
 
 updateRSS :: RipConfigExt -> IO ()
 updateRSS RipConfigExt{config, doneBaseDir} =

@@ -58,6 +58,7 @@ library:
     - http-types
     - mtl
     - optparse-simple
+    - process
     - shake
     - sqlite-simple
     - text
