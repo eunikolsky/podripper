@@ -13,7 +13,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
-import RIO (whenM, IsString)
+import RIO (whenM, IsString, threadDelay)
 import qualified RSSGen.Main as RSSGen (main)
 import RipConfig
 import qualified Ripper.Main as Ripper (main)
@@ -58,8 +58,7 @@ ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
   forM_ [rawRipDir, doneRipDir] ensureDir
 
 rip :: RipConfigExt -> IO ()
-rip RipConfigExt{config, rawRipDir} = do
-  putStrLn "starting the ripper"
+rip RipConfigExt{config, rawRipDir} =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir
@@ -68,7 +67,29 @@ rip RipConfigExt{config, rawRipDir} = do
         , Ripper.optionsSmallReconnectDelay = 1
         , Ripper.optionsStreamURL = streamURL config
         }
-  catchExceptions $ Ripper.main options
+      microsecondsInSecond = 1_000_000
+  -- note: this loop is not needed on its own because the ripper should already
+  -- run for `durationSec`; however, this is a guard to restart it in case it
+  -- throws an exception, so `catchExceptions` is required
+  in runFor (retrySec config * microsecondsInSecond) (fromIntegral $ durationSec config) $ do
+    putStrLn "starting the ripper"
+    catchExceptions $ Ripper.main options
+
+-- | Runs the given IO action repeatedly for the provided `duration`, with the
+-- `retryDelay` between each invocation.
+runFor :: Int -> NominalDiffTime -> IO () -> IO ()
+runFor retryDelay duration io = do
+  now <- getCurrentTime
+  let endTime = addUTCTime duration now
+  putStrLn $ mconcat ["now ", show now, " + ", show duration, " = end time ", show endTime]
+  go endTime
+
+  where
+    go endTime = do
+      now <- getCurrentTime
+      let shouldRun = now < endTime
+      putStrLn $ mconcat ["now ", show now, "; should run: ", show shouldRun]
+      when shouldRun $ io >> threadDelay retryDelay >> go endTime
 
 -- | Catches synchronous exceptions (most importantly, IO exceptions) from the
 -- given IO action so that they don't crash the program (this should emulate the
