@@ -67,18 +67,17 @@ rip RipConfigExt{config, rawRipDir} =
         , Ripper.optionsSmallReconnectDelay = 1
         , Ripper.optionsStreamURL = streamURL config
         }
-      microsecondsInSecond = 1_000_000
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
   -- throws an exception, so `catchExceptions` is required
-  in runFor (retrySec config * microsecondsInSecond) (fromIntegral $ durationSec config) $ do
+  in runFor (retrySec config) (fromIntegral $ durationSec config) $ do
     putStrLn "starting the ripper"
     catchExceptions $ Ripper.main options
 
 -- | Runs the given IO action repeatedly for the provided `duration`, with the
--- `retryDelay` between each invocation.
+-- `retryDelaySec` between each invocation.
 runFor :: Int -> NominalDiffTime -> IO () -> IO ()
-runFor retryDelay duration io = do
+runFor retryDelaySec duration io = do
   now <- getCurrentTime
   let endTime = addUTCTime duration now
   putStrLn $ mconcat ["now ", show now, " + ", show duration, " = end time ", show endTime]
@@ -89,7 +88,20 @@ runFor retryDelay duration io = do
       now <- getCurrentTime
       let shouldRun = now < endTime
       putStrLn $ mconcat ["now ", show now, "; should run: ", show shouldRun]
-      when shouldRun $ io >> threadDelay retryDelay >> go endTime
+
+      when shouldRun $ do
+        io
+
+        afterIO <- getCurrentTime
+        let nextNow = addUTCTime (fromIntegral retryDelaySec) afterIO
+        let haveEnoughTimeForNextIteration = nextNow < endTime
+        putStrLn $ mconcat ["now ", show afterIO, "; have enough time for next iteration: ", show haveEnoughTimeForNextIteration]
+
+        when haveEnoughTimeForNextIteration $ do
+          threadDelay $ retryDelaySec * microsecondsInSecond
+          go endTime
+
+    microsecondsInSecond = 1_000_000
 
 -- | Catches synchronous exceptions (most importantly, IO exceptions) from the
 -- given IO action so that they don't crash the program (this should emulate the
