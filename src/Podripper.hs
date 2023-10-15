@@ -34,10 +34,11 @@ data RipConfigExt = RipConfigExt
 
 main :: RipName -> IO ()
 main ripName = do
+  skipRipping <- getSkipRipping
   config <- loadConfig ripName
   let configExt = extendConfig config
   ensureDirs configExt
-  rip configExt
+  unless skipRipping $ rip configExt
   reencodePreviousRips configExt
   reencodeRips configExt
   updateRSS configExt
@@ -172,6 +173,18 @@ updateRSS RipConfigExt{config, doneBaseDir} =
   withCurrentDirectory doneBaseDir $ RSSGen.main rssName
   -- FIXME replace `ripDirName` with the requested rip name and remove the field
   where rssName = NE.singleton $ T.unpack (ripDirName config) <.> "rss"
+
+-- | Checks for the (legacy) `END_TIMESTAMP` environment variable: the value of
+-- `0` means "skip the ripping part"; all other values aren't supported at the
+-- moment and will terminate the program.
+getSkipRipping :: IO Bool
+getSkipRipping = do
+  maybeEndTimestamp <- lookupEnv "END_TIMESTAMP"
+  case maybeEndTimestamp of
+    Nothing -> pure False
+    Just "0" -> pure True
+    Just x -> do
+      die $ mconcat ["END_TIMESTAMP envvar: only value `0` is supported, ", show x, " given; terminating"]
 
 extendConfig :: RipConfig -> RipConfigExt
 extendConfig config =
