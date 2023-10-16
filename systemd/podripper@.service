@@ -3,7 +3,7 @@ Description=Podripper %i
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/podripper.sh %i
+ExecStart=/usr/bin/ripper-exe run %i
 WorkingDirectory=/var/lib/podripper
 User=user
 

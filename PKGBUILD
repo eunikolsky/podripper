@@ -6,17 +6,17 @@ pkgdesc="Rips online podcast streams and generates RSS for them"
 arch=('x86_64')
 url=""
 license=('MIT')
-depends=('bash' 'ffmpeg' 'glibc' 'gmp' 'curl' 'jq' 'htmlq')
+depends=('ffmpeg' 'glibc' 'gmp')
 source=($pkgname.tar)
 md5sums=('SKIP')
 
 package() {
   cd "$pkgname"
 
-  install -Dm 755 -t "$pkgdir"/usr/bin podripper.sh ripper-exe
+  install -Dm 755 -t "$pkgdir"/usr/bin ripper-exe
   install -Dm 644 LICENSE "$pkgdir/usr/share/license/$pkgname/LICENSE"
 
-  find conf -maxdepth 1 -type f \( -name '*.conf' -or -name '*.json' \) \
+  find conf -maxdepth 1 -type f -name '*.json' \
     -exec install -Dm 644 -t "$pkgdir"/usr/share/$pkgname "{}" +
 
   find systemd -maxdepth 1 -type f \
