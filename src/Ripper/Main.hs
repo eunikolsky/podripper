@@ -5,7 +5,7 @@ module Ripper.Main
 
 import Data.Version (showVersion)
 import Ripper.Import
-import Options.Applicative.Simple
+import Options.Applicative
 import qualified Paths_ripper
 import RIO.Process
 import qualified RIO.Text as T

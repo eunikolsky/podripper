@@ -3,7 +3,7 @@ module Run
   , runParser
   ) where
 
-import Options.Applicative.Simple
+import Options.Applicative
 import Podripper (RipName)
 
 runParser :: Parser RipName

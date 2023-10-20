@@ -5,7 +5,7 @@
 module Main (main) where
 
 import Data.Version (showVersion)
-import Options.Applicative.Simple
+import Options.Applicative
 import qualified Podripper
 import RIO
 import qualified RSSGen.Main as RSSGen
@@ -16,33 +16,29 @@ import qualified Paths_ripper
 
 main :: IO ()
 main = do
-  ((), progOptions) <- simpleOptions
-    (showVersion Paths_ripper.version)
-    "Header for command line arguments"
-    "Program description, also for command line arguments"
-    (pure ()) $ do
-      addCommand
-        "run"
-        "Run the program"
-        RunOptions
-        Run.runParser
-
-      addCommand
-        "ripper"
-        "Rip a podcast live stream"
-        RipperOptions
-        Ripper.ripperParser
-
-      addCommand
-        "rssgen"
-        "Generate the RSS for the podcast"
-        RSSGenOptions
-        RSSGen.rssGenParser
+  let version = showVersion Paths_ripper.version
+      opts = info (programOptions <**> simpleVersioner version <**> helper)
+        ( fullDesc
+        <> header "Header for command line arguments"
+        <> progDesc "Program description, also for command line arguments"
+        )
+  progOptions <- execParser opts
 
   case progOptions of
     RunOptions ripName -> Podripper.main ripName
     RipperOptions options -> Ripper.main options
     RSSGenOptions files -> RSSGen.main files
+
+programOptions :: Parser ProgramOptions
+programOptions = hsubparser $ mconcat
+  [ cmd "run" "Run the program" RunOptions Run.runParser
+  , cmd "ripper" "Rip a podcast live stream" RipperOptions Ripper.ripperParser
+  , cmd "rssgen" "Generate the RSS for the podcast" RSSGenOptions RSSGen.rssGenParser
+  ]
+
+  where
+    cmd name desc constr parser = command name $
+      info (constr <$> parser) (progDesc desc)
 
 -- | Defines the options parsed for the request command.
 -- This type is needed to combine the incompatible command options.

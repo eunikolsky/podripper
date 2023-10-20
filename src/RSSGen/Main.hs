@@ -24,7 +24,7 @@ import Development.Shake.Classes
 import Development.Shake.FilePath
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
-import Options.Applicative.Simple
+import Options.Applicative
 import qualified System.Environment as Env
 
 import qualified Paths_ripper as Paths (version)
