@@ -115,7 +115,7 @@ rip RipConfigExt{config, rawRipDir} =
     catchExceptions $ Ripper.run options
 
 data ProcessReadiness = NotReady | Ready
-  deriving Eq
+  deriving (Eq, Show)
 
 fromProcessReady :: Bool -> ProcessReadiness
 fromProcessReady True = Ready
@@ -147,16 +147,16 @@ runFor retryDelaySec duration io = do
 
         afterIO <- getCurrentTime
         let nextNow = addUTCTime (fromIntegral retryDelaySec) afterIO
-        -- TODO it must be possible to split these into two different concerns
         let haveEnoughTimeForNextIteration = nextNow < endTime
-            processIsReady = processReadiness == Ready
         putStrLn $ mconcat
           [ "now ", show afterIO
           , "; have enough time for next iteration: ", show haveEnoughTimeForNextIteration
-          , "; process is ready: ", show processIsReady
+          , "; process readiness: ", show processReadiness
           ]
 
-        if processIsReady then pure Ready
+        -- TODO how to split these two different concerns: wait until time and
+        -- wait until ready?
+        if processReadiness == Ready then pure Ready
         else if haveEnoughTimeForNextIteration then do
           threadDelay $ retryDelaySec * microsecondsInSecond
           go endTime
