@@ -73,7 +73,12 @@ waitForStream RipConfigExt{config} =
   -- is more complicated and the stream URL needs to be extracted from the
   -- status endpoint
   -- FIXME support this via the config file
-  in if ripName == "atp" then waitForATP else pure True
+  in if ripName == "atp" then
+    toProcessReady <$> runFor
+      (retrySec config)
+      (fromIntegral $ durationSec config)
+      (fromProcessReady <$> waitForATP)
+    else pure True
 
   where
     waitForATP = logError <=< runExceptT $ do
@@ -105,13 +110,26 @@ rip RipConfigExt{config, rawRipDir} =
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
   -- throws an exception, so `catchExceptions` is required
-  in runFor (retrySec config) (fromIntegral $ durationSec config) $ do
+  in runFor_ (retrySec config) (fromIntegral $ durationSec config) $ do
     putStrLn "starting the ripper"
     catchExceptions $ Ripper.run options
 
--- | Runs the given IO action repeatedly for the provided `duration`, with the
--- `retryDelaySec` between each invocation.
-runFor :: Int -> NominalDiffTime -> IO () -> IO ()
+data ProcessReadiness = NotReady | Ready
+  deriving Eq
+
+fromProcessReady :: Bool -> ProcessReadiness
+fromProcessReady True = Ready
+fromProcessReady False = NotReady
+
+toProcessReady :: ProcessReadiness -> Bool
+toProcessReady Ready = True
+toProcessReady NotReady = False
+
+-- | Runs the given IO action repeatedly for the provided `duration` until it
+-- returns the `Ready` state, with the `retryDelaySec` between each invocation.
+-- If it isn't `Ready` until the `duration` expires, the final state is what
+-- the action returns (that is, `NotReady`).
+runFor :: Int -> NominalDiffTime -> IO ProcessReadiness -> IO ProcessReadiness
 runFor retryDelaySec duration io = do
   now <- getCurrentTime
   let endTime = addUTCTime duration now
@@ -121,22 +139,40 @@ runFor retryDelaySec duration io = do
   where
     go endTime = do
       now <- getCurrentTime
-      let shouldRun = now < endTime
-      putStrLn $ mconcat ["now ", show now, "; should run: ", show shouldRun]
+      let canRun = now < endTime
+      putStrLn $ mconcat ["now ", show now, "; can run: ", show canRun]
 
-      when shouldRun $ do
-        io
+      if canRun then do
+        processReadiness <- io
 
         afterIO <- getCurrentTime
         let nextNow = addUTCTime (fromIntegral retryDelaySec) afterIO
+        -- TODO it must be possible to split these into two different concerns
         let haveEnoughTimeForNextIteration = nextNow < endTime
-        putStrLn $ mconcat ["now ", show afterIO, "; have enough time for next iteration: ", show haveEnoughTimeForNextIteration]
+            processIsReady = processReadiness == Ready
+        putStrLn $ mconcat
+          [ "now ", show afterIO
+          , "; have enough time for next iteration: ", show haveEnoughTimeForNextIteration
+          , "; process is ready: ", show processIsReady
+          ]
 
-        when haveEnoughTimeForNextIteration $ do
+        if processIsReady then pure Ready
+        else if haveEnoughTimeForNextIteration then do
           threadDelay $ retryDelaySec * microsecondsInSecond
           go endTime
+        -- TODO is it possible to simplify the implementation? there are too
+        -- many return points here
+        else pure NotReady
+
+      -- didn't manage to get the ready status before out-of-time => not ready
+      else pure NotReady
 
     microsecondsInSecond = 1_000_000
+
+-- | Version of `runFor` where the IO action returns `()` (that is, `NotReady`),
+-- that is it runs until the `duration` expires w/o an early exit.
+runFor_ :: Int -> NominalDiffTime -> IO () -> IO ()
+runFor_ retryDelaySec duration io = void $ runFor retryDelaySec duration (io $> NotReady)
 
 -- | Catches synchronous exceptions (most importantly, IO exceptions) from the
 -- given IO action so that they don't crash the program (this should emulate the
