@@ -1,6 +1,6 @@
 module Podripper
   ( RipName
-  , main
+  , run
   ) where
 
 import Control.Exception
@@ -14,9 +14,9 @@ import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
 import RIO (whenM, IsString, threadDelay)
-import qualified RSSGen.Main as RSSGen (main)
+import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
-import qualified Ripper.Main as Ripper (main)
+import qualified Ripper.Main as Ripper (run)
 import qualified Ripper.Types as Ripper (Options(..))
 import System.Directory
 import System.Environment
@@ -33,8 +33,8 @@ data RipConfigExt = RipConfigExt
   , doneBaseDir :: !FilePath
   }
 
-main :: RipName -> IO ()
-main ripName = do
+run :: RipName -> IO ()
+run ripName = do
   skipRipping <- getSkipRipping
   config <- loadConfig ripName
   let configExt = extendConfig config
@@ -72,7 +72,7 @@ rip RipConfigExt{config, rawRipDir} =
   -- throws an exception, so `catchExceptions` is required
   in runFor (retrySec config) (fromIntegral $ durationSec config) $ do
     putStrLn "starting the ripper"
-    catchExceptions $ Ripper.main options
+    catchExceptions $ Ripper.run options
 
 -- | Runs the given IO action repeatedly for the provided `duration`, with the
 -- `retryDelaySec` between each invocation.
@@ -219,7 +219,7 @@ reencodePreviousRips RipConfigExt{config, doneRipDir} = do
 
 updateRSS :: RipConfigExt -> IO ()
 updateRSS RipConfigExt{config, doneBaseDir} =
-  withCurrentDirectory doneBaseDir $ RSSGen.main rssName
+  withCurrentDirectory doneBaseDir $ RSSGen.run rssName
   -- FIXME replace `ripDirName` with the requested rip name and remove the field
   where rssName = NE.singleton $ T.unpack (ripDirName config) <.> "rss"
 

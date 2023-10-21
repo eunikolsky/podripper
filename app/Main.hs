@@ -25,9 +25,9 @@ main = do
   progOptions <- execParser opts
 
   case progOptions of
-    RunOptions ripName -> Podripper.main ripName
-    RipperOptions options -> Ripper.main options
-    RSSGenOptions files -> RSSGen.main files
+    RunOptions ripName -> Podripper.run ripName
+    RipperOptions options -> Ripper.run options
+    RSSGenOptions files -> RSSGen.run files
 
 programOptions :: Parser ProgramOptions
 programOptions = hsubparser $ mconcat
