@@ -4,17 +4,6 @@ STREAM_IS_LIVE=
 
 wait_for_stream() {
   while (( $( "$DATE" '+%s' ) < "$END_TIMESTAMP" )); do
-    # FIXME the `atp` support is hardcoded in the program because its live
-    # stream check is more complicated and the stream URL needs to be extracted
-    # from the status endpoint; implementing a DSL in `conf` files and shell
-    # isn't easy, so this should be more easily done when the script is
-    # rewritten in Haskell
-    if [[ "$STREAM_NAME" == atp ]]; then
-      STATUS="$(curl -sS https://atp.fm/livestream_status)"
-      echo "$STATUS"
-
-      if [[ -z "$STREAM_IS_LIVE" ]]; then
-        # no live stream yet
         if jq -e .live <<< "$STATUS" >/dev/null; then
           STREAM_IS_LIVE=1
 
@@ -31,10 +20,6 @@ wait_for_stream() {
           [[ -z "$STREAM_URL" ]] && STREAM_URL="$ORIG_STREAM_URL"
           echo "  3 stream url (original): $STREAM_URL"
         fi
-      fi
-    else
-      STREAM_IS_LIVE=1
-    fi
   done
 }
 

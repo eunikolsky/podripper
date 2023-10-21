@@ -5,14 +5,20 @@ module Podripper
 
 import Control.Exception
 import Control.Monad
-import Data.Aeson
+import Control.Monad.Except
+import Data.Aeson hiding ((<?>))
+import qualified Data.Aeson.KeyMap as A
+import Data.Functor
 import Data.Maybe
 import Data.List (isSuffixOf)
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy.Encoding as TLE
+import qualified Data.Text.Lazy.IO as TL
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
+import Network.HTTP.Simple
 import RIO (whenM, IsString, threadDelay)
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
@@ -61,7 +67,30 @@ ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
   forM_ [rawRipDir, doneRipDir] ensureDir
 
 waitForStream :: RipConfigExt -> IO Bool
-waitForStream = const $ pure True
+waitForStream RipConfigExt{config} =
+  let ripName = ripDirName config
+  -- the `atp` support is hardcoded in the program because its live stream check
+  -- is more complicated and the stream URL needs to be extracted from the
+  -- status endpoint
+  -- FIXME support this via the config file
+  in if ripName == "atp" then waitForATP else pure True
+
+  where
+    waitForATP = logError <=< runExceptT $ do
+      statusResponse <- liftIO . fmap getResponseBody . httpLBS $ parseRequest_ "https://atp.fm/livestream_status"
+      liftIO . TL.putStrLn $ TLE.decodeUtf8 statusResponse
+      status <- liftEither . eitherDecode @Object $ statusResponse
+
+      isLiveValue <- liftEither $ A.lookup "live" status <?> "Can't find `live` key"
+      liftEither $ extractBool isLiveValue
+
+    extractBool :: Value -> Either String Bool
+    extractBool (Bool b) = Right b
+    extractBool x = Left $ "Expected a bool, got " <> show x
+
+    logError :: Either String Bool -> IO Bool
+    logError (Right b) = pure b
+    logError (Left err) = putStrLn err $> False
 
 rip :: RipConfigExt -> IO ()
 rip RipConfigExt{config, rawRipDir} =
@@ -255,3 +284,8 @@ getConfDir :: IO FilePath
 getConfDir = do
   maybeConfDir <- lookupEnv "CONF_DIR"
   pure $ fromMaybe "/usr/share/podripper" maybeConfDir
+
+-- infix 7 <?>
+(<?>) :: Maybe a -> b -> Either b a
+Just x <?> _ = Right x
+Nothing <?> e = Left e
