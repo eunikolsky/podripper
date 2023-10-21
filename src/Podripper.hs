@@ -110,7 +110,7 @@ rip RipConfigExt{config, rawRipDir} =
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
   -- throws an exception, so `catchExceptions` is required
-  in runFor_ (retrySec config) (fromIntegral $ durationSec config) $ do
+  in runFor (retrySec config) (fromIntegral $ durationSec config) $ do
     putStrLn "starting the ripper"
     catchExceptions $ Ripper.run options
 
@@ -125,11 +125,37 @@ toProcessReady :: ProcessReadiness -> Bool
 toProcessReady Ready = True
 toProcessReady NotReady = False
 
+-- | Defines the types that can represent process readiness flag, basically
+-- `ProcessReadiness`, or `()` for cases when process readiness is meaningless.
+-- The whole point of this typeclass is `showReadiness`, which returns `Nothing`
+-- for `()` so that it's not logged! There is also a (runtime) validation that
+-- the ready case doesn't make sense for `()` (I'm not sure how to make it a
+-- compile-time check; `absurd` doesn't work). This is probably an overkill for
+-- such a small use case and should be removed when/if process readiness logging
+-- is removed, and there is no observable difference between the two instances.
+class ProcessReadinessType a where
+  mkReady :: a
+  mkNotReady :: a
+  readinessIsReady :: a -> Bool
+  showReadiness :: a -> Maybe String
+
+instance ProcessReadinessType ProcessReadiness where
+  mkReady = Ready
+  mkNotReady = NotReady
+  readinessIsReady = toProcessReady
+  showReadiness = Just . show
+
+instance ProcessReadinessType () where
+  mkReady = error "impossible case: mkReady for ()"
+  mkNotReady = ()
+  readinessIsReady = const False
+  showReadiness = const Nothing
+
 -- | Runs the given IO action repeatedly for the provided `duration` until it
 -- returns the `Ready` state, with the `retryDelaySec` between each invocation.
 -- If it isn't `Ready` until the `duration` expires, the final state is what
 -- the action returns (that is, `NotReady`).
-runFor :: Int -> NominalDiffTime -> IO ProcessReadiness -> IO ProcessReadiness
+runFor :: ProcessReadinessType r => Int -> NominalDiffTime -> IO r -> IO r
 runFor retryDelaySec duration io = do
   now <- getCurrentTime
   let endTime = addUTCTime duration now
@@ -148,31 +174,26 @@ runFor retryDelaySec duration io = do
         afterIO <- getCurrentTime
         let nextNow = addUTCTime (fromIntegral retryDelaySec) afterIO
         let haveEnoughTimeForNextIteration = nextNow < endTime
-        putStrLn $ mconcat
+        putStrLn . mconcat $
           [ "now ", show afterIO
           , "; have enough time for next iteration: ", show haveEnoughTimeForNextIteration
-          , "; process readiness: ", show processReadiness
           ]
+          <> maybe [] (\s -> ["; process readiness: ", s]) (showReadiness processReadiness)
 
         -- TODO how to split these two different concerns: wait until time and
         -- wait until ready?
-        if processReadiness == Ready then pure Ready
+        if readinessIsReady processReadiness then pure mkReady
         else if haveEnoughTimeForNextIteration then do
           threadDelay $ retryDelaySec * microsecondsInSecond
           go endTime
         -- TODO is it possible to simplify the implementation? there are too
         -- many return points here
-        else pure NotReady
+        else pure mkNotReady
 
       -- didn't manage to get the ready status before out-of-time => not ready
-      else pure NotReady
+      else pure mkNotReady
 
     microsecondsInSecond = 1_000_000
-
--- | Version of `runFor` where the IO action returns `()` (that is, `NotReady`),
--- that is it runs until the `duration` expires w/o an early exit.
-runFor_ :: Int -> NominalDiffTime -> IO () -> IO ()
-runFor_ retryDelaySec duration io = void $ runFor retryDelaySec duration (io $> NotReady)
 
 -- | Catches synchronous exceptions (most importantly, IO exceptions) from the
 -- given IO action so that they don't crash the program (this should emulate the
