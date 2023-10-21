@@ -39,7 +39,10 @@ run ripName = do
   config <- loadConfig ripName
   let configExt = extendConfig config
   ensureDirs configExt
-  unless skipRipping $ rip configExt
+  -- | the flag shows whether the live stream check has returned success since
+  -- the start; we don't need to ask it anymore after that
+  streamIsLive <- waitForStream configExt
+  when (streamIsLive && not skipRipping) $ rip configExt
   reencodePreviousRips configExt
   reencodeRips configExt
   updateRSS configExt
@@ -56,6 +59,9 @@ ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
   let createParents = True
       ensureDir = createDirectoryIfMissing createParents
   forM_ [rawRipDir, doneRipDir] ensureDir
+
+waitForStream :: RipConfigExt -> IO Bool
+waitForStream = const $ pure True
 
 rip :: RipConfigExt -> IO ()
 rip RipConfigExt{config, rawRipDir} =

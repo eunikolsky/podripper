@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# the flag shows whether the live stream check has returned success since the start
-# we don't need to ask it anymore after that
 STREAM_IS_LIVE=
 
 wait_for_stream() {
@@ -38,11 +36,6 @@ wait_for_stream() {
       STREAM_IS_LIVE=1
     fi
   done
-}
-
-rip() {
-  if [[ -n "$STREAM_IS_LIVE" ]]; then
-  fi
 }
 
 # vim: et ts=2 sw=2
