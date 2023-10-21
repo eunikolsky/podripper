@@ -241,9 +241,7 @@ reencodeRips RipConfigExt{config, rawRipDir, doneRipDir} = do
             , "-metadata", "genre=Podcast"
             , reencodedRip
             ]
-      (code, out, err) <- readProcessWithExitCode "ffmpeg" ffmpegArgs ""
-      unless (null out) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stdout: ", out]
-      unless (null err) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stderr: ", err]
+      code <- ffmpeg ffmpegArgs ripName
       if code == ExitSuccess
         then removeFile ripName
         else do
@@ -300,14 +298,20 @@ reencodePreviousRips RipConfigExt{config, doneRipDir} = do
             , "-metadata", "genre=Podcast"
             , reencodedRip
             ]
-      (code, out, err) <- readProcessWithExitCode "ffmpeg" ffmpegArgs ""
-      unless (null out) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stdout: ", out]
-      unless (null err) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stderr: ", err]
+      code <- ffmpeg ffmpegArgs ripName
       if code == ExitSuccess
         then removeFile ripName
         else do
           putStrLn $ mconcat ["reencoding ", ripName, " failed again; leaving as is for now"]
           whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
+
+ffmpeg :: [String] -> String -> IO ExitCode
+ffmpeg args ripName = do
+  let stdin = ""
+  (code, out, err) <- readProcessWithExitCode "ffmpeg" args stdin
+  unless (null out) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stdout: ", out]
+  unless (null err) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stderr: ", err]
+  pure code
 
 updateRSS :: RipConfigExt -> IO ()
 updateRSS RipConfigExt{config, doneBaseDir} =
