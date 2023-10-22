@@ -10,10 +10,11 @@ import Control.Monad
 import Control.Monad.Except
 import Data.Aeson hiding ((<?>))
 import qualified Data.Aeson.KeyMap as A
+import Data.Char
 import Data.Functor
 import Data.Maybe
 import Data.Monoid
-import Data.List (isSuffixOf)
+import Data.List (dropWhileEnd, isSuffixOf)
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -113,9 +114,9 @@ waitForStream RipConfigExt{config} =
       case A.lookup "player" status >>= asString of
         Just player -> do
           -- FIXME replace with a native Haskell solution
-          maybeAudioSourceSrc <- readCommand "htmlq" ["-a", "src", "audio source"] player
-          maybeAudioSrc <- readCommand "htmlq" ["-a", "src", "audio"] player
-          maybeFirstLink <- readCommand "sed" ["-nE", "s/.*\"(http[^\"]+)\".*/\\1/p"] player
+          maybeAudioSourceSrc <- readCommandNonEmpty "htmlq" ["-a", "src", "audio source"] player
+          maybeAudioSrc <- readCommandNonEmpty "htmlq" ["-a", "src", "audio"] player
+          maybeFirstLink <- readCommandNonEmpty "sed" ["-nE", "s/.*\"(http[^\"]+)\".*/\\1/p"] player
           -- if I understand correctly, all three values are not lazy and are
           -- evaluated regardless of whether the previous one was a `Just`; if so,
           -- it's not a big deal as this function isn't called often
@@ -123,6 +124,18 @@ waitForStream RipConfigExt{config} =
           pure $ StreamURL . T.pack <$> firstMaybe
 
         Nothing -> pure Nothing
+
+    -- | Wrapper around `readCommand` that returns `Nothing` if the output is
+    -- whitespace only.
+    readCommandNonEmpty :: String -> [String] -> String -> IO (Maybe String)
+    readCommandNonEmpty prog args input = readCommand prog args input <&> (>>= skipEmpty)
+
+    skipEmpty :: String -> Maybe String
+    skipEmpty s = let trimmed = trimSpace s
+      in if null trimmed then Nothing else Just trimmed
+
+    trimSpace :: String -> String
+    trimSpace = dropWhile isSpace . dropWhileEnd isSpace
 
     handleError :: Either String (Maybe a) -> IO (Maybe a)
     handleError (Right b) = pure b
