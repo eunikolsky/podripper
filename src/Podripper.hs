@@ -1,3 +1,5 @@
+{-# LANGUAGE DerivingStrategies, GeneralizedNewtypeDeriving #-}
+
 module Podripper
   ( RipName
   , run
@@ -47,8 +49,8 @@ run ripName = do
   ensureDirs configExt
   -- | the flag shows whether the live stream check has returned success since
   -- the start; we don't need to ask it anymore after that
-  streamIsLive <- waitForStream configExt
-  when (streamIsLive && not skipRipping) $ rip configExt
+  maybeStreamURL <- waitForStream configExt
+  unless skipRipping $ maybe (pure ()) (rip configExt) maybeStreamURL
   reencodePreviousRips configExt
   reencodeRips configExt
   updateRSS configExt
@@ -66,7 +68,10 @@ ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
       ensureDir = createDirectoryIfMissing createParents
   forM_ [rawRipDir, doneRipDir] ensureDir
 
-waitForStream :: RipConfigExt -> IO Bool
+newtype StreamURL = StreamURL Text
+  deriving newtype Show
+
+waitForStream :: RipConfigExt -> IO (Maybe StreamURL)
 waitForStream RipConfigExt{config} =
   let ripName = ripDirName config
   -- the `atp` support is hardcoded in the program because its live stream check
@@ -78,79 +83,67 @@ waitForStream RipConfigExt{config} =
       (retrySec config)
       (fromIntegral $ durationSec config)
       (fromProcessReady <$> waitForATP)
-    else pure True
+    else pure $ Just originalStreamURL
 
   where
-    waitForATP = logError <=< runExceptT $ do
+    originalStreamURL = StreamURL $ streamURL config
+
+    waitForATP :: IO (Maybe StreamURL)
+    waitForATP = handleError <=< runExceptT $ do
       statusResponse <- liftIO . fmap getResponseBody . httpLBS $ parseRequest_ "https://atp.fm/livestream_status"
       liftIO . TL.putStrLn $ TLE.decodeUtf8 statusResponse
       status <- liftEither . eitherDecode @Object $ statusResponse
 
       isLiveValue <- liftEither $ A.lookup "live" status <?> "Can't find `live` key"
-      liftEither $ extractBool isLiveValue
+      isLive <- liftEither $ extractBool isLiveValue
+
+      pure $ if isLive then Just originalStreamURL else Nothing
 
     extractBool :: Value -> Either String Bool
     extractBool (Bool b) = Right b
     extractBool x = Left $ "Expected a bool, got " <> show x
 
-    logError :: Either String Bool -> IO Bool
-    logError (Right b) = pure b
-    logError (Left err) = putStrLn err $> False
+    handleError :: Either String (Maybe a) -> IO (Maybe a)
+    handleError (Right b) = pure b
+    handleError (Left err) = putStrLn err $> Nothing
 
-rip :: RipConfigExt -> IO ()
-rip RipConfigExt{config, rawRipDir} =
+rip :: RipConfigExt -> StreamURL -> IO ()
+rip RipConfigExt{config, rawRipDir} (StreamURL url) =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir
         , Ripper.optionsRipLengthSeconds = fromIntegral $ durationSec config
         , Ripper.optionsReconnectDelay = fromIntegral $ retrySec config
         , Ripper.optionsSmallReconnectDelay = 1
-        , Ripper.optionsStreamURL = streamURL config
+        , Ripper.optionsStreamURL = url
         }
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
   -- throws an exception, so `catchExceptions` is required
-  in runFor (retrySec config) (fromIntegral $ durationSec config) $ do
+  in runFor_ (retrySec config) (fromIntegral $ durationSec config) $ do
     putStrLn "starting the ripper"
     catchExceptions $ Ripper.run options
 
-data ProcessReadiness = NotReady | Ready
+-- | Defines whether a step in the workflow is done and ready with some data `r`.
+data ProcessReadiness r = NotReady | Ready r
   deriving (Eq, Show)
 
-fromProcessReady :: Bool -> ProcessReadiness
-fromProcessReady True = Ready
-fromProcessReady False = NotReady
+fromProcessReady :: Maybe r -> ProcessReadiness r
+fromProcessReady (Just r) = Ready r
+fromProcessReady Nothing = NotReady
 
-toProcessReady :: ProcessReadiness -> Bool
-toProcessReady Ready = True
-toProcessReady NotReady = False
+toProcessReady :: ProcessReadiness r -> Maybe r
+toProcessReady (Ready r) = Just r
+toProcessReady NotReady = Nothing
 
--- | Defines the types that can represent process readiness flag, basically
--- `ProcessReadiness`, or `()` for cases when process readiness is meaningless.
--- The whole point of this typeclass is `showReadiness`, which returns `Nothing`
--- for `()` so that it's not logged! This is probably an overkill for
--- such a small use case and should be removed when/if process readiness logging
--- is removed, and there is no observable difference between the two instances.
-class ProcessReadinessType a where
-  mkNotReady :: a
-  readinessIsReady :: a -> Bool
-  showReadiness :: a -> Maybe String
-
-instance ProcessReadinessType ProcessReadiness where
-  mkNotReady = NotReady
-  readinessIsReady = toProcessReady
-  showReadiness = Just . show
-
-instance ProcessReadinessType () where
-  mkNotReady = ()
-  readinessIsReady = const False
-  showReadiness = const Nothing
+readinessIsReady :: ProcessReadiness r -> Bool
+readinessIsReady = isJust . toProcessReady
 
 -- | Runs the given IO action repeatedly for the provided `duration` until it
 -- returns the `Ready` state, with the `retryDelaySec` between each invocation.
 -- If it isn't `Ready` until the `duration` expires, the final state is what
 -- the action returns (that is, `NotReady`).
-runFor :: ProcessReadinessType r => Int -> NominalDiffTime -> IO r -> IO r
+runFor :: Show r => Int -> NominalDiffTime -> IO (ProcessReadiness r) -> IO (ProcessReadiness r)
 runFor retryDelaySec duration io = do
   now <- getCurrentTime
   let endTime = addUTCTime duration now
@@ -172,8 +165,8 @@ runFor retryDelaySec duration io = do
         putStrLn . mconcat $
           [ "now ", show afterIO
           , "; have enough time for next iteration: ", show haveEnoughTimeForNextIteration
+          , "; process readiness: ", show processReadiness
           ]
-          <> maybe [] (\s -> ["; process readiness: ", s]) (showReadiness processReadiness)
 
         -- TODO how to split these two different concerns: wait until time and
         -- wait until ready?
@@ -186,9 +179,14 @@ runFor retryDelaySec duration io = do
         else pure processReadiness
 
       -- didn't manage to get the ready status before out-of-time => not ready
-      else pure mkNotReady
+      else pure NotReady
 
     microsecondsInSecond = 1_000_000
+
+-- | Version of `runFor` where the IO action returns `()` (that is, `NotReady`),
+-- that is it runs until the `duration` expires w/o an early exit.
+runFor_ :: Int -> NominalDiffTime -> IO () -> IO ()
+runFor_ retryDelaySec duration io = void $ runFor @() retryDelaySec duration (io $> NotReady)
 
 -- | Catches synchronous exceptions (most importantly, IO exceptions) from the
 -- given IO action so that they don't crash the program (this should emulate the
