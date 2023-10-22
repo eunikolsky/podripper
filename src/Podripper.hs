@@ -12,6 +12,7 @@ import Data.Aeson hiding ((<?>))
 import qualified Data.Aeson.KeyMap as A
 import Data.Functor
 import Data.Maybe
+import Data.Monoid
 import Data.List (isSuffixOf)
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
@@ -111,8 +112,14 @@ waitForStream RipConfigExt{config} =
     getStreamURL status = case A.lookup "player" status >>= asString of
       Just player -> do
         -- FIXME replace with a native Haskell solution
-        audioSourceSrc <- readCommand "htmlq" ["-a", "src", "audio source"] player
-        pure $ StreamURL . T.pack <$> audioSourceSrc
+        maybeAudioSourceSrc <- readCommand "htmlq" ["-a", "src", "audio source"] player
+        maybeAudioSrc <- readCommand "htmlq" ["-a", "src", "audio"] player
+        maybeFirstLink <- readCommand "sed" ["-nE", "s/.*\"(http[^\"]+)\".*/\\1/p"] player
+        -- if I understand correctly, all three values are not lazy and are
+        -- evaluated regardless of whether the previous one was a `Just`; if so,
+        -- it's not a big deal as this function isn't called often
+        let firstMaybe = getFirst $ foldMap First [maybeAudioSourceSrc, maybeAudioSrc, maybeFirstLink]
+        pure $ StreamURL . T.pack <$> firstMaybe
 
       Nothing -> pure Nothing
 
