@@ -304,10 +304,11 @@ readCommand prog args input = do
       pure Nothing
 
 podTitleFromFilename :: FilePath -> IO String
-podTitleFromFilename name = do
+podTitleFromFilename name = fromMaybe "" <$> readCommand
   -- FIXME replace with a native Haskell solution
-  maybeTitle <- readCommand "sed" ["-nE", "s/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\\1-\\2-\\3 \\4:\\5:\\6/p"] name
-  pure $ fromMaybe "" maybeTitle
+  "sed"
+  ["-nE", "s/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\\1-\\2-\\3 \\4:\\5:\\6/p"]
+  name
 
 {- |
  - discover previously failed to convert rips and try to reencode them again
