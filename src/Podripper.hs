@@ -124,20 +124,6 @@ waitForStream RipConfigExt{config} =
 
         Nothing -> pure Nothing
 
-    readCommand :: String -> [String] -> String -> IO (Maybe String)
-    readCommand prog args input = do
-      (code, out, err) <- readProcessWithExitCode prog args input
-      if code == ExitSuccess
-        then pure $ Just out
-        else do
-          putStrLn $ mconcat
-            [ "readCommand ("
-            , prog, " ", show args, " <<< ", input
-            , "): exit code ", show code
-            , "; stderr: ", err
-            ]
-          pure Nothing
-
     handleError :: Either String (Maybe a) -> IO (Maybe a)
     handleError (Right b) = pure b
     handleError (Left err) = putStrLn err $> Nothing
@@ -290,15 +276,25 @@ reencodeRips RipConfigExt{config, rawRipDir, doneRipDir} = do
           whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
           renameFile ripName $ doneRipDir </> takeBaseName ripName <> sourceRipSuffix <.> "mp3"
 
+readCommand :: String -> [String] -> String -> IO (Maybe String)
+readCommand prog args input = do
+  (code, out, err) <- readProcessWithExitCode prog args input
+  if code == ExitSuccess
+    then pure $ Just out
+    else do
+      putStrLn $ mconcat
+        [ "readCommand ("
+        , prog, " ", show args, " <<< ", input
+        , "): exit code ", show code
+        , "; stderr: ", err
+        ]
+      pure Nothing
+
 podTitleFromFilename :: FilePath -> IO String
 podTitleFromFilename name = do
   -- FIXME replace with a native Haskell solution
-  (code, out, err) <- readProcessWithExitCode "sed" ["-nE", "s/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\\1-\\2-\\3 \\4:\\5:\\6/p"] name
-  if code == ExitSuccess
-    then pure out
-    else do
-      putStrLn $ mconcat ["podTitleFromFilename " <> name <> ": exit code ", show code, "; stderr: ", err]
-      pure ""
+  maybeTitle <- readCommand "sed" ["-nE", "s/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\\1-\\2-\\3 \\4:\\5:\\6/p"] name
+  pure $ fromMaybe "" maybeTitle
 
 {- |
  - discover previously failed to convert rips and try to reencode them again
