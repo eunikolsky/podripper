@@ -97,11 +97,38 @@ waitForStream RipConfigExt{config} =
       isLiveValue <- liftEither $ A.lookup "live" status <?> "Can't find `live` key"
       isLive <- liftEither $ extractBool isLiveValue
 
-      pure $ if isLive then Just originalStreamURL else Nothing
+      if isLive then liftIO (getStreamURL status) else pure Nothing
 
     extractBool :: Value -> Either String Bool
     extractBool (Bool b) = Right b
     extractBool x = Left $ "Expected a bool, got " <> show x
+
+    asString :: Value -> Maybe String
+    asString (String t) = Just $ T.unpack t
+    asString _ = Nothing
+
+    getStreamURL :: Object -> IO (Maybe StreamURL)
+    getStreamURL status = case A.lookup "player" status >>= asString of
+      Just player -> do
+        -- FIXME replace with a native Haskell solution
+        audioSourceSrc <- readCommand "htmlq" ["-a", "src", "audio source"] player
+        pure $ StreamURL . T.pack <$> audioSourceSrc
+
+      Nothing -> pure Nothing
+
+    readCommand :: String -> [String] -> String -> IO (Maybe String)
+    readCommand prog args input = do
+      (code, out, err) <- readProcessWithExitCode prog args input
+      if code == ExitSuccess
+        then pure $ Just out
+        else do
+          putStrLn $ mconcat
+            [ "readCommand ("
+            , prog, " ", show args, " <<< ", input
+            , "): exit code ", show code
+            , "; stderr: ", err
+            ]
+          pure Nothing
 
     handleError :: Either String (Maybe a) -> IO (Maybe a)
     handleError (Right b) = pure b
