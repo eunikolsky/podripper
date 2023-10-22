@@ -98,7 +98,7 @@ waitForStream RipConfigExt{config} =
       isLiveValue <- liftEither $ A.lookup "live" status <?> "Can't find `live` key"
       isLive <- liftEither $ extractBool isLiveValue
 
-      if isLive then liftIO (getStreamURL status) else pure Nothing
+      if isLive then liftIO (Just <$> getStreamURL status) else pure Nothing
 
     extractBool :: Value -> Either String Bool
     extractBool (Bool b) = Right b
@@ -108,7 +108,7 @@ waitForStream RipConfigExt{config} =
     asString (String t) = Just $ T.unpack t
     asString _ = Nothing
 
-    getStreamURL :: Object -> IO (Maybe StreamURL)
+    getStreamURL :: Object -> IO StreamURL
     getStreamURL status = case A.lookup "player" status >>= asString of
       Just player -> do
         -- FIXME replace with a native Haskell solution
@@ -119,9 +119,9 @@ waitForStream RipConfigExt{config} =
         -- evaluated regardless of whether the previous one was a `Just`; if so,
         -- it's not a big deal as this function isn't called often
         let firstMaybe = getFirst $ foldMap First [maybeAudioSourceSrc, maybeAudioSrc, maybeFirstLink]
-        pure $ StreamURL . T.pack <$> firstMaybe
+        pure $ maybe originalStreamURL (StreamURL . T.pack) firstMaybe
 
-      Nothing -> pure Nothing
+      Nothing -> pure originalStreamURL
 
     readCommand :: String -> [String] -> String -> IO (Maybe String)
     readCommand prog args input = do
