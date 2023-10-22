@@ -1,3 +1,5 @@
+{-# LANGUAGE DerivingStrategies, GeneralizedNewtypeDeriving #-}
+
 module Podripper
   ( RipName
   , run
@@ -47,8 +49,8 @@ run ripName = do
   ensureDirs configExt
   -- | the flag shows whether the live stream check has returned success since
   -- the start; we don't need to ask it anymore after that
-  streamIsLive <- waitForStream configExt
-  when (streamIsLive && not skipRipping) $ rip configExt
+  maybeStreamURL <- waitForStream configExt
+  unless skipRipping $ maybe (pure ()) (rip configExt) maybeStreamURL
   reencodePreviousRips configExt
   reencodeRips configExt
   updateRSS configExt
@@ -66,7 +68,10 @@ ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
       ensureDir = createDirectoryIfMissing createParents
   forM_ [rawRipDir, doneRipDir] ensureDir
 
-waitForStream :: RipConfigExt -> IO Bool
+newtype StreamURL = StreamURL Text
+  deriving newtype Show
+
+waitForStream :: RipConfigExt -> IO (Maybe StreamURL)
 waitForStream RipConfigExt{config} =
   let ripName = ripDirName config
   -- the `atp` support is hardcoded in the program because its live stream check
@@ -78,34 +83,39 @@ waitForStream RipConfigExt{config} =
       (retrySec config)
       (fromIntegral $ durationSec config)
       (fromProcessReady <$> waitForATP)
-    else pure True
+    else pure $ Just originalStreamURL
 
   where
-    waitForATP = logError <=< runExceptT $ do
+    originalStreamURL = StreamURL $ streamURL config
+
+    waitForATP :: IO (Maybe StreamURL)
+    waitForATP = handleError <=< runExceptT $ do
       statusResponse <- liftIO . fmap getResponseBody . httpLBS $ parseRequest_ "https://atp.fm/livestream_status"
       liftIO . TL.putStrLn $ TLE.decodeUtf8 statusResponse
       status <- liftEither . eitherDecode @Object $ statusResponse
 
       isLiveValue <- liftEither $ A.lookup "live" status <?> "Can't find `live` key"
-      liftEither $ extractBool isLiveValue
+      isLive <- liftEither $ extractBool isLiveValue
+
+      pure $ if isLive then Just originalStreamURL else Nothing
 
     extractBool :: Value -> Either String Bool
     extractBool (Bool b) = Right b
     extractBool x = Left $ "Expected a bool, got " <> show x
 
-    logError :: Either String Bool -> IO Bool
-    logError (Right b) = pure b
-    logError (Left err) = putStrLn err $> False
+    handleError :: Either String (Maybe a) -> IO (Maybe a)
+    handleError (Right b) = pure b
+    handleError (Left err) = putStrLn err $> Nothing
 
-rip :: RipConfigExt -> IO ()
-rip RipConfigExt{config, rawRipDir} =
+rip :: RipConfigExt -> StreamURL -> IO ()
+rip RipConfigExt{config, rawRipDir} (StreamURL url) =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir
         , Ripper.optionsRipLengthSeconds = fromIntegral $ durationSec config
         , Ripper.optionsReconnectDelay = fromIntegral $ retrySec config
         , Ripper.optionsSmallReconnectDelay = 1
-        , Ripper.optionsStreamURL = streamURL config
+        , Ripper.optionsStreamURL = url
         }
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
@@ -114,16 +124,17 @@ rip RipConfigExt{config, rawRipDir} =
     putStrLn "starting the ripper"
     catchExceptions $ Ripper.run options
 
-data ProcessReadiness = NotReady | Ready
+-- | Defines whether a step in the workflow is done and ready with some data `r`.
+data ProcessReadiness r = NotReady | Ready r
   deriving (Eq, Show)
 
-fromProcessReady :: Bool -> ProcessReadiness
-fromProcessReady True = Ready
-fromProcessReady False = NotReady
+fromProcessReady :: Maybe r -> ProcessReadiness r
+fromProcessReady (Just r) = Ready r
+fromProcessReady Nothing = NotReady
 
-toProcessReady :: ProcessReadiness -> Bool
-toProcessReady Ready = True
-toProcessReady NotReady = False
+toProcessReady :: ProcessReadiness r -> Maybe r
+toProcessReady (Ready r) = Just r
+toProcessReady NotReady = Nothing
 
 -- | Defines the types that can represent process readiness flag, basically
 -- `ProcessReadiness`, or `()` for cases when process readiness is meaningless.
@@ -136,9 +147,9 @@ class ProcessReadinessType a where
   readinessIsReady :: a -> Bool
   showReadiness :: a -> Maybe String
 
-instance ProcessReadinessType ProcessReadiness where
+instance Show r => ProcessReadinessType (ProcessReadiness r) where
   mkNotReady = NotReady
-  readinessIsReady = toProcessReady
+  readinessIsReady = isJust . toProcessReady
   showReadiness = Just . show
 
 instance ProcessReadinessType () where
