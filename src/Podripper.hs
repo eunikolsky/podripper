@@ -128,25 +128,20 @@ toProcessReady NotReady = False
 -- | Defines the types that can represent process readiness flag, basically
 -- `ProcessReadiness`, or `()` for cases when process readiness is meaningless.
 -- The whole point of this typeclass is `showReadiness`, which returns `Nothing`
--- for `()` so that it's not logged! There is also a (runtime) validation that
--- the ready case doesn't make sense for `()` (I'm not sure how to make it a
--- compile-time check; `absurd` doesn't work). This is probably an overkill for
+-- for `()` so that it's not logged! This is probably an overkill for
 -- such a small use case and should be removed when/if process readiness logging
 -- is removed, and there is no observable difference between the two instances.
 class ProcessReadinessType a where
-  mkReady :: a
   mkNotReady :: a
   readinessIsReady :: a -> Bool
   showReadiness :: a -> Maybe String
 
 instance ProcessReadinessType ProcessReadiness where
-  mkReady = Ready
   mkNotReady = NotReady
   readinessIsReady = toProcessReady
   showReadiness = Just . show
 
 instance ProcessReadinessType () where
-  mkReady = error "impossible case: mkReady for ()"
   mkNotReady = ()
   readinessIsReady = const False
   showReadiness = const Nothing
@@ -182,13 +177,13 @@ runFor retryDelaySec duration io = do
 
         -- TODO how to split these two different concerns: wait until time and
         -- wait until ready?
-        if readinessIsReady processReadiness then pure mkReady
+        if readinessIsReady processReadiness then pure processReadiness
         else if haveEnoughTimeForNextIteration then do
           threadDelay $ retryDelaySec * microsecondsInSecond
           go endTime
         -- TODO is it possible to simplify the implementation? there are too
         -- many return points here
-        else pure mkNotReady
+        else pure processReadiness
 
       -- didn't manage to get the ready status before out-of-time => not ready
       else pure mkNotReady
