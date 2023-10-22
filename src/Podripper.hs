@@ -109,19 +109,20 @@ waitForStream RipConfigExt{config} =
     asString _ = Nothing
 
     getStreamURL :: Object -> IO StreamURL
-    getStreamURL status = case A.lookup "player" status >>= asString of
-      Just player -> do
-        -- FIXME replace with a native Haskell solution
-        maybeAudioSourceSrc <- readCommand "htmlq" ["-a", "src", "audio source"] player
-        maybeAudioSrc <- readCommand "htmlq" ["-a", "src", "audio"] player
-        maybeFirstLink <- readCommand "sed" ["-nE", "s/.*\"(http[^\"]+)\".*/\\1/p"] player
-        -- if I understand correctly, all three values are not lazy and are
-        -- evaluated regardless of whether the previous one was a `Just`; if so,
-        -- it's not a big deal as this function isn't called often
-        let firstMaybe = getFirst $ foldMap First [maybeAudioSourceSrc, maybeAudioSrc, maybeFirstLink]
-        pure $ maybe originalStreamURL (StreamURL . T.pack) firstMaybe
+    getStreamURL status = fromMaybe originalStreamURL <$>
+      case A.lookup "player" status >>= asString of
+        Just player -> do
+          -- FIXME replace with a native Haskell solution
+          maybeAudioSourceSrc <- readCommand "htmlq" ["-a", "src", "audio source"] player
+          maybeAudioSrc <- readCommand "htmlq" ["-a", "src", "audio"] player
+          maybeFirstLink <- readCommand "sed" ["-nE", "s/.*\"(http[^\"]+)\".*/\\1/p"] player
+          -- if I understand correctly, all three values are not lazy and are
+          -- evaluated regardless of whether the previous one was a `Just`; if so,
+          -- it's not a big deal as this function isn't called often
+          let firstMaybe = getFirst $ foldMap First [maybeAudioSourceSrc, maybeAudioSrc, maybeFirstLink]
+          pure $ StreamURL . T.pack <$> firstMaybe
 
-      Nothing -> pure originalStreamURL
+        Nothing -> pure Nothing
 
     readCommand :: String -> [String] -> String -> IO (Maybe String)
     readCommand prog args input = do
