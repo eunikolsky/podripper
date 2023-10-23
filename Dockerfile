@@ -3,16 +3,16 @@
 FROM archlinux AS build
 
 # binutils is for `strip` even though we're not using it
-RUN pacman -Sy --noconfirm sudo fakeroot binutils gcc pkg-config glib2 make
+RUN pacman -Sy --noconfirm sudo fakeroot binutils
 
 WORKDIR /build
 
 COPY PKGBUILD .
-COPY podripper.sh LICENSE \
+COPY LICENSE \
     .stack-work/install/x86_64-linux-*/*/*/bin/ripper-exe \
     podripper/
 # multiple steps are necessary to copy every individual directory
-COPY conf/*.conf conf/*.json podripper/conf/
+COPY conf/*.json podripper/conf/
 ADD systemd podripper/systemd
 
 # setup a regular build user because makepkg refuses to run as root

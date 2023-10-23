@@ -68,4 +68,4 @@ build-ripper-linux:
 
 .PHONY:
 local-stream:
-	@export RIPPER="$$( stack path --local-install-root )/bin/ripper-exe" CONF_DIR="$$PWD/conf" SHAKE_DIR="$$PWD/_testing/.shake"; cd _testing; ../podripper.sh "$${STREAM:-eradio}"
+	@CONF_DIR=$$PWD/conf SHAKE_DIR=.shake stack run --cwd _testing -- run "$${STREAM:-eradio}"

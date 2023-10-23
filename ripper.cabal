@@ -1,11 +1,11 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
 name:           ripper
-version:        0.9.0
+version:        1.1.0
 description:    Please see the README on Github at <https://github.com/githubuser/ripper#readme>
 homepage:       https://github.com/githubuser/ripper#readme
 bug-reports:    https://github.com/githubuser/ripper/issues
@@ -25,16 +25,21 @@ source-repository head
 
 library
   exposed-modules:
-      Import
+      Podripper
+      RipConfig
+      Ripper.Import
+      Ripper.Main
+      Ripper.Run
+      Ripper.Types
+      Ripper.Util
       RSSGen.Database
       RSSGen.Downloader
+      RSSGen.Main
       RSSGen.RSSFeed
       RSSGen.RSSItem
       RSSGen.Types
       RSSGen.UpstreamRSSFeed
       Run
-      Types
-      Util
   other-modules:
       Paths_ripper
   hs-source-dirs:
@@ -42,6 +47,8 @@ library
   default-extensions:
       NamedFieldPuns
       OverloadedStrings
+      ScopedTypeVariables
+      TypeApplications
       NumericUnderscores
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields
   build-depends:
@@ -57,7 +64,10 @@ library
     , http-conduit
     , http-types
     , mtl
+    , optparse-applicative
+    , process
     , rio >=0.1.12.0
+    , shake
     , sqlite-simple
     , text
     , time
@@ -68,14 +78,14 @@ library
 executable ripper-exe
   main-is: Main.hs
   other-modules:
-      Main_Ripper
-      Main_RSSGen
       Paths_ripper
   hs-source-dirs:
       app
   default-extensions:
       NamedFieldPuns
       OverloadedStrings
+      ScopedTypeVariables
+      TypeApplications
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.11 && <10
@@ -83,10 +93,9 @@ executable ripper-exe
     , http-client
     , http-client-tls
     , mtl
-    , optparse-simple
+    , optparse-applicative
     , rio >=0.1.12.0
     , ripper
-    , shake
     , sqlite-simple
     , text
     , transformers
@@ -96,17 +105,20 @@ test-suite ripper-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      RipConfigSpec
+      Ripper.UtilSpec
       RSSGen.DatabaseSpec
       RSSGen.RSSFeedSpec
       RSSGen.RSSItemSpec
       RSSGen.UpstreamRSSFeedSpec
-      UtilSpec
       Paths_ripper
   hs-source-dirs:
       test
   default-extensions:
       NamedFieldPuns
       OverloadedStrings
+      ScopedTypeVariables
+      TypeApplications
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -threaded -rtsopts -with-rtsopts=-N -Wno-missing-export-lists
   build-depends:
       aeson

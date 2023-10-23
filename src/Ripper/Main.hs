@@ -1,18 +1,18 @@
-module Main_Ripper
-  ( main
-  , ripperParser
+module Ripper.Main
+  ( ripperParser
+  , run
   ) where
 
 import Data.Version (showVersion)
-import Import
-import Options.Applicative.Simple
+import Ripper.Import
+import Options.Applicative
 import qualified Paths_ripper
 import RIO.Process
 import qualified RIO.Text as T
-import Run
+import qualified Ripper.Run
 
-main :: Options -> IO ()
-main options = do
+run :: Options -> IO ()
+run options = do
   lo <- setLogUseLoc False <$> logOptionsHandle stderr (optionsVerbose options)
   pc <- mkDefaultProcessContext
   withLogFunc lo $ \lf ->
@@ -22,7 +22,7 @@ main options = do
           , appOptions = options
           , appUserAgent = "ripper/" <> T.pack (showVersion Paths_ripper.version)
           }
-     in runRIO app run
+     in runRIO app Ripper.Run.run
 
 ripperParser :: Parser Options
 ripperParser = Options

@@ -2,9 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Main_RSSGen
-  ( main
-  , rssGenParser
+module RSSGen.Main
+  ( rssGenParser
+  , run
   ) where
 
 import Control.Monad.Reader
@@ -24,7 +24,7 @@ import Development.Shake.Classes
 import Development.Shake.FilePath
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
-import Options.Applicative.Simple
+import Options.Applicative
 import qualified System.Environment as Env
 
 import qualified Paths_ripper as Paths (version)
@@ -57,8 +57,8 @@ rssGenParser = fmap (fromMaybe handleNothing . NE.nonEmpty) . some $ strArgument
 
   where handleNothing = error "Impossible: empty list from `some`"
 
-main :: NonEmpty FilePath -> IO ()
-main filenames = do
+run :: NonEmpty FilePath -> IO ()
+run filenames = do
   shakeDir <- fromMaybe "/var/lib/podripper/shake" <$> Env.lookupEnv "SHAKE_DIR"
 
   -- `shake` doesn't parse any CLI options itself, unlike `shakeArgs`
