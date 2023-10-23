@@ -3,8 +3,8 @@
 {-# LANGUAGE TypeFamilies #-}
 
 module RSSGen.Main
-  ( main
-  , rssGenParser
+  ( rssGenParser
+  , run
   ) where
 
 import Control.Monad.Reader
@@ -57,8 +57,8 @@ rssGenParser = fmap (fromMaybe handleNothing . NE.nonEmpty) . some $ strArgument
 
   where handleNothing = error "Impossible: empty list from `some`"
 
-main :: NonEmpty FilePath -> IO ()
-main filenames = do
+run :: NonEmpty FilePath -> IO ()
+run filenames = do
   shakeDir <- fromMaybe "/var/lib/podripper/shake" <$> Env.lookupEnv "SHAKE_DIR"
 
   -- `shake` doesn't parse any CLI options itself, unlike `shakeArgs`
