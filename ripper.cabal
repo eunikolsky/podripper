@@ -38,6 +38,7 @@ library
       RSSGen.PollHTTP
       RSSGen.RSSFeed
       RSSGen.RSSItem
+      RSSGen.RunUntil
       RSSGen.Types
       RSSGen.UpstreamRSSFeed
       Run
@@ -112,6 +113,7 @@ test-suite ripper-test
       RSSGen.PollHTTPSpec
       RSSGen.RSSFeedSpec
       RSSGen.RSSItemSpec
+      RSSGen.RunUntilSpec
       RSSGen.UpstreamRSSFeedSpec
       Paths_ripper
   hs-source-dirs:
