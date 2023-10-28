@@ -6,5 +6,13 @@ module RSSGen.RunUntil
 data StepResult a = NoResult | Result a
   deriving (Show, Eq)
 
-runUntil :: Monad m => m a -> m a
-runUntil f = f >> f
+hasResult :: StepResult a -> Bool
+hasResult NoResult = False
+hasResult (Result _) = True
+
+runUntil :: Monad m => m (StepResult a) -> m (StepResult a)
+runUntil f = do
+  result <- f
+  if not (hasResult result)
+    then f
+    else pure result
