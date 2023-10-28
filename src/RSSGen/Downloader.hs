@@ -2,7 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module RSSGen.Downloader
-  ( FakeDownloadT(..)
+  ( Bytes
+  , FakeDownloadT(..)
   , HTTPClientDownloadT(..)
   , MonadDownload(..)
   , URL
