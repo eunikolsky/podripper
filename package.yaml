@@ -99,9 +99,11 @@ tests:
     - filepath
     - hspec
     - http-conduit
+    - mtl
     - raw-strings-qq
     - text
     - time
+    - transformers
 
     ghc-options:
     - -threaded

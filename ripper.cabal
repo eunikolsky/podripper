@@ -132,9 +132,11 @@ test-suite ripper-test
     , filepath
     , hspec
     , http-conduit
+    , mtl
     , raw-strings-qq
     , rio >=0.1.12.0
     , ripper
     , text
     , time
+    , transformers
   default-language: Haskell2010
