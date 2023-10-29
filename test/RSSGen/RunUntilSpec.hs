@@ -12,18 +12,18 @@ import Test.Hspec
 spec :: Spec
 spec = describe "runUntil" $ do
   it "returns result on first try" $ do
-    ((actual, sleepCount), callCount) <- do
-          actionCallCount <- newIORef @Int 0
-          let action = liftIO (modifyIORef' actionCallCount (+ 1)) $> Result ()
-          (,) <$> runMockTime (runUntil action) <*> readIORef actionCallCount
+    actionCallCount <- newIORef @Int 0
+    let action = liftIO (modifyIORef' actionCallCount (+ 1)) $> Result ()
+    (actual, sleepCount) <- runMockTime (runUntil action)
+    callCount <- readIORef actionCallCount
 
     (actual, callCount, sleepCount) `shouldBe` (Result (), 1, CallCount 0)
 
   it "retries once if no result" $ do
-    ((actual, sleepCount), callCount) <- do
-          actionCallCount <- newIORef @Int 0
-          let action = liftIO $ modifyIORef' actionCallCount (+ 1) $> NoResult @()
-          (,) <$> runMockTime (runUntil action) <*> readIORef actionCallCount
+    actionCallCount <- newIORef @Int 0
+    let action = liftIO $ modifyIORef' actionCallCount (+ 1) $> NoResult @()
+    (actual, sleepCount) <- runMockTime (runUntil action)
+    callCount <- readIORef actionCallCount
 
     (actual, callCount, sleepCount) `shouldBe` (NoResult, 2, CallCount 1)
 
