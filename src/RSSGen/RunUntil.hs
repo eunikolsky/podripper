@@ -18,7 +18,7 @@ class Monad m => MonadTime m where
   sleep :: Duration -> m ()
 
 -- | The result of a step: either no usable result, or a result of type `a`.
-data StepResult a = NoResult | Result a
+data StepResult a = NoResult | Result !a
   deriving (Show, Eq)
 
 hasResult :: StepResult a -> Bool
