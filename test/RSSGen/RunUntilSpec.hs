@@ -2,10 +2,12 @@
 
 module RSSGen.RunUntilSpec where
 
-import Control.Monad.Trans.Class
-import Control.Monad.Writer.Strict
+import Control.Monad.State.Strict
+import Data.Bifunctor
 import Data.Functor
 import Data.IORef
+import Data.Monoid
+import Data.Time
 import RSSGen.RunUntil
 import Test.Hspec
 
@@ -14,7 +16,7 @@ spec = describe "runUntil" $ do
   it "returns result on first try" $ do
     actionCallCount <- newIORef @Int 0
     let action = liftIO (modifyIORef' actionCallCount (+ 1)) $> Result ()
-    (actual, sleepCount) <- runMockTime (runUntil action)
+    (actual, sleepCount) <- runMockTime startTime (runUntil endTime action)
     callCount <- readIORef actionCallCount
 
     (actual, callCount, sleepCount) `shouldBe` (Result (), 1, CallCount 0)
@@ -25,10 +27,31 @@ spec = describe "runUntil" $ do
           modifyIORef' actionCallCount (+ 1)
           count <- readIORef actionCallCount
           pure $ if count == 4 then Result () else NoResult
-    (actual, sleepCount) <- runMockTime (runUntil action)
+    (actual, sleepCount) <- runMockTime startTime (runUntil endTime action)
     callCount <- readIORef actionCallCount
 
     (actual, callCount, sleepCount) `shouldBe` (Result (), 4, CallCount 3)
+
+  it "stops at end time if there is no result" $ do
+    actionCallCount <- newIORef @Int 0
+    let action = liftIO $ do
+          modifyIORef' actionCallCount (+ 1)
+          count <- readIORef actionCallCount
+          pure $
+            -- this is to prevent a possible infinite loop
+            if count == 100 then error "should not have been called" else
+            NoResult @()
+    (actual, sleepCount) <- runMockTime startTime $ runUntil endTime action
+    callCount <- readIORef actionCallCount
+
+    (actual, callCount, sleepCount) `shouldBe` (NoResult, 8, CallCount 7)
+
+startTime, endTime :: UTCTime
+startTime = testDay 0 1 0
+endTime = testDay 0 8 0
+
+testDay :: Int -> Int -> Int -> UTCTime
+testDay h m s = UTCTime (fromGregorian 2023 01 01) (secondsToDiffTime . fromIntegral $ s + (m * 60) + (h * 3600))
 
 newtype CallCount = CallCount (Sum Int)
   deriving (Semigroup, Monoid, Eq)
@@ -36,11 +59,13 @@ newtype CallCount = CallCount (Sum Int)
 instance Show CallCount where
   show (CallCount (Sum n)) = "CallCount " <> show n
 
-newtype MockTimeT m a = MockTimeT (WriterT CallCount m a)
-  deriving (Functor, Applicative, Monad, MonadTrans, MonadWriter CallCount, MonadIO)
+newtype MockTimeT m a = MockTimeT (StateT (UTCTime, CallCount) m a)
+  deriving (Functor, Applicative, Monad, MonadTrans, MonadState (UTCTime, CallCount), MonadIO)
 
 instance Monad m => MonadTime (MockTimeT m) where
-  sleep = tell . CallCount . Sum $ 1
+  getTime = gets fst
+  -- FIXME configurable delay
+  sleep = modify' (\(time, callCount) -> (addUTCTime 60 time, callCount <> (CallCount . Sum $ 1)))
 
-runMockTime :: MockTimeT m a -> m (a, CallCount)
-runMockTime (MockTimeT w) = runWriterT w
+runMockTime :: Monad m => UTCTime -> MockTimeT m a -> m (a, CallCount)
+runMockTime time (MockTimeT w) = second snd <$> runStateT w (time, CallCount 0)

@@ -4,7 +4,10 @@ module RSSGen.RunUntil
   , runUntil
   ) where
 
+import Data.Time.Clock
+
 class Monad m => MonadTime m where
+  getTime :: m UTCTime
   sleep :: m ()
 
 data StepResult a = NoResult | Result a
@@ -14,9 +17,14 @@ hasResult :: StepResult a -> Bool
 hasResult NoResult = False
 hasResult (Result _) = True
 
-runUntil :: MonadTime m => m (StepResult a) -> m (StepResult a)
-runUntil f = do
+runUntil :: MonadTime m => UTCTime -> m (StepResult a) -> m (StepResult a)
+runUntil endTime f = do
   result <- f
   if hasResult result
     then pure result
-    else sleep >> runUntil f
+    else do
+      now <- getTime
+      let outOfTime = now >= endTime
+      if outOfTime
+        then pure result
+        else sleep >> runUntil endTime f
