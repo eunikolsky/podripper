@@ -4,7 +4,9 @@ module RSSGen.RunUntil
   , runUntil
   ) where
 
+import Control.Monad.Logger.CallStack
 import Control.Monad.Trans.Class
+import Data.Text qualified as T
 import Data.Time.Clock
 import RSSGen.MonadTime
 
@@ -20,16 +22,34 @@ hasResult (Result _) = True
 --
 -- (Is this separate type really necessary?)
 newtype RetryDuration = RetryDuration { toDuration :: Duration }
+  deriving newtype Show
 
 -- | Runs the given action `f` until it returns a `Result` or until the current
 -- time is on/after `endTime`. The function waits for `retryDuration` before
 -- each retry.
 -- Note that `f` is called at least once, ignoring `endTime` at the beginning.
-runUntil :: (Monad m, MonadTrans t, MonadTime (t m)) => RetryDuration -> UTCTime -> m (StepResult a) -> t m (StepResult a)
+runUntil :: (Monad m, MonadTrans t, MonadTime (t m), MonadLogger (t m)) => RetryDuration -> UTCTime -> m (StepResult a) -> t m (StepResult a)
 runUntil retryDuration endTime f = do
-  result <- lift f
-  now <- getTime
-  let outOfTime = now >= endTime
-  if hasResult result || outOfTime
-    then pure result
-    else sleep (toDuration retryDuration) >> runUntil retryDuration endTime f
+  logD ["running until ", show endTime]
+  iter
+
+  where
+    iter = do
+      iterNow <- getTime
+      logD ["now ", show iterNow, " running action"]
+
+      result <- lift f
+      now <- getTime
+      let outOfTime = now >= endTime
+          hasResult' = hasResult result
+      logD ["now ", show now, ", has result: ", show hasResult']
+
+      if hasResult' || outOfTime
+        then pure result
+        else do
+          logD ["sleeping for ", show retryDuration]
+          sleep $ toDuration retryDuration
+          iter
+
+logD :: MonadLogger m => [String] -> m ()
+logD = logDebugN . T.pack . mconcat

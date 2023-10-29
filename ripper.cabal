@@ -48,6 +48,9 @@ library
   hs-source-dirs:
       src
   default-extensions:
+      DerivingStrategies
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       NamedFieldPuns
       OverloadedStrings
       ScopedTypeVariables
@@ -66,6 +69,7 @@ library
     , http-client-tls
     , http-conduit
     , http-types
+    , monad-logger
     , mtl
     , optparse-applicative
     , process
@@ -85,6 +89,9 @@ executable ripper-exe
   hs-source-dirs:
       app
   default-extensions:
+      DerivingStrategies
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       NamedFieldPuns
       OverloadedStrings
       ScopedTypeVariables
@@ -120,6 +127,9 @@ test-suite ripper-test
   hs-source-dirs:
       test
   default-extensions:
+      DerivingStrategies
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       NamedFieldPuns
       OverloadedStrings
       ScopedTypeVariables
@@ -133,6 +143,7 @@ test-suite ripper-test
     , filepath
     , hspec
     , http-conduit
+    , monad-logger
     , mtl
     , raw-strings-qq
     , rio >=0.1.12.0
