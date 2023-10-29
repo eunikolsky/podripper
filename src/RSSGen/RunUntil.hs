@@ -20,11 +20,8 @@ hasResult (Result _) = True
 runUntil :: MonadTime m => UTCTime -> m (StepResult a) -> m (StepResult a)
 runUntil endTime f = do
   result <- f
-  if hasResult result
+  now <- getTime
+  let outOfTime = now >= endTime
+  if hasResult result || outOfTime
     then pure result
-    else do
-      now <- getTime
-      let outOfTime = now >= endTime
-      if outOfTime
-        then pure result
-        else sleep >> runUntil endTime f
+    else sleep >> runUntil endTime f
