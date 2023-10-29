@@ -35,6 +35,7 @@ library
       RSSGen.Database
       RSSGen.Downloader
       RSSGen.Main
+      RSSGen.MonadTime
       RSSGen.PollHTTP
       RSSGen.RSSFeed
       RSSGen.RSSItem

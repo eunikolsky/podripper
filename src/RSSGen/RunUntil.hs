@@ -1,22 +1,12 @@
 module RSSGen.RunUntil
-  ( Duration
-  , MonadTime(..)
-  , RetryDuration(..)
+  ( RetryDuration(..)
   , StepResult(..)
   , runUntil
   ) where
 
 import Control.Monad.Trans.Class
 import Data.Time.Clock
-
--- | A duration of time between two `UTCTime`s.
-type Duration = NominalDiffTime
-
--- | Monad that provides access to the time-related functionality, namely
--- getting the current time and sleeping for a duration of time.
-class Monad m => MonadTime m where
-  getTime :: m UTCTime
-  sleep :: Duration -> m ()
+import RSSGen.MonadTime
 
 -- | The result of a step: either no usable result, or a result of type `a`.
 data StepResult a = NoResult | Result !a

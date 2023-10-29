@@ -8,6 +8,7 @@ import Data.Functor
 import Data.IORef
 import Data.Monoid
 import Data.Time
+import RSSGen.MonadTime
 import RSSGen.RunUntil
 import Test.Hspec
 
