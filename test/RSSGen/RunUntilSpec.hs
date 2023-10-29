@@ -19,13 +19,16 @@ spec = describe "runUntil" $ do
 
     (actual, callCount, sleepCount) `shouldBe` (Result (), 1, CallCount 0)
 
-  it "retries once if no result" $ do
+  it "retries until there is a result" $ do
     actionCallCount <- newIORef @Int 0
-    let action = liftIO $ modifyIORef' actionCallCount (+ 1) $> NoResult @()
+    let action = liftIO $ do
+          modifyIORef' actionCallCount (+ 1)
+          count <- readIORef actionCallCount
+          pure $ if count == 4 then Result () else NoResult
     (actual, sleepCount) <- runMockTime (runUntil action)
     callCount <- readIORef actionCallCount
 
-    (actual, callCount, sleepCount) `shouldBe` (NoResult, 2, CallCount 1)
+    (actual, callCount, sleepCount) `shouldBe` (Result (), 4, CallCount 3)
 
 newtype CallCount = CallCount (Sum Int)
   deriving (Semigroup, Monoid, Eq)

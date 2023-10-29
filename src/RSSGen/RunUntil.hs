@@ -19,4 +19,4 @@ runUntil f = do
   result <- f
   if hasResult result
     then pure result
-    else sleep >> f
+    else sleep >> runUntil f
