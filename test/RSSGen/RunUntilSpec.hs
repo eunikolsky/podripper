@@ -15,7 +15,7 @@ spec :: Spec
 spec = describe "runUntil" $ do
   it "returns result on first try" $ do
     actionCallCount <- newIORef @Int 0
-    let action = liftIO (modifyIORef' actionCallCount (+ 1)) $> Result ()
+    let action = modifyIORef' actionCallCount (+ 1) $> Result ()
     (actual, sleepCount) <- runMockTime startTime (runUntil retryDuration endTime action)
     callCount <- readIORef actionCallCount
 
@@ -23,7 +23,7 @@ spec = describe "runUntil" $ do
 
   it "retries until there is a result" $ do
     actionCallCount <- newIORef @Int 0
-    let action = liftIO $ do
+    let action = do
           modifyIORef' actionCallCount (+ 1)
           count <- readIORef actionCallCount
           pure $ if count == 4 then Result () else NoResult
@@ -34,7 +34,7 @@ spec = describe "runUntil" $ do
 
   it "stops at end time if there is no result" $ do
     actionCallCount <- newIORef @Int 0
-    let action = liftIO $ do
+    let action = do
           modifyIORef' actionCallCount (+ 1)
           count <- readIORef actionCallCount
           pure $

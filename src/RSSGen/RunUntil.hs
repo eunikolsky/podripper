@@ -6,6 +6,7 @@ module RSSGen.RunUntil
   , runUntil
   ) where
 
+import Control.Monad.Trans.Class
 import Data.Time.Clock
 
 -- | A duration of time between two `UTCTime`s.
@@ -34,9 +35,9 @@ newtype RetryDuration = RetryDuration { toDuration :: Duration }
 -- time is on/after `endTime`. The function waits for `retryDuration` before
 -- each retry.
 -- Note that `f` is called at least once, ignoring `endTime` at the beginning.
-runUntil :: MonadTime m => RetryDuration -> UTCTime -> m (StepResult a) -> m (StepResult a)
+runUntil :: (Monad m, MonadTrans t, MonadTime (t m)) => RetryDuration -> UTCTime -> m (StepResult a) -> t m (StepResult a)
 runUntil retryDuration endTime f = do
-  result <- f
+  result <- lift f
   now <- getTime
   let outOfTime = now >= endTime
   if hasResult result || outOfTime
