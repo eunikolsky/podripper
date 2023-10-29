@@ -62,12 +62,17 @@ newtype CallCount = CallCount (Sum Int)
 instance Show CallCount where
   show (CallCount (Sum n)) = "CallCount " <> show n
 
+-- | A mocking implementation of `MonadTime` for tests. It was created to avoid
+-- using real delays for faster unit tests, at the expense of having (probably)
+-- harder to understand tests. The tracked current time is increased by the
+-- given `sleep` durations; `CallCount` tracks the number of `sleep` calls.
 newtype MockTimeT m a = MockTimeT (StateT (UTCTime, CallCount) m a)
   deriving (Functor, Applicative, Monad, MonadTrans, MonadState (UTCTime, CallCount), MonadIO)
 
 instance Monad m => MonadTime (MockTimeT m) where
   getTime = gets fst
-  sleep duration = modify' (\(time, callCount) -> (addUTCTime duration time, callCount <> (CallCount . Sum $ 1)))
+  sleep duration = modify' $ \(time, callCount) ->
+    (addUTCTime duration time, callCount <> (CallCount . Sum $ 1))
 
 runMockTime :: Monad m => UTCTime -> MockTimeT m a -> m (a, CallCount)
 runMockTime time (MockTimeT w) = second snd <$> runStateT w (time, CallCount 0)
