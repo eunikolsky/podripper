@@ -17,6 +17,6 @@ hasResult (Result _) = True
 runUntil :: MonadTime m => m (StepResult a) -> m (StepResult a)
 runUntil f = do
   result <- f
-  if not (hasResult result)
-    then sleep >> f
-    else pure result
+  if hasResult result
+    then pure result
+    else sleep >> f
