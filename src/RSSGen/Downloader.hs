@@ -1,9 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module RSSGen.Downloader
   ( Bytes
-  , FakeDownloadT(..)
   , HTTPClientDownloadT(..)
   , MonadDownload(..)
   , URL
@@ -12,7 +8,6 @@ module RSSGen.Downloader
 import Control.Monad.Catch
 import Control.Monad.Reader
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString.Lazy.Char8 as CL
 import Network.HTTP.Client
 import Network.HTTP.Types.Status
 
@@ -24,14 +19,6 @@ type Bytes = BL.ByteString
 class Monad m => MonadDownload m where
   -- |Downloads a file by the @URL@. Returns @Nothing@ for an error response.
   getFile :: URL -> m (Maybe Bytes)
-
-
--- |A fake downloader that always returns an XML with the commented URL.
-newtype FakeDownloadT m a = FakeDownloadT { runFakeDownloadT :: m a }
-  deriving (Functor, Applicative, Monad)
-
-instance Monad m => MonadDownload (FakeDownloadT m) where
-  getFile url = pure . Just $ "<!-- " <> CL.pack url <> " -->"
 
 
 -- |A downloader that uses @http-client@ and @http-client-tls@.
