@@ -131,4 +131,4 @@ eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right x) = Just x
 
 downloadRSS :: MonadDownload m => URL -> m (Maybe T.Text)
-downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict)) . getFile
+downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict) . successfulBody) . getFile
