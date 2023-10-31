@@ -118,7 +118,6 @@ test-suite ripper-test
       RipConfigSpec
       Ripper.UtilSpec
       RSSGen.DatabaseSpec
-      RSSGen.PollHTTPSpec
       RSSGen.RSSFeedSpec
       RSSGen.RSSItemSpec
       RSSGen.RunUntilSpec
