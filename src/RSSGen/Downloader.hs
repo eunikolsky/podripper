@@ -1,24 +1,20 @@
 module RSSGen.Downloader
-  ( Bytes
-  , URL
-  , getFile
+  ( getFile
 
   -- * re-exports
+  , Bytes
   , Manager
   , MonadIO
   , MonadReader
   , MonadThrow
+  , URL
   ) where
 
 import Control.Monad.Catch
 import Control.Monad.Reader
-import qualified Data.ByteString.Lazy as BL
 import Network.HTTP.Client
 import Network.HTTP.Types
-
-type URL = String
-
-type Bytes = BL.ByteString
+import RSSGen.DownloaderTypes
 
 -- |Downloads a file by the `URL`, returns the response's body on success, or
 -- `Nothing` otherwise.
