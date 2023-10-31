@@ -49,6 +49,7 @@ library
       src
   default-extensions:
       DerivingStrategies
+      FlexibleContexts
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       NamedFieldPuns
@@ -90,6 +91,7 @@ executable ripper-exe
       app
   default-extensions:
       DerivingStrategies
+      FlexibleContexts
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       NamedFieldPuns
@@ -127,6 +129,7 @@ test-suite ripper-test
       test
   default-extensions:
       DerivingStrategies
+      FlexibleContexts
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       NamedFieldPuns

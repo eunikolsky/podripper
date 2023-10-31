@@ -1,8 +1,13 @@
 module RSSGen.Downloader
   ( Bytes
-  , HTTPClientDownloadT(..)
-  , MonadDownload(..)
   , URL
+  , getFile
+
+  -- * re-exports
+  , Manager
+  , MonadIO
+  , MonadReader
+  , MonadThrow
   ) where
 
 import Control.Monad.Catch
@@ -15,21 +20,13 @@ type URL = String
 
 type Bytes = BL.ByteString
 
--- |The API to download files via HTTP(S).
-class Monad m => MonadDownload m where
-  -- |Downloads a file by the @URL@.
-  getFile :: URL -> m (Maybe Bytes)
-
-
--- |A downloader that uses `Network.HTTP.Client`.
-newtype HTTPClientDownloadT m a = HTTPClientDownloadT { runHTTPClientDownloadT :: ReaderT Manager m a }
-  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Manager, MonadThrow)
-
-instance (MonadIO m, MonadThrow m) => MonadDownload (HTTPClientDownloadT m) where
-  getFile url = do
-    manager <- ask
-    request <- parseRequest url
-    response <- liftIO $ httpLbs request manager
-    pure $ if responseStatus response == ok200
-      then Just $ responseBody response
-      else Nothing
+-- |Downloads a file by the `URL`, returns the response's body on success, or
+-- `Nothing` otherwise.
+getFile :: (MonadIO m, MonadThrow m, MonadReader Manager m) => URL -> m (Maybe Bytes)
+getFile url = do
+  manager <- ask
+  request <- parseRequest url
+  response <- liftIO $ httpLbs request manager
+  pure $ if responseStatus response == ok200
+    then Just $ responseBody response
+    else Nothing

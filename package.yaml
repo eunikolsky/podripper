@@ -25,6 +25,7 @@ dependencies:
 
 default-extensions:
 - DerivingStrategies
+- FlexibleContexts
 - GeneralizedNewtypeDeriving
 - ImportQualifiedPost
 - NamedFieldPuns
