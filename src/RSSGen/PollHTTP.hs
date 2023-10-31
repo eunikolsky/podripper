@@ -8,4 +8,4 @@ import RSSGen.Downloader
 --
 -- TODO poll for file changes and return it when it's changed
 pollHTTP :: MonadDownload m => URL -> m (Maybe Bytes)
-pollHTTP = fmap successfulBody . getFile
+pollHTTP = getFile
