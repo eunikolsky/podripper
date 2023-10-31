@@ -76,7 +76,7 @@ run filenames = do
       -- • No instance for (exceptions-0.10.4:Control.Monad.Catch.MonadThrow
       --                      Action)
       --     arising from a use of ‘downloadRadioTRSS’
-      liftIO . flip runReaderT manager . runHTTPClientDownloadT $ downloadRSS url
+      liftIO . flip runReaderT manager $ downloadRSS url
 
     versioned 24 $ "*.rss" %> \out -> do
       void . getRSSGenVersion $ RSSGenVersion ()
@@ -130,5 +130,5 @@ eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right x) = Just x
 
-downloadRSS :: MonadDownload m => URL -> m (Maybe T.Text)
-downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict) . successfulBody) . getFile
+downloadRSS :: (MonadIO m, MonadThrow m, MonadReader Manager m) => URL -> m (Maybe T.Text)
+downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict)) . getFile
