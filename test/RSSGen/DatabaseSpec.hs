@@ -2,7 +2,8 @@
 
 module RSSGen.DatabaseSpec where
 
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class
+import Database.SQLite.Simple (Connection)
 import Data.Time.Calendar
 import Data.Time.Clock
 
@@ -23,10 +24,9 @@ spec =
           item1 = UpstreamRSSItem "item1" (utcTime 2020 01 04 10 15 00) "" "" podcastId
           time = utcTime 2020 01 03 12 00 00
 
-      conn <- liftIO $ openDatabase InMemory
-      saveUpstreamRSSItems conn [item0, item1]
-      actual <- closestUpstreamItemToTime (Hours 24) podcastId conn time
-      liftIO $ closeDatabase conn
+      actual <- withDB $ \conn -> do
+        saveUpstreamRSSItems conn [item0, item1]
+        closestUpstreamItemToTime (Hours 24) podcastId conn time
       actual `shouldBe` Just item1
 
     it "returns Nothing when closest item is more than one day away" $ do
@@ -34,18 +34,16 @@ spec =
           item1 = UpstreamRSSItem "item1" (utcTime 2020 01 04 00 00 00) "" "" podcastId
           time = utcTime 2020 01 02 23 59 59
 
-      conn <- liftIO $ openDatabase InMemory
-      saveUpstreamRSSItems conn [item0, item1]
-      actual <- closestUpstreamItemToTime (Hours 24) podcastId conn time
-      liftIO $ closeDatabase conn
+      actual <- withDB $ \conn -> do
+        saveUpstreamRSSItems conn [item0, item1]
+        closestUpstreamItemToTime (Hours 24) podcastId conn time
       actual `shouldBe` Nothing
 
     it "returns Nothing when there are no items" $ do
       let time = utcTime 2020 01 03 12 00 00
 
-      conn <- liftIO $ openDatabase InMemory
-      actual <- closestUpstreamItemToTime (Hours 24) podcastId conn time
-      liftIO $ closeDatabase conn
+      actual <- withDB $ \conn ->
+        closestUpstreamItemToTime (Hours 24) podcastId conn time
       actual `shouldBe` Nothing
 
     it "returns newest item when there are multiple items within one day" $ do
@@ -53,10 +51,9 @@ spec =
           older = UpstreamRSSItem "older" (utcTime 2021 08 13 23 04 06) "" "" podcastId
           time = utcTime 2021 08 13 22 47 09
 
-      conn <- liftIO $ openDatabase InMemory
-      saveUpstreamRSSItems conn [newer, older]
-      actual <- closestUpstreamItemToTime (Hours 24) podcastId conn time
-      liftIO $ closeDatabase conn
+      actual <- withDB $ \conn -> do
+        saveUpstreamRSSItems conn [newer, older]
+        closestUpstreamItemToTime (Hours 24) podcastId conn time
       actual `shouldBe` Just newer
 
     it "returns newest item when there are multiple items within specified interval" $ do
@@ -65,10 +62,9 @@ spec =
           older = UpstreamRSSItem "older" (utcTime 2021 08 13 23 04 06) "" "" podcastId
           time = utcTime 2021 08 13 22 47 09
 
-      conn <- liftIO $ openDatabase InMemory
-      saveUpstreamRSSItems conn [tooNew, newer, older]
-      actual <- closestUpstreamItemToTime (Hours 2) podcastId conn time
-      liftIO $ closeDatabase conn
+      actual <- withDB $ \conn -> do
+        saveUpstreamRSSItems conn [tooNew, newer, older]
+        closestUpstreamItemToTime (Hours 2) podcastId conn time
       actual `shouldBe` Just newer
 
     it "returns the closest item within specified interval in the past" $ do
@@ -76,10 +72,9 @@ spec =
           item1 = UpstreamRSSItem "item1" (utcTime 2023 01 03 01 01 00) "" "" podcastId
           time = utcTime 2023 01 03 13 00 00
 
-      conn <- liftIO $ openDatabase InMemory
-      saveUpstreamRSSItems conn [item0, item1]
-      actual <- closestUpstreamItemToTime (Hours 12) podcastId conn time
-      liftIO $ closeDatabase conn
+      actual <- withDB $ \conn -> do
+        saveUpstreamRSSItems conn [item0, item1]
+        closestUpstreamItemToTime (Hours 12) podcastId conn time
       actual `shouldBe` Just item1
 
   where
@@ -87,3 +82,10 @@ spec =
     utcTime year month day hour minute second = UTCTime
       (fromGregorian year month day)
       (secondsToDiffTime . fromIntegral $ second + (minute * 60) + (hour * 60 * 60))
+
+withDB :: MonadIO m => (Connection -> m a) -> m a
+withDB io = do
+  conn <- liftIO $ openDatabase InMemory
+  actual <- io conn
+  liftIO $ closeDatabase conn
+  pure actual

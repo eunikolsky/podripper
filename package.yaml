@@ -108,6 +108,7 @@ tests:
     - monad-logger
     - mtl
     - raw-strings-qq
+    - sqlite-simple
     - text
     - time
     - transformers
