@@ -79,23 +79,19 @@ spec = do
       actual `shouldBe` Just item1
 
   describe "CacheItem" $ do
-    it "ETag can be persisted in the database" $ do
-      let url = "localhost"
-          item = ETag "hello!"
+    let verifyPersistence item = do
+          let url = "localhost"
 
-      actual <- withDB $ \conn -> do
-        setCacheItem conn url item
-        getCacheItem conn url
-      actual `shouldBe` Just item
+          actual <- withDB $ \conn -> do
+            setCacheItem conn url item
+            getCacheItem conn url
+          actual `shouldBe` Just item
+
+    it "ETag can be persisted in the database" $ do
+      verifyPersistence $ ETag "hello!"
 
     it "LastModified can be persisted in the database" $ do
-      let url = "localhost"
-          item = LastModified "lastmod"
-
-      actual <- withDB $ \conn -> do
-        setCacheItem conn url item
-        getCacheItem conn url
-      actual `shouldBe` Just item
+      verifyPersistence $ LastModified "lastmod"
 
 utcTime :: Integer -> Int -> Int -> Int -> Int -> Int -> UTCTime
 utcTime year month day hour minute second = UTCTime
