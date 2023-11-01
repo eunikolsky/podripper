@@ -102,8 +102,25 @@ setCacheItem :: Connection -> URL -> CacheItem -> IO ()
 setCacheItem conn url (ETag etag) = executeNamed conn
   "INSERT INTO httpcache (url,etag) VALUES (:url,:etag)"
   [":url" := url, ":etag" := etag]
+setCacheItem conn url (LastModified lastmod) = executeNamed conn
+  "INSERT INTO httpcache (url,lastModified) VALUES (:url,:lastmod)"
+  [":url" := url, ":lastmod" := lastmod]
 
 getCacheItem :: Connection -> URL -> IO (Maybe CacheItem)
-getCacheItem conn url = listToMaybe <$> queryNamed conn
-  "SELECT etag FROM httpCache WHERE url = :url"
+getCacheItem conn url = fmap fromDatabaseCacheItem . listToMaybe <$> queryNamed conn
+  "SELECT etag,lastModified FROM httpCache WHERE url = :url"
   [":url" := url]
+
+-- | This type wraps the raw result of retrieving a cache item. It's needed
+-- because `FromRow CacheItem` itself can't distinguish between ETag and
+-- LastModified since one of them could be `null`.
+data DatabaseCacheItem = DatabaseCacheItem (Maybe {-ETag-} Bytes) (Maybe {-LastModified-} Bytes)
+  deriving Show
+
+instance FromRow DatabaseCacheItem where
+  fromRow = DatabaseCacheItem <$> field <*> field
+
+fromDatabaseCacheItem :: DatabaseCacheItem -> CacheItem
+fromDatabaseCacheItem (DatabaseCacheItem (Just etag) Nothing) = ETag etag
+fromDatabaseCacheItem (DatabaseCacheItem Nothing (Just lastmod)) = LastModified lastmod
+fromDatabaseCacheItem i = error $ "fromDatabaseCacheItem: impossible case " <> show i

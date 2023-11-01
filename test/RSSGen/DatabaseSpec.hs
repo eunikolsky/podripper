@@ -79,9 +79,18 @@ spec = do
       actual `shouldBe` Just item1
 
   describe "CacheItem" $ do
-    it "can be persisted in the database" $ do
+    it "ETag can be persisted in the database" $ do
       let url = "localhost"
           item = ETag "hello!"
+
+      actual <- withDB $ \conn -> do
+        setCacheItem conn url item
+        getCacheItem conn url
+      actual `shouldBe` Just item
+
+    it "LastModified can be persisted in the database" $ do
+      let url = "localhost"
+          item = LastModified "lastmod"
 
       actual <- withDB $ \conn -> do
         setCacheItem conn url item
