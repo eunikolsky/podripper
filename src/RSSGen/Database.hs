@@ -108,23 +108,30 @@ setCacheItem conn url (LastModified lastmod) = executeNamed conn
 setCacheItem conn url (ETagWithLastModified etag lastmod) = executeNamed conn
   "INSERT INTO httpcache (url,etag,lastModified) VALUES (:url,:etag,:lastmod)"
   [":url" := url, ":etag" := etag, ":lastmod" := lastmod]
+setCacheItem conn url (Body body) = executeNamed conn
+  "INSERT INTO httpcache (url,body) VALUES (:url,:body)"
+  [":url" := url, ":body" := body]
 
 getCacheItem :: Connection -> URL -> IO (Maybe CacheItem)
 getCacheItem conn url = fmap fromDatabaseCacheItem . listToMaybe <$> queryNamed conn
-  "SELECT etag,lastModified FROM httpCache WHERE url = :url"
+  "SELECT etag,lastModified,body FROM httpCache WHERE url = :url"
   [":url" := url]
 
 -- | This type wraps the raw result of retrieving a cache item. It's needed
 -- because `FromRow CacheItem` itself can't distinguish between ETag and
 -- LastModified since one of them could be `null`.
-data DatabaseCacheItem = DatabaseCacheItem (Maybe {-ETag-} Bytes) (Maybe {-LastModified-} Bytes)
+data DatabaseCacheItem = DatabaseCacheItem
+  (Maybe {-ETag-} Bytes)
+  (Maybe {-LastModified-} Bytes)
+  (Maybe {-Body-} Bytes)
   deriving Show
 
 instance FromRow DatabaseCacheItem where
-  fromRow = DatabaseCacheItem <$> field <*> field
+  fromRow = DatabaseCacheItem <$> field <*> field <*> field
 
 fromDatabaseCacheItem :: DatabaseCacheItem -> CacheItem
-fromDatabaseCacheItem (DatabaseCacheItem (Just etag) Nothing) = ETag etag
-fromDatabaseCacheItem (DatabaseCacheItem Nothing (Just lastmod)) = LastModified lastmod
-fromDatabaseCacheItem (DatabaseCacheItem (Just etag) (Just lastmod)) = ETagWithLastModified etag lastmod
+fromDatabaseCacheItem (DatabaseCacheItem (Just etag) Nothing        Nothing    ) = ETag etag
+fromDatabaseCacheItem (DatabaseCacheItem Nothing     (Just lastmod) Nothing    ) = LastModified lastmod
+fromDatabaseCacheItem (DatabaseCacheItem (Just etag) (Just lastmod) Nothing    ) = ETagWithLastModified etag lastmod
+fromDatabaseCacheItem (DatabaseCacheItem Nothing     Nothing        (Just body)) = Body body
 fromDatabaseCacheItem i = error $ "fromDatabaseCacheItem: impossible case " <> show i

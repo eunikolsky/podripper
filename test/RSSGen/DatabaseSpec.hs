@@ -96,6 +96,9 @@ spec = do
     it "ETag with LastModified can be persisted in the database" $ do
       verifyPersistence $ ETagWithLastModified "etag" "lastmod"
 
+    it "Body can be persisted in the database" $ do
+      verifyPersistence $ Body "some arbitrary response body"
+
 utcTime :: Integer -> Int -> Int -> Int -> Int -> Int -> UTCTime
 utcTime year month day hour minute second = UTCTime
   (fromGregorian year month day)
