@@ -18,7 +18,7 @@ import Data.Ord (Down(..))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.Version (Version, showVersion)
-import Database.SQLite.Simple
+import Database.SQLite.Simple (Connection)
 import Development.Shake
 import Development.Shake.Classes
 import Development.Shake.FilePath
@@ -87,10 +87,16 @@ run filenames = do
       need feedConfigFiles
       case feedConfig of
         Just config -> do
+          -- note: `openDatabase` and `closeDatabase` are not exception-safe
+          -- here, but it's fine since the program will exit soon anyway;
+          -- I have tried refactoring this to `withDatabase`, and ultimately
+          -- failed because sqlite library's `withConnection` uses `IO`, whereas
+          -- the functions here have to be in `Action` :( (`MonadUnliftIO` may
+          -- possibly help, but I doubt that)
           conn <- liftIO $ openDatabase DefaultFile
           processUpstreamRSS upstreamRSS (T.pack podcastTitle) config conn
           generateFeed config conn out
-          liftIO $ close conn
+          liftIO $ closeDatabase conn
         Nothing -> fail
           $ "Couldn't parse feed config files "
           <> intercalate ", " feedConfigFiles
