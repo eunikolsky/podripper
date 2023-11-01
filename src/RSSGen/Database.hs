@@ -105,6 +105,9 @@ setCacheItem conn url (ETag etag) = executeNamed conn
 setCacheItem conn url (LastModified lastmod) = executeNamed conn
   "INSERT INTO httpcache (url,lastModified) VALUES (:url,:lastmod)"
   [":url" := url, ":lastmod" := lastmod]
+setCacheItem conn url (ETagWithLastModified etag lastmod) = executeNamed conn
+  "INSERT INTO httpcache (url,etag,lastModified) VALUES (:url,:etag,:lastmod)"
+  [":url" := url, ":etag" := etag, ":lastmod" := lastmod]
 
 getCacheItem :: Connection -> URL -> IO (Maybe CacheItem)
 getCacheItem conn url = fmap fromDatabaseCacheItem . listToMaybe <$> queryNamed conn
@@ -123,4 +126,5 @@ instance FromRow DatabaseCacheItem where
 fromDatabaseCacheItem :: DatabaseCacheItem -> CacheItem
 fromDatabaseCacheItem (DatabaseCacheItem (Just etag) Nothing) = ETag etag
 fromDatabaseCacheItem (DatabaseCacheItem Nothing (Just lastmod)) = LastModified lastmod
+fromDatabaseCacheItem (DatabaseCacheItem (Just etag) (Just lastmod)) = ETagWithLastModified etag lastmod
 fromDatabaseCacheItem i = error $ "fromDatabaseCacheItem: impossible case " <> show i

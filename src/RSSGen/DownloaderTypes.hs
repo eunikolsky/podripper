@@ -14,4 +14,5 @@ type Bytes = BL.ByteString
 data CacheItem
   = ETag Bytes
   | LastModified Bytes
+  | ETagWithLastModified Bytes Bytes
   deriving (Eq, Show)

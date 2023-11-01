@@ -93,6 +93,9 @@ spec = do
     it "LastModified can be persisted in the database" $ do
       verifyPersistence $ LastModified "lastmod"
 
+    it "ETag with LastModified can be persisted in the database" $ do
+      verifyPersistence $ ETagWithLastModified "etag" "lastmod"
+
 utcTime :: Integer -> Int -> Int -> Int -> Int -> Int -> UTCTime
 utcTime year month day hour minute second = UTCTime
   (fromGregorian year month day)
