@@ -3,7 +3,6 @@
 module RSSGen.DatabaseSpec where
 
 import Control.Monad.IO.Class
-import Database.SQLite.Simple (Connection)
 import Data.Time.Calendar
 import Data.Time.Clock
 

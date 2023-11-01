@@ -18,7 +18,6 @@ import Data.Ord (Down(..))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.Version (Version, showVersion)
-import Database.SQLite.Simple (Connection)
 import Development.Shake
 import Development.Shake.Classes
 import Development.Shake.FilePath

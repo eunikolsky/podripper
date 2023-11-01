@@ -3,6 +3,9 @@
 module RSSGen.Database
   ( FileSpec(..)
 
+  -- * re-exports
+  , Connection
+
   -- * database metafunctions
   , openDatabase
   , closeDatabase

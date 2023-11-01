@@ -10,7 +10,7 @@ import Data.List (find)
 import qualified Data.Text as T
 import Data.Time.Clock
 import Data.Time.Format
-import Database.SQLite.Simple
+import Database.SQLite.Simple (FromRow(fromRow), ToRow(toRow), field)
 import Text.XML.Light
 
 -- |The podcast name to which the RSS item belongs.
