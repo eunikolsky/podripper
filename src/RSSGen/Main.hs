@@ -36,13 +36,6 @@ newtype RSSGenVersion = RSSGenVersion ()
   deriving (Show, Typeable, Eq, Hashable, Binary, NFData)
 type instance RuleResult RSSGenVersion = Version
 
--- |This oracle is to depend on the upstream RSS without an intermediate file.
--- If the downloading failed, we don't want to fail our build.
--- URL -> Maybe T.Text
-newtype UpstreamRSS = UpstreamRSS URL
-  deriving (Show, Typeable, Eq, Hashable, Binary, NFData)
-type instance RuleResult UpstreamRSS = Maybe T.Text
-
 -- | CLI options parser to get the RSS filenames (if any) that should be built.
 -- This replaces `shake`'s built-in parser as it can't be used now since this
 -- RSS generator is one of the commands in the executable. This parser only
@@ -68,14 +61,6 @@ run filenames = do
 
     getRSSGenVersion <- addOracle $ \RSSGenVersion{} -> return Paths.version
 
-    upstreamRSS <- addOracle $ \(UpstreamRSS url) -> do
-      manager <- liftIO $ newManager tlsManagerSettings
-      -- this `liftIO` is to fix the build error:
-      -- • No instance for (exceptions-0.10.4:Control.Monad.Catch.MonadThrow
-      --                      Action)
-      --     arising from a use of ‘downloadRadioTRSS’
-      liftIO . flip runReaderT manager $ downloadRSS url
-
     versioned 24 $ "*.rss" %> \out -> do
       void . getRSSGenVersion $ RSSGenVersion ()
 
@@ -92,6 +77,8 @@ run filenames = do
           -- the functions here have to be in `Action` :( (`MonadUnliftIO` may
           -- possibly help, but I doubt that)
           conn <- liftIO $ openDatabase DefaultFile
+          manager <- liftIO $ newManager tlsManagerSettings
+          let upstreamRSS = flip runReaderT manager . downloadRSS
           processUpstreamRSS upstreamRSS (T.pack podcastTitle) config conn
           generateFeed config conn out
           liftIO $ closeDatabase conn
@@ -120,12 +107,10 @@ newestFirst = sortOn Down
 
 -- | Downloads the upstream RSS from the URL in the config, parses it and
 -- saves the items in the database.
--- Downloading is triggered every time when our RSS is requested, and
--- the RSS is not updated if the upstream RSS hasn't changed.
-processUpstreamRSS :: (UpstreamRSS -> Action (Maybe T.Text)) -> UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Connection -> Action ()
+processUpstreamRSS :: (URL -> IO (Maybe T.Text)) -> UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Connection -> Action ()
 processUpstreamRSS upstreamRSS podcastTitle config conn = void $ runMaybeT $ do
   url <- MaybeT . pure $ upstreamRSSURL config
-  text <- MaybeT . upstreamRSS . UpstreamRSS . T.unpack $ url
+  text <- MaybeT . liftIO . upstreamRSS . T.unpack $ url
   items <- MaybeT . pure . eitherToMaybe . UpstreamRSSFeed.parse podcastTitle $ text
   -- if we're here, then we have items
   liftIO $ saveUpstreamRSSItems conn items
