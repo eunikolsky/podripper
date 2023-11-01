@@ -2,9 +2,13 @@
 
 module RSSGen.Database
   ( FileSpec(..)
-  , closeDatabase
-  , closestUpstreamItemToTime
+
+  -- * database metafunctions
   , openDatabase
+  , closeDatabase
+
+  -- * working with upstream RSS
+  , closestUpstreamItemToTime
   , saveUpstreamRSSItems
 
   -- * persisting download cache items
