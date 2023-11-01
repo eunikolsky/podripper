@@ -8,6 +8,7 @@ import Data.Time.Calendar
 import Data.Time.Clock
 
 import RSSGen.Database
+import RSSGen.DownloaderTypes
 import RSSGen.Types
 import RSSGen.UpstreamRSSFeed
 
@@ -17,7 +18,7 @@ podcastId :: PodcastId
 podcastId = "radiot"
 
 spec :: Spec
-spec =
+spec = do
   describe "closestUpstreamItemToTime" $ do
     it "returns the closest item by time within one day" $ do
       let item0 = UpstreamRSSItem "item0" (utcTime 2020 01 01 10 15 00) "" "" podcastId
@@ -77,11 +78,20 @@ spec =
         closestUpstreamItemToTime (Hours 12) podcastId conn time
       actual `shouldBe` Just item1
 
-  where
-    utcTime :: Integer -> Int -> Int -> Int -> Int -> Int -> UTCTime
-    utcTime year month day hour minute second = UTCTime
-      (fromGregorian year month day)
-      (secondsToDiffTime . fromIntegral $ second + (minute * 60) + (hour * 60 * 60))
+  describe "CacheItem" $ do
+    it "can be persisted in the database" $ do
+      let url = "localhost"
+          item = ETag "hello!"
+
+      actual <- withDB $ \conn -> do
+        setCacheItem conn url item
+        getCacheItem conn url
+      actual `shouldBe` Just item
+
+utcTime :: Integer -> Int -> Int -> Int -> Int -> Int -> UTCTime
+utcTime year month day hour minute second = UTCTime
+  (fromGregorian year month day)
+  (secondsToDiffTime . fromIntegral $ second + (minute * 60) + (hour * 60 * 60))
 
 withDB :: MonadIO m => (Connection -> m a) -> m a
 withDB io = do
