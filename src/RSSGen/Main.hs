@@ -9,7 +9,6 @@ module RSSGen.Main
 
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
-import qualified Data.ByteString.Lazy as BL
 import Data.List (intercalate, sortOn)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NE
@@ -136,4 +135,4 @@ eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right x) = Just x
 
 downloadRSS :: (MonadIO m, MonadThrow m, MonadReader Manager m) => URL -> m (Maybe T.Text)
-downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict)) . getFile
+downloadRSS = fmap (fmap TE.decodeUtf8) . getFile

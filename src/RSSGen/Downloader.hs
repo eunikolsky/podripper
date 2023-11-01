@@ -12,6 +12,7 @@ module RSSGen.Downloader
 
 import Control.Monad.Catch
 import Control.Monad.Reader
+import Data.ByteString qualified as B
 import Network.HTTP.Client
 import Network.HTTP.Types
 import RSSGen.DownloaderTypes
@@ -24,5 +25,5 @@ getFile url = do
   request <- parseRequest url
   response <- liftIO $ httpLbs request manager
   pure $ if responseStatus response == ok200
-    then Just $ responseBody response
+    then Just . B.toStrict $ responseBody response
     else Nothing

@@ -4,11 +4,11 @@ module RSSGen.DownloaderTypes
   , URL
   ) where
 
-import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString as B
 
 type URL = String
 
-type Bytes = BL.ByteString
+type Bytes = B.ByteString
 
 -- | Cache item, one per URL, stored in the database.
 data CacheItem
