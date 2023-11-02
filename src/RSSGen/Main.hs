@@ -20,8 +20,6 @@ import Data.Version (Version, showVersion)
 import Development.Shake
 import Development.Shake.Classes
 import Development.Shake.FilePath
-import Network.HTTP.Client
-import Network.HTTP.Client.TLS
 import Options.Applicative
 import qualified System.Environment as Env
 
@@ -77,9 +75,7 @@ run filenames = do
           -- the functions here have to be in `Action` :( (`MonadUnliftIO` may
           -- possibly help, but I doubt that)
           conn <- liftIO $ openDatabase DefaultFile
-          manager <- liftIO $ newManager tlsManagerSettings
-          let upstreamRSS = flip runReaderT manager . downloadRSS
-          processUpstreamRSS upstreamRSS (T.pack podcastTitle) config conn
+          processUpstreamRSS downloadRSS (T.pack podcastTitle) config conn
           generateFeed config conn out
           liftIO $ closeDatabase conn
         Nothing -> fail
@@ -119,5 +115,5 @@ eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right x) = Just x
 
-downloadRSS :: (MonadIO m, MonadThrow m, MonadReader Manager m) => URL -> m (Maybe T.Text)
+downloadRSS :: (MonadIO m, MonadThrow m) => URL -> m (Maybe T.Text)
 downloadRSS = fmap (fmap TE.decodeUtf8) . getFile
