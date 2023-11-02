@@ -9,6 +9,7 @@ module RSSGen.Downloader
   , URL
   ) where
 
+import Control.Applicative
 import Control.Monad.Catch
 import Control.Monad.Reader
 import Data.List (find)
@@ -30,16 +31,17 @@ getFile :: (MonadIO m, MonadThrow m)
 getFile httpBS conn url = do
   request <- parseRequest url >>= liftIO . applyETag
   response <- httpBS request
-  liftIO $ storeETag response
+  liftIO $ cacheResponse response
   pure $ if responseStatus response == ok200
     then Just $ responseBody response
     else Nothing
 
   where
-    storeETag r = maybe
-      (pure ())
-      (setCacheItem conn url . ETag)
-      (findHeaderValue hETag $ responseHeaders r)
+    cacheResponse r = let headers = responseHeaders r
+      in maybe
+        (pure ())
+        (setCacheItem conn url)
+        (findCacheItem ETag hETag headers <|> findCacheItem LastModified hLastModified headers)
 
     applyETag r = do
       item <- getCacheItem conn url
@@ -47,5 +49,5 @@ getFile httpBS conn url = do
         Just (ETag etag) -> r { requestHeaders = requestHeaders r <> [(hIfModifiedSince, etag)] }
         _ -> r
 
-findHeaderValue :: HeaderName -> ResponseHeaders -> Maybe Bytes
-findHeaderValue name = fmap snd . find ((== name) . fst)
+findCacheItem :: (Bytes -> CacheItem) -> HeaderName -> ResponseHeaders -> Maybe CacheItem
+findCacheItem mkCacheItem name = fmap (mkCacheItem . snd) . find ((== name) . fst)

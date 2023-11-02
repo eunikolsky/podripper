@@ -26,6 +26,17 @@ spec = do
 
       actual `shouldBe` Just (ETag etag)
 
+    it "stores Last-Modified from a response" $ do
+      let url = "http://localhost"
+          lastmod = "last-modified"
+          mockHTTPBS _ = pure $ responseWithLastModified lastmod
+
+      actual <- withDB $ \conn -> do
+        void $ getFile mockHTTPBS conn url
+        liftIO $ getCacheItem conn url
+
+      actual `shouldBe` Just (LastModified lastmod)
+
     it "sets If-Modified-Since with stored ETag" $ do
       ifModifiedSinceRef <- newIORef Nothing
 
@@ -46,6 +57,17 @@ spec = do
 responseWithETag :: Bytes -> Response Bytes
 responseWithETag etag = Response
   { responseHeaders = [("ETag", etag)]
+  , responseStatus = ok200
+  , responseVersion = http11
+  , responseBody = ""
+  , responseCookieJar = mempty
+  , responseClose' = undefined
+  , responseOriginalRequest = undefined
+  }
+
+responseWithLastModified :: Bytes -> Response Bytes
+responseWithLastModified etag = Response
+  { responseHeaders = [("Last-Modified", etag)]
   , responseStatus = ok200
   , responseVersion = http11
   , responseBody = ""
