@@ -104,6 +104,7 @@ tests:
     - directory
     - filepath
     - hspec
+    - http-client
     - http-conduit
     - http-types
     - monad-logger

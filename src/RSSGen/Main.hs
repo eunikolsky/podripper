@@ -20,6 +20,7 @@ import Data.Version (Version, showVersion)
 import Development.Shake
 import Development.Shake.Classes
 import Development.Shake.FilePath
+import Network.HTTP.Simple
 import Options.Applicative
 import qualified System.Environment as Env
 
@@ -75,7 +76,8 @@ run filenames = do
           -- the functions here have to be in `Action` :( (`MonadUnliftIO` may
           -- possibly help, but I doubt that)
           conn <- liftIO $ openDatabase DefaultFile
-          processUpstreamRSS downloadRSS (T.pack podcastTitle) config conn
+          let upstreamRSS = downloadRSS conn
+          processUpstreamRSS upstreamRSS (T.pack podcastTitle) config conn
           generateFeed config conn out
           liftIO $ closeDatabase conn
         Nothing -> fail
@@ -115,5 +117,5 @@ eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right x) = Just x
 
-downloadRSS :: (MonadIO m, MonadThrow m) => URL -> m (Maybe T.Text)
-downloadRSS = fmap (fmap TE.decodeUtf8) . getFile
+downloadRSS :: (MonadIO m, MonadThrow m) => Connection -> URL -> m (Maybe T.Text)
+downloadRSS conn = fmap (fmap TE.decodeUtf8) . getFile httpBS conn
