@@ -66,6 +66,26 @@ spec = do
       actual <- readIORef ifNoneMatchRef
       LastModified <$> actual `shouldBe` Just lastmod
 
+    it "sets Is-Modified-Since and If-None-Match with stored ETagWithLastModified" $ do
+      headerValuesRef <- newIORef Nothing
+
+      let url = "http://localhost"
+          etagLastmod = ETagWithLastModified "etag" "last-modified"
+          mockHTTPBS req = do
+            writeIORef headerValuesRef $ sequence
+              ( findHeaderValue "If-Modified-Since" $ requestHeaders req
+              , findHeaderValue "If-None-Match" $ requestHeaders req
+              )
+            pure $ responseWith etagLastmod
+
+      withDB $ \conn -> do
+        liftIO $ setCacheItem conn url etagLastmod
+        void $ getFile mockHTTPBS conn url
+
+      actual <- readIORef headerValuesRef
+      let (ifModifiedSince, ifNoneMatch) = sequence actual
+      ETagWithLastModified <$> ifModifiedSince <*> ifNoneMatch `shouldBe` Just etagLastmod
+
 responseWith :: CacheItem -> Response Bytes
 responseWith item = Response
   { responseHeaders

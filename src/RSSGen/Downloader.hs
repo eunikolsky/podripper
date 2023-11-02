@@ -54,8 +54,12 @@ getFile httpBS conn url = do
     applyCachedResponse r = do
       item <- getCacheItem conn url
       pure $ case item of
-        Just (ETag etag) -> r { requestHeaders = requestHeaders r <> [(hIfModifiedSince, etag)] }
-        Just (LastModified lastmod) -> r { requestHeaders = requestHeaders r <> [(hIfNoneMatch, lastmod)] }
+        Just (ETag etag) -> r { requestHeaders =
+          requestHeaders r <> [(hIfModifiedSince, etag)] }
+        Just (LastModified lastmod) -> r { requestHeaders =
+          requestHeaders r <> [(hIfNoneMatch, lastmod)] }
+        Just (ETagWithLastModified etag lastmod) -> r { requestHeaders =
+          requestHeaders r <> [(hIfModifiedSince, etag), (hIfNoneMatch, lastmod)] }
         _ -> r
 
 findHeaderValue :: HeaderName -> ResponseHeaders -> Maybe Bytes
