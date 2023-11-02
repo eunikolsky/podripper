@@ -97,6 +97,27 @@ spec = do
       let (ifModifiedSince, ifNoneMatch) = sequence actual
       ETagWithLastModified <$> ifModifiedSince <*> ifNoneMatch `shouldBe` Just etagLastmod
 
+    it "returns body when response Body has changed from cached" $ do
+      let url = "http://localhost"
+          cachedBody = Body "previous body"
+          body = "response body"
+          mockHTTPBS _ = pure $ responseWith (Body body)
+
+      actual <- withDB $ \conn -> do
+        liftIO $ setCacheItem conn url cachedBody
+        getFile mockHTTPBS conn url
+
+      actual `shouldBe` Just body
+
+    it "returns body when response Body wasn't cached" $ do
+      let url = "http://localhost"
+          body = "response body"
+          mockHTTPBS _ = pure $ responseWith (Body body)
+
+      actual <- withDB $ \conn -> getFile mockHTTPBS conn url
+
+      actual `shouldBe` Just body
+
 responseWith :: CacheItem -> Response Bytes
 responseWith item = Response
   { responseHeaders
