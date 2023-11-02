@@ -29,6 +29,9 @@ spec = do
 
     it "stores Last-Modified from a response" $ verifyStored $ LastModified "last-modified"
 
+    it "stores ETag and Last-Modified from a response" $ verifyStored $
+      ETagWithLastModified "etag" "last-modified"
+
     it "sets If-Modified-Since with stored ETag" $ do
       ifModifiedSinceRef <- newIORef Nothing
 
@@ -78,6 +81,7 @@ responseWith item = Response
     responseHeaders = case item of
       ETag etag -> [("ETag", etag)]
       LastModified lastmod -> [("Last-Modified", lastmod)]
+      ETagWithLastModified etag lastmod -> [("ETag", etag), ("Last-Modified", lastmod)]
       _ -> mempty
 
 findHeaderValue :: HeaderName -> RequestHeaders -> Maybe Bytes

@@ -37,11 +37,19 @@ getFile httpBS conn url = do
     else Nothing
 
   where
-    cacheResponse r = let headers = responseHeaders r
+    cacheResponse r =
+      let headers = responseHeaders r
+          maybeETag = findHeaderValue hETag headers
+          maybeLastModified = findHeaderValue hLastModified headers
+          maybeCacheItem = asum
+            [ ETagWithLastModified <$> maybeETag <*> maybeLastModified
+            , ETag <$> maybeETag
+            , LastModified <$> maybeLastModified
+            ]
       in maybe
         (pure ())
         (setCacheItem conn url)
-        (findCacheItem ETag hETag headers <|> findCacheItem LastModified hLastModified headers)
+        maybeCacheItem
 
     applyCachedResponse r = do
       item <- getCacheItem conn url
@@ -50,5 +58,5 @@ getFile httpBS conn url = do
         Just (LastModified lastmod) -> r { requestHeaders = requestHeaders r <> [(hIfNoneMatch, lastmod)] }
         _ -> r
 
-findCacheItem :: (Bytes -> CacheItem) -> HeaderName -> ResponseHeaders -> Maybe CacheItem
-findCacheItem mkCacheItem name = fmap (mkCacheItem . snd) . find ((== name) . fst)
+findHeaderValue :: HeaderName -> ResponseHeaders -> Maybe Bytes
+findHeaderValue name = fmap snd . find ((== name) . fst)
