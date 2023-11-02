@@ -12,7 +12,9 @@ module RSSGen.Downloader
 import Control.Applicative
 import Control.Monad.Catch
 import Control.Monad.Reader
+import Data.Function
 import Data.List (find)
+import Data.Maybe
 import Network.HTTP.Client (Request(..), Response(..), parseRequest)
 import Network.HTTP.Types
 import Network.HTTP.Types.Header
@@ -41,15 +43,13 @@ getFile httpBS conn url = do
       let headers = responseHeaders r
           maybeETag = findHeaderValue hETag headers
           maybeLastModified = findHeaderValue hLastModified headers
-          maybeCacheItem = asum
+          cacheItem = asum
             [ ETagWithLastModified <$> maybeETag <*> maybeLastModified
             , ETag <$> maybeETag
             , LastModified <$> maybeLastModified
             ]
-      in maybe
-        (pure ())
-        (setCacheItem conn url)
-        maybeCacheItem
+            & fromMaybe (Body $ responseBody r)
+      in setCacheItem conn url cacheItem
 
     applyCachedResponse r = do
       item <- getCacheItem conn url
