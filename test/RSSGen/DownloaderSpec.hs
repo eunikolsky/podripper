@@ -15,27 +15,19 @@ import Test.Hspec
 spec :: Spec
 spec = do
   describe "getFile" $ do
-    it "stores ETag from a response" $ do
-      let url = "http://localhost"
-          etag = ETag "etag"
-          mockHTTPBS _ = pure $ responseWith etag
+    let verifyStored item = do
+          let url = "http://localhost"
+              mockHTTPBS _ = pure $ responseWith item
 
-      actual <- withDB $ \conn -> do
-        void $ getFile mockHTTPBS conn url
-        liftIO $ getCacheItem conn url
+          actual <- withDB $ \conn -> do
+            void $ getFile mockHTTPBS conn url
+            liftIO $ getCacheItem conn url
 
-      actual `shouldBe` Just etag
+          actual `shouldBe` Just item
 
-    it "stores Last-Modified from a response" $ do
-      let url = "http://localhost"
-          lastmod = LastModified "last-modified"
-          mockHTTPBS _ = pure $ responseWith lastmod
+    it "stores ETag from a response" $ verifyStored $ ETag "etag"
 
-      actual <- withDB $ \conn -> do
-        void $ getFile mockHTTPBS conn url
-        liftIO $ getCacheItem conn url
-
-      actual `shouldBe` Just lastmod
+    it "stores Last-Modified from a response" $ verifyStored $ LastModified "last-modified"
 
     it "sets If-Modified-Since with stored ETag" $ do
       ifModifiedSinceRef <- newIORef Nothing
