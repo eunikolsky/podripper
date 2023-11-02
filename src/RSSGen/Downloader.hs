@@ -29,7 +29,7 @@ getFile :: (MonadIO m, MonadThrow m)
   -> URL
   -> m (Maybe Bytes)
 getFile httpBS conn url = do
-  request <- parseRequest url >>= liftIO . applyETag
+  request <- parseRequest url >>= liftIO . applyCachedResponse
   response <- httpBS request
   liftIO $ cacheResponse response
   pure $ if responseStatus response == ok200
@@ -43,10 +43,11 @@ getFile httpBS conn url = do
         (setCacheItem conn url)
         (findCacheItem ETag hETag headers <|> findCacheItem LastModified hLastModified headers)
 
-    applyETag r = do
+    applyCachedResponse r = do
       item <- getCacheItem conn url
       pure $ case item of
         Just (ETag etag) -> r { requestHeaders = requestHeaders r <> [(hIfModifiedSince, etag)] }
+        Just (LastModified lastmod) -> r { requestHeaders = requestHeaders r <> [(hIfNoneMatch, lastmod)] }
         _ -> r
 
 findCacheItem :: (Bytes -> CacheItem) -> HeaderName -> ResponseHeaders -> Maybe CacheItem
