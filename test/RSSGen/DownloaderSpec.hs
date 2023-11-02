@@ -118,6 +118,17 @@ spec = do
 
       actual `shouldBe` Just body
 
+    it "returns Nothing when response Body hasn't changed from cached" $ do
+      let url = "http://localhost"
+          body = Body "response body"
+          mockHTTPBS _ = pure $ responseWith body
+
+      actual <- withDB $ \conn -> do
+        liftIO $ setCacheItem conn url body
+        getFile mockHTTPBS conn url
+
+      actual `shouldBe` Nothing
+
 responseWith :: CacheItem -> Response Bytes
 responseWith item = Response
   { responseHeaders

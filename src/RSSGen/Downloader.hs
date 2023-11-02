@@ -33,9 +33,14 @@ getFile :: (MonadIO m, MonadThrow m)
 getFile httpBS conn url = do
   request <- parseRequest url >>= liftIO . applyCachedResponse
   response <- httpBS request
+
+  maybeCachedBody <- liftIO getCachedBody
   liftIO $ cacheResponse response
-  pure $ if responseStatus response == ok200
-    then Just $ responseBody response
+
+  let body = responseBody response
+      bodyHasChanged = Just body /= maybeCachedBody
+  pure $ if responseStatus response == ok200 && bodyHasChanged
+    then Just body
     else Nothing
 
   where
@@ -61,6 +66,12 @@ getFile httpBS conn url = do
         Just (ETagWithLastModified etag lastmod) -> r { requestHeaders =
           requestHeaders r <> [(hIfModifiedSince, etag), (hIfNoneMatch, lastmod)] }
         _ -> r
+
+    getCachedBody = do
+      item <- getCacheItem conn url
+      pure $ case item of
+        Just (Body body) -> Just body
+        _ -> Nothing
 
 findHeaderValue :: HeaderName -> ResponseHeaders -> Maybe Bytes
 findHeaderValue name = fmap snd . find ((== name) . fst)
