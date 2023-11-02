@@ -17,63 +17,63 @@ spec = do
   describe "getFile" $ do
     it "stores ETag from a response" $ do
       let url = "http://localhost"
-          etag = "etag"
-          mockHTTPBS _ = pure $ responseWithETag etag
+          etag = ETag "etag"
+          mockHTTPBS _ = pure $ responseWith etag
 
       actual <- withDB $ \conn -> do
         void $ getFile mockHTTPBS conn url
         liftIO $ getCacheItem conn url
 
-      actual `shouldBe` Just (ETag etag)
+      actual `shouldBe` Just etag
 
     it "stores Last-Modified from a response" $ do
       let url = "http://localhost"
-          lastmod = "last-modified"
-          mockHTTPBS _ = pure $ responseWithLastModified lastmod
+          lastmod = LastModified "last-modified"
+          mockHTTPBS _ = pure $ responseWith lastmod
 
       actual <- withDB $ \conn -> do
         void $ getFile mockHTTPBS conn url
         liftIO $ getCacheItem conn url
 
-      actual `shouldBe` Just (LastModified lastmod)
+      actual `shouldBe` Just lastmod
 
     it "sets If-Modified-Since with stored ETag" $ do
       ifModifiedSinceRef <- newIORef Nothing
 
       let url = "http://localhost"
-          etag = "etag"
+          etag = ETag "etag"
           mockHTTPBS req = do
             writeIORef ifModifiedSinceRef .
               findHeaderValue "If-Modified-Since" $ requestHeaders req
-            pure $ responseWithETag etag
+            pure $ responseWith etag
 
       withDB $ \conn -> do
-        liftIO $ setCacheItem conn url (ETag etag)
+        liftIO $ setCacheItem conn url etag
         void $ getFile mockHTTPBS conn url
 
       actual <- readIORef ifModifiedSinceRef
-      actual `shouldBe` Just etag
+      ETag <$> actual `shouldBe` Just etag
 
     it "sets If-None-Match with stored LastModified" $ do
       ifNoneMatchRef <- newIORef Nothing
 
       let url = "http://localhost"
-          lastmod = "last-modified"
+          lastmod = LastModified "last-modified"
           mockHTTPBS req = do
             writeIORef ifNoneMatchRef .
               findHeaderValue "If-None-Match" $ requestHeaders req
-            pure $ responseWithETag lastmod
+            pure $ responseWith lastmod
 
       withDB $ \conn -> do
-        liftIO $ setCacheItem conn url (LastModified lastmod)
+        liftIO $ setCacheItem conn url lastmod
         void $ getFile mockHTTPBS conn url
 
       actual <- readIORef ifNoneMatchRef
-      actual `shouldBe` Just lastmod
+      LastModified <$> actual `shouldBe` Just lastmod
 
-responseWithETag :: Bytes -> Response Bytes
-responseWithETag etag = Response
-  { responseHeaders = [("ETag", etag)]
+responseWith :: CacheItem -> Response Bytes
+responseWith item = Response
+  { responseHeaders
   , responseStatus = ok200
   , responseVersion = http11
   , responseBody = ""
@@ -82,16 +82,11 @@ responseWithETag etag = Response
   , responseOriginalRequest = undefined
   }
 
-responseWithLastModified :: Bytes -> Response Bytes
-responseWithLastModified etag = Response
-  { responseHeaders = [("Last-Modified", etag)]
-  , responseStatus = ok200
-  , responseVersion = http11
-  , responseBody = ""
-  , responseCookieJar = mempty
-  , responseClose' = undefined
-  , responseOriginalRequest = undefined
-  }
+  where
+    responseHeaders = case item of
+      ETag etag -> [("ETag", etag)]
+      LastModified lastmod -> [("Last-Modified", lastmod)]
+      _ -> mempty
 
 findHeaderValue :: HeaderName -> RequestHeaders -> Maybe Bytes
 findHeaderValue name = fmap snd . find ((== name) . fst)
