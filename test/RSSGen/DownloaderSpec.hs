@@ -129,6 +129,14 @@ spec = do
 
       actual `shouldBe` Nothing
 
+    it "returns Nothing when response is 304 Not modified" $ do
+      let url = "http://localhost"
+          mockHTTPBS _ = pure responseNotModified
+
+      actual <- withDB $ \conn -> getFile mockHTTPBS conn url
+
+      actual `shouldBe` Nothing
+
 responseWith :: CacheItem -> Response Bytes
 responseWith item = Response
   { responseHeaders
@@ -150,6 +158,17 @@ responseWith item = Response
     responseBody = case item of
       Body body -> body
       _ -> mempty
+
+responseNotModified :: Response Bytes
+responseNotModified = Response
+  { responseHeaders = mempty
+  , responseStatus = notModified304
+  , responseVersion = http11
+  , responseBody = mempty
+  , responseCookieJar = mempty
+  , responseClose' = undefined
+  , responseOriginalRequest = undefined
+  }
 
 findHeaderValue :: HeaderName -> RequestHeaders -> Maybe Bytes
 findHeaderValue name = fmap snd . find ((== name) . fst)
