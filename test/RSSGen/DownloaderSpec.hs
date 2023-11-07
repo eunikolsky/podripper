@@ -34,16 +34,7 @@ spec = do
       it "stores ETag and Last-Modified from a response" $ verifyStored $
         ETagWithLastModified "etag" "last-modified"
 
-      it "stores Body of a response" $ do
-        let url = "http://localhost"
-            body = Body "response body"
-            mockHTTPBS _ = pure $ responseWith' body
-
-        actual <- withDB $ \conn -> do
-          void $ getFile mockHTTPBS conn url
-          liftIO $ getCacheItem conn url
-
-        actual `shouldBe` Just body
+      it "stores Body of a response" $ verifyStored $ Body "response body"
 
       it "sets If-Modified-Since with stored ETag" $ do
         ifModifiedSinceRef <- newIORef Nothing
@@ -141,23 +132,35 @@ spec = do
         actual `shouldBe` Nothing
 
     context "given an error response" $ do
+      let verifyNotStored status item = do
+            let url = "http://localhost"
+                mockHTTPBS _ = pure $ responseWith status item
+
+            actual <- withDB $ \conn -> do
+              void $ getFile mockHTTPBS conn url
+              liftIO $ getCacheItem conn url
+
+            actual `shouldBe` Nothing
+
       it "returns Nothing" $ do
         let url = "http://localhost"
-            mockHTTPBS _ = pure $ response notFound404
+            mockHTTPBS _ = pure $ response imATeapot418
 
         actual <- withDB $ \conn -> getFile mockHTTPBS conn url
 
         actual `shouldBe` Nothing
 
-      it "doesn't store ETag from a response" $ do
-        let url = "http://localhost"
-            mockHTTPBS _ = pure $ responseWith internalServerError500 $ ETag "etag"
+      it "doesn't store ETag from a response" $
+        verifyNotStored internalServerError500 $ ETag "etag"
 
-        actual <- withDB $ \conn -> do
-          void $ getFile mockHTTPBS conn url
-          liftIO $ getCacheItem conn url
+      it "doesn't store Last-Modified from a response" $
+        verifyNotStored badRequest400 $ LastModified "last-modified"
 
-        actual `shouldBe` Nothing
+      it "doesn't store ETag and Last-Modified from a response" $
+        verifyNotStored badGateway502 $ ETagWithLastModified "etag" "last-modified"
+
+      it "doesn't store Body of a response" $
+        verifyNotStored notFound404 $ Body "body"
 
 responseWith :: Status -> CacheItem -> Response Bytes
 responseWith responseStatus item = Response
