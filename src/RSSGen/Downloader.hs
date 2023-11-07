@@ -21,8 +21,12 @@ import Network.HTTP.Types.Header
 import RSSGen.Database
 import RSSGen.DownloaderTypes
 
--- |Downloads a file by the `URL`, returns the response's body on success, or
--- `Nothing` otherwise.
+-- |Downloads a file by the `URL` with an automatic response caching support,
+-- that is, the `ETag` and `Last-Modified` response headers (with the
+-- corresponding `If-None-Match` and `If-Modified-Since` request headers) if
+-- present, or the body itself otherwise. Returns the response's body on success
+-- and only if the body has changed since the last response, and `Nothing`
+-- otherwise.
 getFile :: (MonadIO m, MonadThrow m)
   => (Request -> m (Response Bytes))
   -- ^ the `httpBS` function
