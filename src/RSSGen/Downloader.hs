@@ -33,13 +33,14 @@ getFile :: (MonadIO m, MonadThrow m)
 getFile httpBS conn url = do
   request <- parseRequest url >>= liftIO . applyCachedResponse
   response <- httpBS request
+  let responseSuccessful = responseStatus response == ok200
 
   maybeCachedBody <- liftIO getCachedBody
-  liftIO $ cacheResponse response
+  when responseSuccessful $ liftIO $ cacheResponse response
 
   let body = responseBody response
       bodyHasChanged = Just body /= maybeCachedBody
-  pure $ if responseStatus response == ok200 && bodyHasChanged
+  pure $ if responseSuccessful && bodyHasChanged
     then Just body
     else Nothing
 

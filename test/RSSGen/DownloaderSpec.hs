@@ -16,9 +16,10 @@ spec :: Spec
 spec = do
   describe "getFile" $ do
     context "given 200 OK response" $ do
-      let verifyStored item = do
+      let responseWith' = responseWith ok200
+          verifyStored item = do
             let url = "http://localhost"
-                mockHTTPBS _ = pure $ responseWith item
+                mockHTTPBS _ = pure $ responseWith' item
 
             actual <- withDB $ \conn -> do
               void $ getFile mockHTTPBS conn url
@@ -36,7 +37,7 @@ spec = do
       it "stores Body of a response" $ do
         let url = "http://localhost"
             body = Body "response body"
-            mockHTTPBS _ = pure $ responseWith body
+            mockHTTPBS _ = pure $ responseWith' body
 
         actual <- withDB $ \conn -> do
           void $ getFile mockHTTPBS conn url
@@ -52,7 +53,7 @@ spec = do
             mockHTTPBS req = do
               writeIORef ifModifiedSinceRef .
                 findHeaderValue "If-Modified-Since" $ requestHeaders req
-              pure $ responseWith etag
+              pure $ responseWith' etag
 
         withDB $ \conn -> do
           liftIO $ setCacheItem conn url etag
@@ -69,7 +70,7 @@ spec = do
             mockHTTPBS req = do
               writeIORef ifNoneMatchRef .
                 findHeaderValue "If-None-Match" $ requestHeaders req
-              pure $ responseWith lastmod
+              pure $ responseWith' lastmod
 
         withDB $ \conn -> do
           liftIO $ setCacheItem conn url lastmod
@@ -88,7 +89,7 @@ spec = do
                 ( findHeaderValue "If-Modified-Since" $ requestHeaders req
                 , findHeaderValue "If-None-Match" $ requestHeaders req
                 )
-              pure $ responseWith etagLastmod
+              pure $ responseWith' etagLastmod
 
         withDB $ \conn -> do
           liftIO $ setCacheItem conn url etagLastmod
@@ -102,7 +103,7 @@ spec = do
         let url = "http://localhost"
             cachedBody = Body "previous body"
             body = "response body"
-            mockHTTPBS _ = pure $ responseWith (Body body)
+            mockHTTPBS _ = pure $ responseWith' (Body body)
 
         actual <- withDB $ \conn -> do
           liftIO $ setCacheItem conn url cachedBody
@@ -113,7 +114,7 @@ spec = do
       it "returns body when response Body wasn't cached" $ do
         let url = "http://localhost"
             body = "response body"
-            mockHTTPBS _ = pure $ responseWith (Body body)
+            mockHTTPBS _ = pure $ responseWith' (Body body)
 
         actual <- withDB $ \conn -> getFile mockHTTPBS conn url
 
@@ -122,7 +123,7 @@ spec = do
       it "returns Nothing when response Body hasn't changed from cached" $ do
         let url = "http://localhost"
             body = Body "response body"
-            mockHTTPBS _ = pure $ responseWith body
+            mockHTTPBS _ = pure $ responseWith' body
 
         actual <- withDB $ \conn -> do
           liftIO $ setCacheItem conn url body
@@ -133,16 +134,35 @@ spec = do
     context "given 304 Not modified response" $ do
       it "returns Nothing" $ do
         let url = "http://localhost"
-            mockHTTPBS _ = pure responseNotModified
+            mockHTTPBS _ = pure $ response notModified304
 
         actual <- withDB $ \conn -> getFile mockHTTPBS conn url
 
         actual `shouldBe` Nothing
 
-responseWith :: CacheItem -> Response Bytes
-responseWith item = Response
+    context "given an error response" $ do
+      it "returns Nothing" $ do
+        let url = "http://localhost"
+            mockHTTPBS _ = pure $ response notFound404
+
+        actual <- withDB $ \conn -> getFile mockHTTPBS conn url
+
+        actual `shouldBe` Nothing
+
+      it "doesn't store ETag from a response" $ do
+        let url = "http://localhost"
+            mockHTTPBS _ = pure $ responseWith internalServerError500 $ ETag "etag"
+
+        actual <- withDB $ \conn -> do
+          void $ getFile mockHTTPBS conn url
+          liftIO $ getCacheItem conn url
+
+        actual `shouldBe` Nothing
+
+responseWith :: Status -> CacheItem -> Response Bytes
+responseWith responseStatus item = Response
   { responseHeaders
-  , responseStatus = ok200
+  , responseStatus
   , responseVersion = http11
   , responseBody
   , responseCookieJar = mempty
@@ -161,10 +181,10 @@ responseWith item = Response
       Body body -> body
       _ -> mempty
 
-responseNotModified :: Response Bytes
-responseNotModified = Response
+response :: Status -> Response Bytes
+response responseStatus = Response
   { responseHeaders = mempty
-  , responseStatus = notModified304
+  , responseStatus
   , responseVersion = http11
   , responseBody = mempty
   , responseCookieJar = mempty
