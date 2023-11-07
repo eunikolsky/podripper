@@ -76,8 +76,7 @@ run filenames = do
           -- the functions here have to be in `Action` :( (`MonadUnliftIO` may
           -- possibly help, but I doubt that)
           conn <- liftIO $ openDatabase DefaultFile
-          let upstreamRSS = downloadRSS conn
-          processUpstreamRSS upstreamRSS (T.pack podcastTitle) config conn
+          processUpstreamRSS (T.pack podcastTitle) config conn
           generateFeed config conn out
           liftIO $ closeDatabase conn
         Nothing -> fail
@@ -105,10 +104,10 @@ newestFirst = sortOn Down
 
 -- | Downloads the upstream RSS from the URL in the config, parses it and
 -- saves the items in the database.
-processUpstreamRSS :: (URL -> IO (Maybe T.Text)) -> UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Connection -> Action ()
-processUpstreamRSS upstreamRSS podcastTitle config conn = void $ runMaybeT $ do
+processUpstreamRSS :: UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Connection -> Action ()
+processUpstreamRSS podcastTitle config conn = void $ runMaybeT $ do
   url <- MaybeT . pure $ upstreamRSSURL config
-  text <- MaybeT . liftIO . upstreamRSS . T.unpack $ url
+  text <- MaybeT . liftIO . downloadRSS conn . T.unpack $ url
   items <- MaybeT . pure . eitherToMaybe . UpstreamRSSFeed.parse podcastTitle $ text
   -- if we're here, then we have items
   liftIO $ saveUpstreamRSSItems conn items
