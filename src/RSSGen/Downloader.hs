@@ -39,6 +39,8 @@ getFile httpBS conn url = do
   when responseSuccessful $ liftIO $ cacheResponse response
 
   let body = responseBody response
+      -- note: `hlint` was smart to suggest replacing `maybe True (body /=)`
+      -- with `(Just body /=)`
       bodyHasChanged = Just body /= maybeCachedBody
   pure $ if responseSuccessful && bodyHasChanged
     then Just body
