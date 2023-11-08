@@ -104,7 +104,7 @@ newestFirst = sortOn Down
 
 -- | Downloads the upstream RSS from the URL in the config, parses it and
 -- saves the items in the database.
-processUpstreamRSS :: UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Connection -> Action ()
+processUpstreamRSS :: MonadIO m => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Connection -> m ()
 processUpstreamRSS podcastTitle config conn = void $ runMaybeT $ do
   url <- MaybeT . pure $ upstreamRSSURL config
   text <- MaybeT . liftIO . downloadRSS conn . T.unpack $ url
