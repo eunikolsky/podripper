@@ -133,14 +133,17 @@ downloadRSS conn = fmap (fmap TE.decodeUtf8) . getFile httpBS conn
 -- for the given rip, and wait for changes again if that fails.
 _pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
   -- TODO too many parameters?
-  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDuration -> UTCTime -> DBConnection -> URL -> UTCTime -> m ()
-_pollUpstreamRSS podcastTitle feedConfig retryDuration endTime conn url ripTime =
-  void $ runUntil retryDuration endTime iter
+  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDuration -> UTCTime -> DBConnection -> UTCTime -> m ()
+_pollUpstreamRSS podcastTitle feedConfig retryDuration endTime conn ripTime =
+  case T.unpack <$> upstreamRSSURL feedConfig of
+    Just url -> void . runUntil retryDuration endTime $ iter url
+    -- if there is no feed URL, there is no point in using `runUntil`
+    Nothing -> pure ()
 
   where
     checkExistsUpstreamItemForRipTime = liftIO $ isJust <$> findUpstreamItem podcastTitle feedConfig conn ripTime
 
-    iter = do
+    iter url = do
       existsUpstreamItemForRipTime <- checkExistsUpstreamItemForRipTime
       if existsUpstreamItemForRipTime
         then pure $ Result ()
