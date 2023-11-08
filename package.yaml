@@ -24,6 +24,9 @@ dependencies:
 - rio >= 0.1.12.0
 
 default-extensions:
+- DerivingStrategies
+- GeneralizedNewtypeDeriving
+- ImportQualifiedPost
 - NamedFieldPuns
 - OverloadedStrings
 - ScopedTypeVariables
@@ -57,6 +60,7 @@ library:
     - http-client
     - http-client-tls
     - http-types
+    - monad-logger
     - mtl
     - optparse-applicative
     - process
@@ -99,9 +103,12 @@ tests:
     - filepath
     - hspec
     - http-conduit
+    - monad-logger
+    - mtl
     - raw-strings-qq
     - text
     - time
+    - transformers
 
     ghc-options:
     - -threaded

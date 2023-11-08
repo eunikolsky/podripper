@@ -35,9 +35,11 @@ library
       RSSGen.Database
       RSSGen.Downloader
       RSSGen.Main
+      RSSGen.MonadTime
       RSSGen.PollHTTP
       RSSGen.RSSFeed
       RSSGen.RSSItem
+      RSSGen.RunUntil
       RSSGen.Types
       RSSGen.UpstreamRSSFeed
       Run
@@ -46,6 +48,9 @@ library
   hs-source-dirs:
       src
   default-extensions:
+      DerivingStrategies
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       NamedFieldPuns
       OverloadedStrings
       ScopedTypeVariables
@@ -64,6 +69,7 @@ library
     , http-client-tls
     , http-conduit
     , http-types
+    , monad-logger
     , mtl
     , optparse-applicative
     , process
@@ -83,6 +89,9 @@ executable ripper-exe
   hs-source-dirs:
       app
   default-extensions:
+      DerivingStrategies
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       NamedFieldPuns
       OverloadedStrings
       ScopedTypeVariables
@@ -112,11 +121,15 @@ test-suite ripper-test
       RSSGen.PollHTTPSpec
       RSSGen.RSSFeedSpec
       RSSGen.RSSItemSpec
+      RSSGen.RunUntilSpec
       RSSGen.UpstreamRSSFeedSpec
       Paths_ripper
   hs-source-dirs:
       test
   default-extensions:
+      DerivingStrategies
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       NamedFieldPuns
       OverloadedStrings
       ScopedTypeVariables
@@ -130,9 +143,12 @@ test-suite ripper-test
     , filepath
     , hspec
     , http-conduit
+    , monad-logger
+    , mtl
     , raw-strings-qq
     , rio >=0.1.12.0
     , ripper
     , text
     , time
+    , transformers
   default-language: Haskell2010
