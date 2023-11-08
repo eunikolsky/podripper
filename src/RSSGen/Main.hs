@@ -89,7 +89,7 @@ run filenames = do
           <> intercalate ", " feedConfigFiles
 
 -- | Generates the feed at the requested path.
-generateFeed :: RSSFeedConfig -> Connection -> FilePattern -> Action ()
+generateFeed :: RSSFeedConfig -> DBConnection -> FilePattern -> Action ()
 generateFeed feedConfig conn out = do
   -- we need the audio files to generate the RSS, which are in the
   -- directory of the same name as the podcast title
@@ -101,7 +101,7 @@ generateFeed feedConfig conn out = do
   version <- askOracle $ RSSGenVersion ()
   writeFile' out $ feed (ProgramVersion . showVersion $ version) feedConfig rssItems
 
-findUpstreamItem :: UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+findUpstreamItem :: UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
 findUpstreamItem podcastTitle feedConfig = closestUpstreamItemToTime
   (closestUpstreamItemInterval feedConfig)
   podcastTitle
@@ -111,7 +111,7 @@ newestFirst = sortOn Down
 
 -- | Downloads the upstream RSS from the URL in the config, parses it and
 -- saves the items in the database.
-processUpstreamRSS :: MonadIO m => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Connection -> m ()
+processUpstreamRSS :: MonadIO m => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> m ()
 processUpstreamRSS podcastTitle config conn = void $ runMaybeT $ do
   url <- MaybeT . pure $ upstreamRSSURL config
   text <- MaybeT . liftIO . downloadRSS conn . T.unpack $ url
@@ -123,7 +123,7 @@ eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right x) = Just x
 
-downloadRSS :: (MonadIO m, MonadThrow m) => Connection -> URL -> m (Maybe T.Text)
+downloadRSS :: (MonadIO m, MonadThrow m) => DBConnection -> URL -> m (Maybe T.Text)
 downloadRSS conn = fmap (fmap TE.decodeUtf8) . getFile httpBS conn
 
 -- | Waits until we have an upstream RSS item for the given (newest) rip. First,
@@ -133,7 +133,7 @@ downloadRSS conn = fmap (fmap TE.decodeUtf8) . getFile httpBS conn
 -- for the given rip, and wait for changes again if that fails.
 _pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
   -- TODO too many parameters?
-  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDuration -> UTCTime -> Connection -> URL -> UTCTime -> m ()
+  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDuration -> UTCTime -> DBConnection -> URL -> UTCTime -> m ()
 _pollUpstreamRSS podcastTitle feedConfig retryDuration endTime conn url ripTime =
   void $ runUntil retryDuration endTime iter
 

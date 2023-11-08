@@ -1,10 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module RSSGen.Database
-  ( FileSpec(..)
-
-  -- * re-exports
-  , Connection
+  ( DBConnection
+  , FileSpec(..)
 
   -- * database metafunctions
   , openDatabase
@@ -28,6 +26,9 @@ import Data.Time.Format
 import RSSGen.DownloaderTypes
 import RSSGen.Types
 import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
+
+-- | Type alias for the database's `Connection` to have a more descriptive type.
+type DBConnection = Connection
 
 data FileSpec
   = DefaultFile -- ^ The default @episodes.sqlite@ file

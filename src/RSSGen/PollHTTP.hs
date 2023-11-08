@@ -15,8 +15,7 @@ import RSSGen.RunUntil
 pollHTTP :: (MonadIO m, MonadThrow m, MonadTime m, MonadLogger m)
   => RetryDuration
   -> UTCTime
-  -> Connection
-  -- ^ database connection
+  -> DBConnection
   -> URL
   -> m (Maybe Bytes)
 pollHTTP retryDuration endTime conn url = fromStepResult <$> runUntil retryDuration endTime (toStepResult <$> getFile httpBS conn url)

@@ -198,7 +198,7 @@ response responseStatus = Response
 findHeaderValue :: HeaderName -> RequestHeaders -> Maybe Bytes
 findHeaderValue name = fmap snd . find ((== name) . fst)
 
-withDB :: MonadIO m => (Connection -> m a) -> m a
+withDB :: MonadIO m => (DBConnection -> m a) -> m a
 withDB io = do
   conn <- liftIO $ openDatabase InMemory
   actual <- io conn

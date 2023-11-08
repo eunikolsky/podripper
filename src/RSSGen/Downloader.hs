@@ -30,8 +30,7 @@ import RSSGen.DownloaderTypes
 getFile :: (MonadIO m, MonadThrow m)
   => (Request -> m (Response Bytes))
   -- ^ the `httpBS` function
-  -> Connection
-  -- ^ database connection
+  -> DBConnection
   -> URL
   -> m (Maybe Bytes)
 getFile httpBS conn url = do
