@@ -25,6 +25,7 @@ dependencies:
 
 default-extensions:
 - DerivingStrategies
+- FlexibleContexts
 - GeneralizedNewtypeDeriving
 - ImportQualifiedPost
 - NamedFieldPuns
@@ -44,6 +45,7 @@ ghc-options:
 - -Wredundant-constraints
 - -Werror=missing-methods
 - -Werror=missing-fields
+- -Werror=incomplete-patterns
 
 library:
   source-dirs: src
@@ -102,10 +104,13 @@ tests:
     - directory
     - filepath
     - hspec
+    - http-client
     - http-conduit
+    - http-types
     - monad-logger
     - mtl
     - raw-strings-qq
+    - sqlite-simple
     - text
     - time
     - transformers

@@ -34,6 +34,7 @@ library
       Ripper.Util
       RSSGen.Database
       RSSGen.Downloader
+      RSSGen.DownloaderTypes
       RSSGen.Main
       RSSGen.MonadTime
       RSSGen.PollHTTP
@@ -49,6 +50,7 @@ library
       src
   default-extensions:
       DerivingStrategies
+      FlexibleContexts
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       NamedFieldPuns
@@ -56,7 +58,7 @@ library
       ScopedTypeVariables
       TypeApplications
       NumericUnderscores
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -Werror=incomplete-patterns
   build-depends:
       aeson
     , base >=4.11 && <10
@@ -90,13 +92,14 @@ executable ripper-exe
       app
   default-extensions:
       DerivingStrategies
+      FlexibleContexts
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       NamedFieldPuns
       OverloadedStrings
       ScopedTypeVariables
       TypeApplications
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -Werror=incomplete-patterns -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.11 && <10
     , bytestring
@@ -118,7 +121,7 @@ test-suite ripper-test
       RipConfigSpec
       Ripper.UtilSpec
       RSSGen.DatabaseSpec
-      RSSGen.PollHTTPSpec
+      RSSGen.DownloaderSpec
       RSSGen.RSSFeedSpec
       RSSGen.RSSItemSpec
       RSSGen.RunUntilSpec
@@ -128,13 +131,14 @@ test-suite ripper-test
       test
   default-extensions:
       DerivingStrategies
+      FlexibleContexts
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       NamedFieldPuns
       OverloadedStrings
       ScopedTypeVariables
       TypeApplications
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -threaded -rtsopts -with-rtsopts=-N -Wno-missing-export-lists
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -Werror=incomplete-patterns -threaded -rtsopts -with-rtsopts=-N -Wno-missing-export-lists
   build-depends:
       aeson
     , base >=4.11 && <10
@@ -142,12 +146,15 @@ test-suite ripper-test
     , directory
     , filepath
     , hspec
+    , http-client
     , http-conduit
+    , http-types
     , monad-logger
     , mtl
     , raw-strings-qq
     , rio >=0.1.12.0
     , ripper
+    , sqlite-simple
     , text
     , time
     , transformers
