@@ -7,6 +7,7 @@ module RSSGen.Main
   , run
   ) where
 
+import Control.Monad.Logger.CallStack
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import Data.List (intercalate, sortOn)
@@ -16,6 +17,7 @@ import Data.Maybe
 import Data.Ord (Down(..))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import Data.Time.Clock
 import Data.Version (Version, showVersion)
 import Development.Shake
 import Development.Shake.Classes
@@ -27,8 +29,11 @@ import qualified System.Environment as Env
 import qualified Paths_ripper as Paths (version)
 import RSSGen.Database
 import RSSGen.Downloader
+import RSSGen.MonadTime
+import RSSGen.PollHTTP
 import RSSGen.RSSFeed
 import RSSGen.RSSItem
+import RSSGen.RunUntil
 import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 
 newtype RSSGenVersion = RSSGenVersion ()
@@ -90,14 +95,16 @@ generateFeed feedConfig conn out = do
   -- directory of the same name as the podcast title
   let podcastTitle = dropExtension out
   mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
-  let findUpstreamItem = closestUpstreamItemToTime
-        (closestUpstreamItemInterval feedConfig)
-        (T.pack podcastTitle)
-        conn
-  rssItems <- liftIO . fmap (newestFirst . catMaybes) $ traverse (rssItemFromFile podcastTitle findUpstreamItem) mp3Files
+  rssItems <- liftIO . fmap (newestFirst . catMaybes) $
+    traverse (rssItemFromFile podcastTitle $ findUpstreamItem (T.pack podcastTitle) feedConfig conn) mp3Files
 
   version <- askOracle $ RSSGenVersion ()
   writeFile' out $ feed (ProgramVersion . showVersion $ version) feedConfig rssItems
+
+findUpstreamItem :: UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+findUpstreamItem podcastTitle feedConfig = closestUpstreamItemToTime
+  (closestUpstreamItemInterval feedConfig)
+  podcastTitle
 
 newestFirst :: [RSSItem] -> [RSSItem]
 newestFirst = sortOn Down
@@ -118,3 +125,46 @@ eitherToMaybe (Right x) = Just x
 
 downloadRSS :: (MonadIO m, MonadThrow m) => Connection -> URL -> m (Maybe T.Text)
 downloadRSS conn = fmap (fmap TE.decodeUtf8) . getFile httpBS conn
+
+-- | Waits until we have an upstream RSS item for the given (newest) rip. First,
+-- it waits until the upstream RSS changes (which is typically within a few
+-- hours after the live stream), but it doesn't mean that it now contains the
+-- latest episode; so then it still needs to verify there is an upstream item
+-- for the given rip, and wait for changes again if that fails.
+_pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
+  -- TODO too many parameters?
+  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDuration -> UTCTime -> Connection -> URL -> UTCTime -> m ()
+_pollUpstreamRSS podcastTitle feedConfig retryDuration endTime conn url ripTime =
+  void $ runUntil retryDuration endTime iter
+
+  where
+    checkExistsUpstreamItemForRipTime = liftIO $ isJust <$> findUpstreamItem podcastTitle feedConfig conn ripTime
+
+    iter = do
+      existsUpstreamItemForRipTime <- checkExistsUpstreamItemForRipTime
+      if existsUpstreamItemForRipTime
+        then pure $ Result ()
+        else do
+          void . runMaybeT $ do
+            -- I had to remove the `MonadTrans` wrapper from `runUntil` (and
+            -- thus pollHTTP`), which would allow the repeated action not to
+            -- require unnecessary constraints (e.g. `MonadTime`), but
+            -- surprisingly it doesn't seem to be a big issue (yet?); having the
+            -- `MonadTrans` return type caused this type error:
+            --
+            -- • Couldn't match type ‘t0 m0’ with ‘IO’
+            -- Expected: IO (Maybe Bytes)
+            -- Actual: t0 m0 (Maybe Bytes)
+            newBytes <- MaybeT $ pollHTTP retryDuration endTime conn url
+            let newText = TE.decodeUtf8 newBytes
+            items <- MaybeT . pure . eitherToMaybe $ UpstreamRSSFeed.parse podcastTitle newText
+            liftIO $ saveUpstreamRSSItems conn items
+
+          -- since the polling above may take a while, we want to check whether
+          -- it has produced the upstream item that we need right after
+          -- receiving new RSS (if any), without waiting for another
+          -- `retryDuration` before another loop
+          existsUpstreamItemAfterPolling <- checkExistsUpstreamItemForRipTime
+          pure $ if existsUpstreamItemAfterPolling
+            then Result ()
+            else NoResult

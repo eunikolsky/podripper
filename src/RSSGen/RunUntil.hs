@@ -5,7 +5,6 @@ module RSSGen.RunUntil
   ) where
 
 import Control.Monad.Logger.CallStack
-import Control.Monad.Trans.Class
 import Data.Text qualified as T
 import Data.Time.Clock
 import RSSGen.MonadTime
@@ -28,7 +27,7 @@ newtype RetryDuration = RetryDuration { toDuration :: Duration }
 -- time is on/after `endTime`. The function waits for `retryDuration` before
 -- each retry.
 -- Note that `f` is called at least once, ignoring `endTime` at the beginning.
-runUntil :: (Monad m, MonadTrans t, MonadTime (t m), MonadLogger (t m)) => RetryDuration -> UTCTime -> m (StepResult a) -> t m (StepResult a)
+runUntil :: (MonadTime m, MonadLogger m) => RetryDuration -> UTCTime -> m (StepResult a) -> m (StepResult a)
 runUntil retryDuration endTime f = do
   logD ["running until ", show endTime]
   iter
@@ -38,7 +37,7 @@ runUntil retryDuration endTime f = do
       iterNow <- getTime
       logD ["now ", show iterNow, " running action"]
 
-      result <- lift f
+      result <- f
       now <- getTime
       let outOfTime = now >= endTime
           hasResult' = hasResult result
