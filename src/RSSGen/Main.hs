@@ -141,10 +141,10 @@ downloadRSS conn = fmap (fmap TE.decodeUtf8) . getFile httpBS conn
 -- for the given rip, and wait for changes again if that fails.
 _pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
   -- TODO too many parameters?
-  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDuration -> UTCTime -> DBConnection -> RipTime -> m ()
-_pollUpstreamRSS podcastTitle feedConfig retryDuration endTime conn ripTime =
+  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> RipTime -> m ()
+_pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
   case T.unpack <$> upstreamRSSURL feedConfig of
-    Just url -> void . runUntil retryDuration endTime $ iter url
+    Just url -> void . runUntil retryDelay endTime $ iter url
     -- if there is no feed URL, there is no point in using `runUntil`
     Nothing -> pure ()
 
@@ -166,7 +166,7 @@ _pollUpstreamRSS podcastTitle feedConfig retryDuration endTime conn ripTime =
             -- • Couldn't match type ‘t0 m0’ with ‘IO’
             -- Expected: IO (Maybe Bytes)
             -- Actual: t0 m0 (Maybe Bytes)
-            newBytes <- MaybeT $ pollHTTP retryDuration endTime conn url
+            newBytes <- MaybeT $ pollHTTP retryDelay endTime conn url
             let newText = TE.decodeUtf8 newBytes
             items <- MaybeT . pure . eitherToMaybe $ UpstreamRSSFeed.parse podcastTitle newText
             liftIO $ saveUpstreamRSSItems conn items
@@ -174,7 +174,7 @@ _pollUpstreamRSS podcastTitle feedConfig retryDuration endTime conn ripTime =
           -- since the polling above may take a while, we want to check whether
           -- it has produced the upstream item that we need right after
           -- receiving new RSS (if any), without waiting for another
-          -- `retryDuration` before another loop
+          -- `retryDelay` before another loop
           existsUpstreamItemAfterPolling <- checkExistsUpstreamItemForRipTime
           pure $ if existsUpstreamItemAfterPolling
             then Result ()

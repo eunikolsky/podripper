@@ -18,7 +18,7 @@ spec = describe "runUntil" $ do
   it "returns result on first try" $ do
     actionCallCount <- newIORef @Int 0
     let action = liftIO $ modifyIORef' actionCallCount (+ 1) $> Result ()
-    (actual, sleepCount) <- runNoLoggingT $ runMockTime startTime (runUntil retryDuration endTime action)
+    (actual, sleepCount) <- runNoLoggingT $ runMockTime startTime (runUntil retryDelay endTime action)
     callCount <- readIORef actionCallCount
 
     (actual, callCount, sleepCount) `shouldBe` (Result (), 1, CallCount 0)
@@ -29,7 +29,7 @@ spec = describe "runUntil" $ do
           modifyIORef' actionCallCount (+ 1)
           count <- readIORef actionCallCount
           pure $ if count == 4 then Result () else NoResult
-    (actual, sleepCount) <- runNoLoggingT $ runMockTime startTime (runUntil retryDuration endTime action)
+    (actual, sleepCount) <- runNoLoggingT $ runMockTime startTime (runUntil retryDelay endTime action)
     callCount <- readIORef actionCallCount
 
     (actual, callCount, sleepCount) `shouldBe` (Result (), 4, CallCount 3)
@@ -43,7 +43,7 @@ spec = describe "runUntil" $ do
             -- this is to prevent a possible infinite loop
             if count == 100 then error "should not have been called" else
             NoResult @()
-    (actual, sleepCount) <- runNoLoggingT . runMockTime startTime $ runUntil retryDuration endTime action
+    (actual, sleepCount) <- runNoLoggingT . runMockTime startTime $ runUntil retryDelay endTime action
     callCount <- readIORef actionCallCount
 
     (actual, callCount, sleepCount) `shouldBe` (NoResult, 8, CallCount 7)
@@ -52,8 +52,8 @@ startTime, endTime :: UTCTime
 startTime = testDay 0 1 0
 endTime = testDay 0 8 0
 
-retryDuration :: RetryDuration
-retryDuration = RetryDuration 60
+retryDelay :: RetryDelay
+retryDelay = RetryDelay 60
 
 testDay :: Int -> Int -> Int -> UTCTime
 testDay h m s = UTCTime (fromGregorian 2023 01 01) (secondsToDiffTime . fromIntegral $ s + (m * 60) + (h * 3600))

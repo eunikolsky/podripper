@@ -13,12 +13,12 @@ import RSSGen.RunUntil
 -- | Wrapper around `getFile` that repeatedly tries to get an updated response
 -- from the `url` until it's successful or until `endTime`.
 pollHTTP :: (MonadIO m, MonadThrow m, MonadTime m, MonadLogger m)
-  => RetryDuration
+  => RetryDelay
   -> UTCTime
   -> DBConnection
   -> URL
   -> m (Maybe Bytes)
-pollHTTP retryDuration endTime conn url = fromStepResult <$> runUntil retryDuration endTime (toStepResult <$> getFile httpBS conn url)
+pollHTTP retryDelay endTime conn url = fromStepResult <$> runUntil retryDelay endTime (toStepResult <$> getFile httpBS conn url)
 -- TODO add a CLI option for `rssgen` to choose the upstream RSS download:
 -- waitForLatest (default); once (old impl); none.
 

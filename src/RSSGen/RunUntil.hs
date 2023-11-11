@@ -1,5 +1,5 @@
 module RSSGen.RunUntil
-  ( RetryDuration(..)
+  ( RetryDelay(..)
   , StepResult(..)
   , runUntil
   ) where
@@ -20,15 +20,15 @@ hasResult (Result _) = True
 -- | Duration of time to sleep for between retries in `runUntil`.
 --
 -- (Is this separate type really necessary?)
-newtype RetryDuration = RetryDuration { toDuration :: Duration }
+newtype RetryDelay = RetryDelay { toDuration :: Duration }
   deriving newtype Show
 
 -- | Runs the given action `f` until it returns a `Result` or until the current
--- time is on/after `endTime`. The function waits for `retryDuration` before
+-- time is on/after `endTime`. The function waits for `retryDelay` before
 -- each retry.
 -- Note that `f` is called at least once, ignoring `endTime` at the beginning.
-runUntil :: (MonadTime m, MonadLogger m) => RetryDuration -> UTCTime -> m (StepResult a) -> m (StepResult a)
-runUntil retryDuration endTime f = do
+runUntil :: (MonadTime m, MonadLogger m) => RetryDelay -> UTCTime -> m (StepResult a) -> m (StepResult a)
+runUntil retryDelay endTime f = do
   logD ["running until ", show endTime]
   iter
 
@@ -46,8 +46,8 @@ runUntil retryDuration endTime f = do
       if hasResult' || outOfTime
         then pure result
         else do
-          logD ["sleeping for ", show retryDuration]
-          sleep $ toDuration retryDuration
+          logD ["sleeping for ", show retryDelay]
+          sleep $ toDuration retryDelay
           iter
 
 logD :: MonadLogger m => [String] -> m ()
