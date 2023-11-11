@@ -147,7 +147,7 @@ pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
   => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> RipTime -> m ()
 pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
   case T.unpack <$> upstreamRSSURL feedConfig of
-    Just url -> void . runUntil retryDelay endTime $ iter url
+    Just url -> void . runUntil "pollRSS" retryDelay endTime $ iter url
     -- if there is no feed URL, there is no point in using `runUntil`
     Nothing -> pure ()
 

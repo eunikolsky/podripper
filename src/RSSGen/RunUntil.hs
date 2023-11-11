@@ -5,6 +5,7 @@ module RSSGen.RunUntil
   ) where
 
 import Control.Monad.Logger.CallStack
+import Control.Monad.Reader
 import Data.Text qualified as T
 import Data.Time.Clock
 import RSSGen.MonadTime
@@ -25,20 +26,22 @@ newtype RetryDelay = RetryDelay { toDuration :: Duration }
 
 -- | Runs the given action `f` until it returns a `Result` or until the current
 -- time is on/after `endTime`. The function waits for `retryDelay` before
--- each retry.
+-- each retry. `desc` should be a short action descriptor, which is used for
+-- logging.
 -- Note that `f` is called at least once, ignoring `endTime` at the beginning.
-runUntil :: (MonadTime m, MonadLogger m) => RetryDelay -> UTCTime -> m (StepResult a) -> m (StepResult a)
-runUntil retryDelay endTime f = do
+runUntil :: forall m a. (MonadTime m, MonadLogger m) => T.Text -> RetryDelay -> UTCTime -> m (StepResult a) -> m (StepResult a)
+runUntil desc retryDelay endTime f = flip runReaderT desc $ do
   logD ["running until ", show endTime]
   iter
 
   where
+    iter :: ReaderT T.Text m (StepResult a)
     iter = do
-      iterNow <- getTime
+      iterNow <- lift getTime
       logD ["now ", show iterNow, " running action"]
 
-      result <- f
-      now <- getTime
+      result <- lift f
+      now <- lift getTime
       let outOfTime = now >= endTime
           hasResult' = hasResult result
       logD ["now ", show now, ", has result: ", show hasResult']
@@ -47,8 +50,12 @@ runUntil retryDelay endTime f = do
         then pure result
         else do
           logD ["sleeping for ", show retryDelay]
-          sleep $ toDuration retryDelay
+          lift . sleep $ toDuration retryDelay
           iter
 
-logD :: MonadLogger m => [String] -> m ()
-logD = logDebugN . T.pack . mconcat
+logD :: (MonadLogger m, MonadReader T.Text m) => [String] -> m ()
+logD xs = do
+  -- TODO provide this with the logger itself outside?
+  desc <- ask
+  let prefix = mconcat ["[", desc, "] "]
+  logDebugN . (prefix <>) . T.pack . mconcat $ xs
