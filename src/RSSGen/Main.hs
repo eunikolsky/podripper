@@ -83,18 +83,8 @@ run filenames = do
 
           let podcastId = T.pack podcastTitle
           ripFiles <- getRipFilesNewestFirst podcastId
-          now <- liftIO getCurrentTime
           let maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
-              pollingRetryDelay = RetryDelay $ durationMinutes 30
-              pollingDuration = durationHours 6
-              pollingEndTime = addUTCTime pollingDuration now
-          maybe
-            (pure ())
-            (liftIO .
-              runStderrLoggingT .
-              pollUpstreamRSS podcastId config pollingRetryDelay pollingEndTime conn
-            )
-            maybeNewestRipTime
+          pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime
           generateFeed config conn out podcastId ripFiles
 
           liftIO $ closeDatabase conn
@@ -129,6 +119,23 @@ newestFirst = sortOn Down
 eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right x) = Just x
+
+-- | Runs `pollUpstreamRSS` if the (newest) `RipTime` is available, that is if
+-- there are any files for the given podcast.
+pollUpstreamRSSIfPossible :: MonadIO m
+  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> Maybe RipTime -> m ()
+pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime = do
+  now <- liftIO getCurrentTime
+  let pollingRetryDelay = RetryDelay $ durationMinutes 30
+      pollingDuration = durationHours 6
+      pollingEndTime = addUTCTime pollingDuration now
+  maybe
+    (pure ())
+    (liftIO .
+      runStderrLoggingT .
+      pollUpstreamRSS podcastId config pollingRetryDelay pollingEndTime conn
+    )
+    maybeNewestRipTime
 
 -- | Waits until we have an upstream RSS item for the given (newest) rip. First,
 -- it waits until the upstream RSS changes (which is typically within a few
