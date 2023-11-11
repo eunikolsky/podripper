@@ -92,14 +92,14 @@ ripFileFromFile filename = runMaybeT $ do
 -- @findUpstreamItem@ is used to find an upstream RSS item that is close
 -- to the item's date; if there is one, uses its title, otherwise uses the
 -- @podcastTitle@.
-rssItemFromRipFile :: String -> (UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)) -> RipFile -> IO RSSItem
+rssItemFromRipFile :: UpstreamRSSFeed.PodcastId -> (UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)) -> RipFile -> IO RSSItem
 rssItemFromRipFile podcastTitle findUpstreamItem ripFile@RipFile{..} = do
   maybeUpstreamItem <- findUpstreamItem $ utcTime ripTime
   let title = T.pack $ mconcat
         [ if ripType == SourceRip then "SOURCE " else ""
         , titlePubDate $ zonedTime ripTime
         , " / "
-        , (T.unpack . UpstreamRSSFeed.title <$> maybeUpstreamItem) ?? podcastTitle
+        , T.unpack $ (UpstreamRSSFeed.title <$> maybeUpstreamItem) ?? podcastTitle
         ]
       description = UpstreamRSSFeed.description <$> maybeUpstreamItem
 

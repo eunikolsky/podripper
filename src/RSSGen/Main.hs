@@ -81,24 +81,30 @@ run filenames = do
           -- the functions here have to be in `Action` :( (`MonadUnliftIO` may
           -- possibly help, but I doubt that)
           conn <- liftIO $ openDatabase DefaultFile
-          processUpstreamRSS (T.pack podcastTitle) config conn
-          generateFeed config conn out
+
+          let podcastId = T.pack podcastTitle
+          processUpstreamRSS podcastId config conn
+          ripFiles <- getRipFiles podcastId
+          generateFeed config conn out podcastId ripFiles
+
           liftIO $ closeDatabase conn
         Nothing -> fail
           $ "Couldn't parse feed config files "
           <> intercalate ", " feedConfigFiles
 
--- | Generates the feed at the requested path.
-generateFeed :: RSSFeedConfig -> DBConnection -> FilePattern -> Action ()
-generateFeed feedConfig conn out = do
+-- | Returns a list of `RipFile`s for the given podcast, sorted from newest to
+-- oldest.
+getRipFiles :: UpstreamRSSFeed.PodcastId -> Action [RipFile]
+getRipFiles podcastTitle = do
   -- we need the audio files to generate the RSS, which are in the
   -- directory of the same name as the podcast title
-  let podcastTitle = dropExtension out
-  mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
-  rssItems <- liftIO $ do
-    ripFiles <- newestFirst . catMaybes <$> traverse ripFileFromFile mp3Files
-    traverse (rssItemFromRipFile podcastTitle (findUpstreamItem (T.pack podcastTitle) feedConfig conn)) ripFiles
+  mp3Files <- getDirectoryFiles "" [T.unpack podcastTitle </> "*.mp3"]
+  liftIO $ newestFirst . catMaybes <$> traverse ripFileFromFile mp3Files
 
+-- | Generates the feed at the requested path.
+generateFeed :: RSSFeedConfig -> DBConnection -> FilePattern -> UpstreamRSSFeed.PodcastId -> [RipFile] -> Action ()
+generateFeed feedConfig conn out podcastTitle ripFiles = do
+  rssItems <- liftIO $ traverse (rssItemFromRipFile podcastTitle (findUpstreamItem podcastTitle feedConfig conn)) ripFiles
   version <- fmap (ProgramVersion . showVersion) . askOracle $ RSSGenVersion ()
   writeFile' out $ feed version feedConfig rssItems
 
