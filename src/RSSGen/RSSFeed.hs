@@ -27,14 +27,14 @@ import RSSGen.Types
 -- | Defines the config for the upstream RSS feed. This section may be missing
 -- from the json config if there is no upstream feed.
 data UpstreamFeedConfig = UpstreamFeedConfig
-  { upstreamRSSURL :: Maybe T.Text
+  { upstreamRSSURL :: T.Text
   , closestUpstreamItemInterval :: Hours
   }
   deriving (Eq, Show)
 
 instance FromJSON UpstreamFeedConfig where
   parseJSON = withObject "UpstreamFeedConfig" $ \v -> UpstreamFeedConfig
-    <$> v .:? "upstreamRSSURL"
+    <$> v .: "upstreamRSSURL"
     -- note: the JSON key is slightly more specific because there is no type information there
     -- TODO is it possible to override the key in `FromJSON Hours` itself?
     <*> v .: "closestUpstreamItemIntervalHours"
@@ -47,7 +47,7 @@ data RSSFeedConfig = RSSFeedConfig
   , podcastLink :: T.Text
   , imageLink :: T.Text
   , selfLink :: T.Text
-  , upstreamFeedConfig :: !UpstreamFeedConfig
+  , upstreamFeedConfig :: !(Maybe UpstreamFeedConfig)
   }
   deriving (Eq, Show, Generic)
 

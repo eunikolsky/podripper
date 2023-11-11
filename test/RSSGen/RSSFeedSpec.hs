@@ -36,20 +36,19 @@ spec = do
               , podcastLink = "podcast.link"
               , imageLink = "image.link"
               , selfLink = "self.link"
-              , upstreamFeedConfig = UpstreamFeedConfig
-                { upstreamRSSURL = Just "url"
+              , upstreamFeedConfig = Just UpstreamFeedConfig
+                { upstreamRSSURL = "url"
                 , closestUpstreamItemInterval = Hours 8
                 }
               }
         eitherDecode' validConfigString `shouldBe` Right expected
 
-      it "parses JSON without upstreamRSSURL" $ do
+      it "parses JSON without upstreamFeedConfig" $ do
         let text = [r|{
         "title": "foo", "description": "bar", "language": "en",
         "podcastLink": "podcast.link", "imageLink": "image.link",
-        "selfLink": "self.link", "upstreamFeedConfig": {
-          "closestUpstreamItemIntervalHours": 24
-        }}|]
+        "selfLink": "self.link"
+        }|]
             expected = RSSFeedConfig
               { title = "foo"
               , description = "bar"
@@ -57,10 +56,7 @@ spec = do
               , podcastLink = "podcast.link"
               , imageLink = "image.link"
               , selfLink = "self.link"
-              , upstreamFeedConfig = UpstreamFeedConfig
-                { upstreamRSSURL = Nothing
-                , closestUpstreamItemInterval = Hours 24
-                }
+              , upstreamFeedConfig = Nothing
               }
         eitherDecode' text `shouldBe` Right expected
 
@@ -118,8 +114,8 @@ spec = do
               , podcastLink = "overwrite"
               , imageLink = "newImage"
               , selfLink = "self.link"
-              , upstreamFeedConfig = UpstreamFeedConfig
-                { upstreamRSSURL = Just "url"
+              , upstreamFeedConfig = Just UpstreamFeedConfig
+                { upstreamRSSURL = "url"
                 , closestUpstreamItemInterval = Hours 8
                 }
               }
@@ -146,8 +142,8 @@ spec = do
               , podcastLink = "podcast.link"
               , imageLink = "image.link"
               , selfLink = "self.link"
-              , upstreamFeedConfig = UpstreamFeedConfig
-                { upstreamRSSURL = Just "url"
+              , upstreamFeedConfig = Just UpstreamFeedConfig
+                { upstreamRSSURL = "url"
                 , closestUpstreamItemInterval = Hours 8
                 }
               }
