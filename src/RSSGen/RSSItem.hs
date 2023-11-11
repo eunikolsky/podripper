@@ -97,14 +97,13 @@ rssItemFromFile podcastTitle findUpstreamItem filename = runMaybeT $ do
   -- a missing upstream item is not an error that should cause a `Nothing`
   (title, description) <- MaybeT . fmap pure $ do
     maybeUpstreamItem <- findUpstreamItem $ utcTime ripTime
-    let { title = T.pack $ mconcat
-      [ if ripType == SourceRip then "SOURCE " else ""
-      , titlePubDate $ zonedTime ripTime
-      , " / "
-      , (T.unpack . UpstreamRSSFeed.title <$> maybeUpstreamItem) ?? podcastTitle
-      ]
-    }
-    let description = UpstreamRSSFeed.description <$> maybeUpstreamItem
+    let title = T.pack $ mconcat
+          [ if ripType == SourceRip then "SOURCE " else ""
+          , titlePubDate $ zonedTime ripTime
+          , " / "
+          , (T.unpack . UpstreamRSSFeed.title <$> maybeUpstreamItem) ?? podcastTitle
+          ]
+        description = UpstreamRSSFeed.description <$> maybeUpstreamItem
     pure (title, description)
 
   return $ RSSItem {..}
