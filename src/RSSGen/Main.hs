@@ -98,8 +98,8 @@ generateFeed feedConfig conn out = do
   rssItems <- liftIO . fmap (newestFirst . catMaybes) $
     traverse (rssItemFromFile podcastTitle $ findUpstreamItem (T.pack podcastTitle) feedConfig conn) mp3Files
 
-  version <- askOracle $ RSSGenVersion ()
-  writeFile' out $ feed (ProgramVersion . showVersion $ version) feedConfig rssItems
+  version <- fmap (ProgramVersion . showVersion) . askOracle $ RSSGenVersion ()
+  writeFile' out $ feed version feedConfig rssItems
 
 findUpstreamItem :: UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
 findUpstreamItem podcastTitle feedConfig = closestUpstreamItemToTime
