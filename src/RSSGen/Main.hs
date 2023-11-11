@@ -95,8 +95,9 @@ generateFeed feedConfig conn out = do
   -- directory of the same name as the podcast title
   let podcastTitle = dropExtension out
   mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
-  rssItems <- liftIO . fmap (newestFirst . catMaybes) $
-    traverse (rssItemFromFile podcastTitle $ findUpstreamItem (T.pack podcastTitle) feedConfig conn) mp3Files
+  rssItems <- liftIO $ do
+    ripFiles <- newestFirst . catMaybes <$> traverse ripFileFromFile mp3Files
+    traverse (rssItemFromRipFile podcastTitle (findUpstreamItem (T.pack podcastTitle) feedConfig conn)) ripFiles
 
   version <- fmap (ProgramVersion . showVersion) . askOracle $ RSSGenVersion ()
   writeFile' out $ feed version feedConfig rssItems
@@ -106,7 +107,7 @@ findUpstreamItem podcastTitle feedConfig = closestUpstreamItemToTime
   (closestUpstreamItemInterval feedConfig)
   podcastTitle
 
-newestFirst :: [RSSItem] -> [RSSItem]
+newestFirst :: [RipFile] -> [RipFile]
 newestFirst = sortOn Down
 
 -- | Downloads the upstream RSS from the URL in the config, parses it and

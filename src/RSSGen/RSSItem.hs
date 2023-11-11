@@ -3,10 +3,12 @@
 
 module RSSGen.RSSItem
   ( RSSItem(..)
+  , RipFile
   , RipTime
   , localTimeToZonedTime
   , renderItem
-  , rssItemFromFile
+  , ripFileFromFile
+  , rssItemFromRipFile
   , zonedTime
   , utcTime
   ) where
@@ -52,6 +54,10 @@ data RipFile = RipFile
   }
   deriving (Show, Eq)
 
+instance Ord RipFile where
+  -- is this a valid definition given that `Eq` compares all the fields?
+  (<=) = (<=) `on` utcTime . ripTime
+
 -- | An item in an RSS feed, based on a present file, including information from
 -- an upstream RSS item if any.
 data RSSItem = RSSItem
@@ -60,10 +66,6 @@ data RSSItem = RSSItem
   , description :: !(Maybe T.Text)
   }
   deriving (Show, Eq)
-
-instance Ord RSSItem where
-  -- is this a valid definition given that `Eq` compares all the fields?
-  (<=) = (<=) `on` utcTime . ripTime . ripFile
 
 -- | Formats the publication date string as required in the RSS standard.
 formatPubDate :: ZonedTime -> String
@@ -78,33 +80,28 @@ titlePubDate = formatTime defaultTimeLocale "%F %T %z"
 
 -- | Creates an @RipFile@ based on the information about the file.
 -- Returns @Nothing@ if the file is not found.
-ripFileFromFile :: FilePath -> MaybeT IO RipFile
-ripFileFromFile filename = do
+ripFileFromFile :: FilePath -> IO (Maybe RipFile)
+ripFileFromFile filename = runMaybeT $ do
   file <- MaybeT $ doesFileExist' filename
   fileSize <- liftIO $ getFileSize file
   (localTime, ripType) <- MaybeT . pure . parseRipDate $ file
   ripTime <- liftIO $ localTimeToZonedTime localTime
   pure RipFile{..}
 
--- | Creates an @RSSItem@ based on the information about the file.
+-- | Creates an @RSSItem@ from the `RipFile` by adding extra information.
 -- @findUpstreamItem@ is used to find an upstream RSS item that is close
 -- to the item's date; if there is one, uses its title, otherwise uses the
--- @podcastTitle@. Returns @Nothing@ if the file is not found.
-rssItemFromFile :: String -> (UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)) -> FilePath -> IO (Maybe RSSItem)
-rssItemFromFile podcastTitle findUpstreamItem filename = runMaybeT $ do
-  ripFile@RipFile{..} <- ripFileFromFile filename
-  -- note: can't use the `MaybeT IO` monad of this `do` block because
-  -- a missing upstream item is not an error that should cause a `Nothing`
-  (title, description) <- MaybeT . fmap pure $ do
-    maybeUpstreamItem <- findUpstreamItem $ utcTime ripTime
-    let title = T.pack $ mconcat
-          [ if ripType == SourceRip then "SOURCE " else ""
-          , titlePubDate $ zonedTime ripTime
-          , " / "
-          , (T.unpack . UpstreamRSSFeed.title <$> maybeUpstreamItem) ?? podcastTitle
-          ]
-        description = UpstreamRSSFeed.description <$> maybeUpstreamItem
-    pure (title, description)
+-- @podcastTitle@.
+rssItemFromRipFile :: String -> (UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)) -> RipFile -> IO RSSItem
+rssItemFromRipFile podcastTitle findUpstreamItem ripFile@RipFile{..} = do
+  maybeUpstreamItem <- findUpstreamItem $ utcTime ripTime
+  let title = T.pack $ mconcat
+        [ if ripType == SourceRip then "SOURCE " else ""
+        , titlePubDate $ zonedTime ripTime
+        , " / "
+        , (T.unpack . UpstreamRSSFeed.title <$> maybeUpstreamItem) ?? podcastTitle
+        ]
+      description = UpstreamRSSFeed.description <$> maybeUpstreamItem
 
   return $ RSSItem {..}
 
