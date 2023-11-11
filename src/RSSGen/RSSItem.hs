@@ -3,7 +3,7 @@
 
 module RSSGen.RSSItem
   ( RSSItem(..)
-  , RipFile
+  , RipFile(..)
   , RipTime
   , localTimeToZonedTime
   , renderItem

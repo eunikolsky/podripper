@@ -84,7 +84,8 @@ run filenames = do
 
           let podcastId = T.pack podcastTitle
           processUpstreamRSS podcastId config conn
-          ripFiles <- getRipFiles podcastId
+          ripFiles <- getRipFilesNewestFirst podcastId
+          let _maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
           generateFeed config conn out podcastId ripFiles
 
           liftIO $ closeDatabase conn
@@ -94,8 +95,8 @@ run filenames = do
 
 -- | Returns a list of `RipFile`s for the given podcast, sorted from newest to
 -- oldest.
-getRipFiles :: UpstreamRSSFeed.PodcastId -> Action [RipFile]
-getRipFiles podcastTitle = do
+getRipFilesNewestFirst :: UpstreamRSSFeed.PodcastId -> Action [RipFile]
+getRipFilesNewestFirst podcastTitle = do
   -- we need the audio files to generate the RSS, which are in the
   -- directory of the same name as the podcast title
   mp3Files <- getDirectoryFiles "" [T.unpack podcastTitle </> "*.mp3"]
