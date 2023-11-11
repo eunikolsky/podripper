@@ -26,18 +26,18 @@ spec =
   describe "localTimeToZonedTime" $ do
     it "returns original time for no-DST local time" $ do
       let localTime = LocalTime (fromGregorian 2022 03 26) (TimeOfDay 21 50 18)
-      actual <- EqZonedTime . fst <$> localTimeToZonedTime localTime
+      actual <- EqZonedTime . zonedTime <$> localTimeToZonedTime localTime
       let expected = EqZonedTime $ ZonedTime localTime noDST
       actual `shouldBe` expected
 
     it "returns original time for DST local time" $ do
       let localTime = LocalTime (fromGregorian 2022 04 02) (TimeOfDay 22 50 18)
-      actual <- EqZonedTime . fst <$> localTimeToZonedTime localTime
+      actual <- EqZonedTime . zonedTime <$> localTimeToZonedTime localTime
       let expected = EqZonedTime $ ZonedTime localTime dst
       actual `shouldBe` expected
 
     it "returns original time for DST local time" $ do
       let localTime = LocalTime (fromGregorian 2021 10 30) (TimeOfDay 22 50 18)
-      actual <- EqZonedTime . fst <$> localTimeToZonedTime localTime
+      actual <- EqZonedTime . zonedTime <$> localTimeToZonedTime localTime
       let expected = EqZonedTime $ ZonedTime localTime (hoursToTimeZone 3)
       actual `shouldBe` expected

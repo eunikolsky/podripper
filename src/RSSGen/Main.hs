@@ -81,23 +81,31 @@ run filenames = do
           -- the functions here have to be in `Action` :( (`MonadUnliftIO` may
           -- possibly help, but I doubt that)
           conn <- liftIO $ openDatabase DefaultFile
-          processUpstreamRSS (T.pack podcastTitle) config conn
-          generateFeed config conn out
+
+          let podcastId = T.pack podcastTitle
+          processUpstreamRSS podcastId config conn
+          ripFiles <- getRipFilesNewestFirst podcastId
+          let _maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
+          generateFeed config conn out podcastId ripFiles
+
           liftIO $ closeDatabase conn
         Nothing -> fail
           $ "Couldn't parse feed config files "
           <> intercalate ", " feedConfigFiles
 
--- | Generates the feed at the requested path.
-generateFeed :: RSSFeedConfig -> DBConnection -> FilePattern -> Action ()
-generateFeed feedConfig conn out = do
+-- | Returns a list of `RipFile`s for the given podcast, sorted from newest to
+-- oldest.
+getRipFilesNewestFirst :: UpstreamRSSFeed.PodcastId -> Action [RipFile]
+getRipFilesNewestFirst podcastTitle = do
   -- we need the audio files to generate the RSS, which are in the
   -- directory of the same name as the podcast title
-  let podcastTitle = dropExtension out
-  mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
-  rssItems <- liftIO . fmap (newestFirst . catMaybes) $
-    traverse (rssItemFromFile podcastTitle $ findUpstreamItem (T.pack podcastTitle) feedConfig conn) mp3Files
+  mp3Files <- getDirectoryFiles "" [T.unpack podcastTitle </> "*.mp3"]
+  liftIO $ newestFirst . catMaybes <$> traverse ripFileFromFile mp3Files
 
+-- | Generates the feed at the requested path.
+generateFeed :: RSSFeedConfig -> DBConnection -> FilePattern -> UpstreamRSSFeed.PodcastId -> [RipFile] -> Action ()
+generateFeed feedConfig conn out podcastTitle ripFiles = do
+  rssItems <- liftIO $ traverse (rssItemFromRipFile podcastTitle (findUpstreamItem podcastTitle feedConfig conn)) ripFiles
   version <- fmap (ProgramVersion . showVersion) . askOracle $ RSSGenVersion ()
   writeFile' out $ feed version feedConfig rssItems
 
@@ -106,7 +114,7 @@ findUpstreamItem podcastTitle feedConfig = closestUpstreamItemToTime
   (closestUpstreamItemInterval feedConfig)
   podcastTitle
 
-newestFirst :: [RSSItem] -> [RSSItem]
+newestFirst :: [RipFile] -> [RipFile]
 newestFirst = sortOn Down
 
 -- | Downloads the upstream RSS from the URL in the config, parses it and
@@ -126,10 +134,6 @@ eitherToMaybe (Right x) = Just x
 downloadRSS :: (MonadIO m, MonadThrow m) => DBConnection -> URL -> m (Maybe T.Text)
 downloadRSS conn = fmap (fmap TE.decodeUtf8) . getFile httpBS conn
 
--- | Wrapper to disambiguate two different `UTCTime` parameters for
--- `_pollUpstreamRSS`.
-newtype RipTime = RipTime UTCTime
-
 -- | Waits until we have an upstream RSS item for the given (newest) rip. First,
 -- it waits until the upstream RSS changes (which is typically within a few
 -- hours after the live stream), but it doesn't mean that it now contains the
@@ -138,14 +142,14 @@ newtype RipTime = RipTime UTCTime
 _pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
   -- TODO too many parameters?
   => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDuration -> UTCTime -> DBConnection -> RipTime -> m ()
-_pollUpstreamRSS podcastTitle feedConfig retryDuration endTime conn (RipTime ripTime) =
+_pollUpstreamRSS podcastTitle feedConfig retryDuration endTime conn ripTime =
   case T.unpack <$> upstreamRSSURL feedConfig of
     Just url -> void . runUntil retryDuration endTime $ iter url
     -- if there is no feed URL, there is no point in using `runUntil`
     Nothing -> pure ()
 
   where
-    checkExistsUpstreamItemForRipTime = liftIO $ isJust <$> findUpstreamItem podcastTitle feedConfig conn ripTime
+    checkExistsUpstreamItemForRipTime = liftIO $ isJust <$> findUpstreamItem podcastTitle feedConfig conn (utcTime ripTime)
 
     iter url = do
       existsUpstreamItemForRipTime <- checkExistsUpstreamItemForRipTime
