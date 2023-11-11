@@ -126,10 +126,6 @@ eitherToMaybe (Right x) = Just x
 downloadRSS :: (MonadIO m, MonadThrow m) => DBConnection -> URL -> m (Maybe T.Text)
 downloadRSS conn = fmap (fmap TE.decodeUtf8) . getFile httpBS conn
 
--- | Wrapper to disambiguate two different `UTCTime` parameters for
--- `_pollUpstreamRSS`.
-newtype RipTime = RipTime UTCTime
-
 -- | Waits until we have an upstream RSS item for the given (newest) rip. First,
 -- it waits until the upstream RSS changes (which is typically within a few
 -- hours after the live stream), but it doesn't mean that it now contains the
@@ -138,14 +134,14 @@ newtype RipTime = RipTime UTCTime
 _pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
   -- TODO too many parameters?
   => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDuration -> UTCTime -> DBConnection -> RipTime -> m ()
-_pollUpstreamRSS podcastTitle feedConfig retryDuration endTime conn (RipTime ripTime) =
+_pollUpstreamRSS podcastTitle feedConfig retryDuration endTime conn ripTime =
   case T.unpack <$> upstreamRSSURL feedConfig of
     Just url -> void . runUntil retryDuration endTime $ iter url
     -- if there is no feed URL, there is no point in using `runUntil`
     Nothing -> pure ()
 
   where
-    checkExistsUpstreamItemForRipTime = liftIO $ isJust <$> findUpstreamItem podcastTitle feedConfig conn ripTime
+    checkExistsUpstreamItemForRipTime = liftIO $ isJust <$> findUpstreamItem podcastTitle feedConfig conn (utcTime ripTime)
 
     iter url = do
       existsUpstreamItemForRipTime <- checkExistsUpstreamItemForRipTime
