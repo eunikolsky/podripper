@@ -1,7 +1,9 @@
 {
-    "closestUpstreamItemIntervalHours": 10,
     "description": "Запись потока RCMP",
     "language": "ru",
     "title": "Пиратский Канадский Лось и компания",
-    "upstreamRSSURL": "https://rcmp.me/feed/"
+    "upstreamFeedConfig": {
+        "closestUpstreamItemIntervalHours": 10,
+        "upstreamRSSURL": "https://rcmp.me/feed/"
+    }
 }

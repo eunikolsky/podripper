@@ -1,7 +1,9 @@
 {
-    "closestUpstreamItemIntervalHours": 24,
     "description": "an internet radio stream",
     "imageLink": "",
     "language": "en",
-    "title": "VOA Global"
+    "title": "VOA Global",
+    "upstreamFeedConfig": {
+        "closestUpstreamItemIntervalHours": 24
+    }
 }

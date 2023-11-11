@@ -110,7 +110,7 @@ generateFeed feedConfig conn out podcastTitle ripFiles = do
 
 findUpstreamItem :: UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
 findUpstreamItem podcastTitle feedConfig = closestUpstreamItemToTime
-  (closestUpstreamItemInterval feedConfig)
+  (closestUpstreamItemInterval . upstreamFeedConfig $ feedConfig)
   podcastTitle
 
 newestFirst :: [RipFile] -> [RipFile]
@@ -146,7 +146,7 @@ pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
   -- TODO too many parameters?
   => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> RipTime -> m ()
 pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
-  case T.unpack <$> upstreamRSSURL feedConfig of
+  case T.unpack <$> upstreamRSSURL (upstreamFeedConfig feedConfig) of
     Just url -> void . runUntil "pollRSS" retryDelay endTime $ iter url
     -- if there is no feed URL, there is no point in using `runUntil`
     Nothing -> pure ()

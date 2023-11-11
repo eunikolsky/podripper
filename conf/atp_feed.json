@@ -1,6 +1,8 @@
 {
-    "closestUpstreamItemIntervalHours": 24,
     "description": "Pirate ATP Live",
     "language": "en",
-    "title": "Pirate ATP Live"
+    "title": "Pirate ATP Live",
+    "upstreamFeedConfig": {
+        "closestUpstreamItemIntervalHours": 24
+    }
 }
