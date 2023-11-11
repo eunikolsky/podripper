@@ -30,28 +30,35 @@ data RipType
   | SourceRip
   deriving (Eq, Show)
 
--- | An item in an RSS feed, based on a present file.
-data RSSItem = RSSItem
-  { file :: FilePath
-  , title :: T.Text
-  , fileSize :: Integer
-  , ripTime :: ZonedTime
-  , description :: Maybe T.Text
+-- | Information about a rip file, which is read from the filesystem.
+data RipFile = RipFile
+  { file :: !FilePath
+  , fileSize :: !Integer
+  , ripTime :: !ZonedTime
+  , ripType :: !RipType
   }
   deriving (Show)
 
-instance Eq RSSItem where
-  (RSSItem file0 title0 fileSize0 ripTime0 description0) == (RSSItem file1 title1 fileSize1 ripTime1 description1) = and
+instance Eq RipFile where
+  (RipFile file0 fileSize0 ripTime0 ripType0) == (RipFile file1 fileSize1 ripTime1 ripType1) = and
     [ file0 == file1
-    , title0 == title1
     , fileSize0 == fileSize1
     , zonedTimeToUTC ripTime0 == zonedTimeToUTC ripTime1
-    , description0 == description1
+    , ripType0 == ripType1
     ]
+
+-- | An item in an RSS feed, based on a present file, including information from
+-- an upstream RSS item if any.
+data RSSItem = RSSItem
+  { ripFile :: !RipFile
+  , title :: !T.Text
+  , description :: !(Maybe T.Text)
+  }
+  deriving (Show, Eq)
 
 instance Ord RSSItem where
   -- is this a valid definition given that `Eq` compares all the fields?
-  (<=) = (<=) `on` zonedTimeToUTC . ripTime
+  (<=) = (<=) `on` zonedTimeToUTC . ripTime . ripFile
 
 -- | Formats the publication date string as required in the RSS standard.
 formatPubDate :: ZonedTime -> String
@@ -74,6 +81,8 @@ rssItemFromFile podcastTitle findUpstreamItem filename = runMaybeT $ do
   fileSize <- liftIO $ getFileSize file
   (localTime, ripType) <- MaybeT . pure . parseRipDate $ file
   (ripTime, utcTime) <- liftIO $ localTimeToZonedTime localTime
+  let ripFile = RipFile {..}
+
   -- note: can't use the `MaybeT IO` monad of this `do` block because
   -- a missing upstream item is not an error that should cause a `Nothing`
   (title, description) <- MaybeT . fmap pure $ do
@@ -147,7 +156,7 @@ localTimeToZonedTime localTime = do
 -- | Renders the RSS item into an XML element for the feed. First parameter
 -- is the base URL for the file.
 renderItem :: String -> RSSItem -> Element
-renderItem baseURL RSSItem {..} = unode "item" [ititle, guid, idescription, pubDate, enclosure]
+renderItem baseURL RSSItem{ripFile=RipFile{..},..} = unode "item" [ititle, guid, idescription, pubDate, enclosure]
   where
     ititle = unode "title" $ T.unpack title
     guid = unode "guid" (Attr (unqual "isPermaLink") "false", takeFileName file)
