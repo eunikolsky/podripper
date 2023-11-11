@@ -85,7 +85,11 @@ run filenames = do
           let podcastId = T.pack podcastTitle
           processUpstreamRSS podcastId config conn
           ripFiles <- getRipFilesNewestFirst podcastId
+          now <- liftIO getCurrentTime
           let _maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
+              _pollingRetryDelay = RetryDelay $ durationMinutes 30
+              pollingDuration = durationHours 6
+              _pollingEndTime = addUTCTime pollingDuration now
           generateFeed config conn out podcastId ripFiles
 
           liftIO $ closeDatabase conn
