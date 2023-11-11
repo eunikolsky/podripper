@@ -22,7 +22,6 @@ import Data.Version (Version, showVersion)
 import Development.Shake
 import Development.Shake.Classes
 import Development.Shake.FilePath
-import Network.HTTP.Simple
 import Options.Applicative
 import qualified System.Environment as Env
 
@@ -83,13 +82,19 @@ run filenames = do
           conn <- liftIO $ openDatabase DefaultFile
 
           let podcastId = T.pack podcastTitle
-          processUpstreamRSS podcastId config conn
           ripFiles <- getRipFilesNewestFirst podcastId
           now <- liftIO getCurrentTime
-          let _maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
-              _pollingRetryDelay = RetryDelay $ durationMinutes 30
+          let maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
+              pollingRetryDelay = RetryDelay $ durationMinutes 30
               pollingDuration = durationHours 6
-              _pollingEndTime = addUTCTime pollingDuration now
+              pollingEndTime = addUTCTime pollingDuration now
+          maybe
+            (pure ())
+            (liftIO .
+              runStderrLoggingT .
+              pollUpstreamRSS podcastId config pollingRetryDelay pollingEndTime conn
+            )
+            maybeNewestRipTime
           generateFeed config conn out podcastId ripFiles
 
           liftIO $ closeDatabase conn
@@ -121,32 +126,19 @@ findUpstreamItem podcastTitle feedConfig = closestUpstreamItemToTime
 newestFirst :: [RipFile] -> [RipFile]
 newestFirst = sortOn Down
 
--- | Downloads the upstream RSS from the URL in the config, parses it and
--- saves the items in the database.
-processUpstreamRSS :: MonadIO m => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> m ()
-processUpstreamRSS podcastTitle config conn = void $ runMaybeT $ do
-  url <- MaybeT . pure $ upstreamRSSURL config
-  text <- MaybeT . liftIO . downloadRSS conn . T.unpack $ url
-  items <- MaybeT . pure . eitherToMaybe . UpstreamRSSFeed.parse podcastTitle $ text
-  -- if we're here, then we have items
-  liftIO $ saveUpstreamRSSItems conn items
-
 eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right x) = Just x
-
-downloadRSS :: (MonadIO m, MonadThrow m) => DBConnection -> URL -> m (Maybe T.Text)
-downloadRSS conn = fmap (fmap TE.decodeUtf8) . getFile httpBS conn
 
 -- | Waits until we have an upstream RSS item for the given (newest) rip. First,
 -- it waits until the upstream RSS changes (which is typically within a few
 -- hours after the live stream), but it doesn't mean that it now contains the
 -- latest episode; so then it still needs to verify there is an upstream item
 -- for the given rip, and wait for changes again if that fails.
-_pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
+pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
   -- TODO too many parameters?
   => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> RipTime -> m ()
-_pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
+pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
   case T.unpack <$> upstreamRSSURL feedConfig of
     Just url -> void . runUntil retryDelay endTime $ iter url
     -- if there is no feed URL, there is no point in using `runUntil`
@@ -155,25 +147,30 @@ _pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
   where
     checkExistsUpstreamItemForRipTime = liftIO $ isJust <$> findUpstreamItem podcastTitle feedConfig conn (utcTime ripTime)
 
+    -- | Polls for upstream RSS changes, parses the RSS if any and saves the
+    -- items in the database.
+    processUpstreamRSS url = void . runMaybeT $ do
+      -- I had to remove the `MonadTrans` wrapper from `runUntil` (and
+      -- thus pollHTTP`), which would allow the repeated action not to
+      -- require unnecessary constraints (e.g. `MonadTime`), but
+      -- surprisingly it doesn't seem to be a big issue (yet?); having the
+      -- `MonadTrans` return type caused this type error:
+      --
+      -- • Couldn't match type ‘t0 m0’ with ‘IO’
+      -- Expected: IO (Maybe Bytes)
+      -- Actual: t0 m0 (Maybe Bytes)
+      bytes <- MaybeT $ pollHTTP retryDelay endTime conn url
+      let text = TE.decodeUtf8 bytes
+      items <- MaybeT . pure . eitherToMaybe $ UpstreamRSSFeed.parse podcastTitle text
+      -- if we're here, then we have items
+      liftIO $ saveUpstreamRSSItems conn items
+
     iter url = do
       existsUpstreamItemForRipTime <- checkExistsUpstreamItemForRipTime
       if existsUpstreamItemForRipTime
         then pure $ Result ()
         else do
-          void . runMaybeT $ do
-            -- I had to remove the `MonadTrans` wrapper from `runUntil` (and
-            -- thus pollHTTP`), which would allow the repeated action not to
-            -- require unnecessary constraints (e.g. `MonadTime`), but
-            -- surprisingly it doesn't seem to be a big issue (yet?); having the
-            -- `MonadTrans` return type caused this type error:
-            --
-            -- • Couldn't match type ‘t0 m0’ with ‘IO’
-            -- Expected: IO (Maybe Bytes)
-            -- Actual: t0 m0 (Maybe Bytes)
-            newBytes <- MaybeT $ pollHTTP retryDelay endTime conn url
-            let newText = TE.decodeUtf8 newBytes
-            items <- MaybeT . pure . eitherToMaybe $ UpstreamRSSFeed.parse podcastTitle newText
-            liftIO $ saveUpstreamRSSItems conn items
+          processUpstreamRSS url
 
           -- since the polling above may take a while, we want to check whether
           -- it has produced the upstream item that we need right after
