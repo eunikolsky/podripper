@@ -33,6 +33,7 @@ import RSSGen.PollHTTP
 import RSSGen.RSSFeed
 import RSSGen.RSSItem
 import RSSGen.RunUntil
+import RSSGen.Types
 import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 
 newtype RSSGenVersion = RSSGenVersion ()
@@ -104,13 +105,19 @@ getRipFilesNewestFirst podcastTitle = do
 -- | Generates the feed at the requested path.
 generateFeed :: RSSFeedConfig -> DBConnection -> FilePattern -> UpstreamRSSFeed.PodcastId -> [RipFile] -> Action ()
 generateFeed feedConfig conn out podcastTitle ripFiles = do
-  rssItems <- liftIO $ traverse (rssItemFromRipFile podcastTitle (findUpstreamItem podcastTitle feedConfig conn)) ripFiles
+  let findUpstreamItemIfPossible = maybe
+        -- if there is no `upstreamFeedConfig` for the podcast, the returning
+        -- function will always return `Nothing`
+        (const $ pure Nothing)
+        (\conf -> findUpstreamItem podcastTitle conf conn)
+        (upstreamFeedConfig feedConfig)
+  rssItems <- liftIO $ traverse (rssItemFromRipFile podcastTitle findUpstreamItemIfPossible) ripFiles
   version <- fmap (ProgramVersion . showVersion) . askOracle $ RSSGenVersion ()
   writeFile' out $ feed version feedConfig rssItems
 
-findUpstreamItem :: UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
-findUpstreamItem podcastTitle feedConfig = closestUpstreamItemToTime
-  (closestUpstreamItemInterval feedConfig)
+findUpstreamItem :: UpstreamRSSFeed.PodcastId -> UpstreamFeedConfig -> DBConnection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+findUpstreamItem podcastTitle upstreamFeedConfig = closestUpstreamItemToTime
+  (closestUpstreamItemInterval upstreamFeedConfig)
   podcastTitle
 
 newestFirst :: [RipFile] -> [RipFile]
@@ -121,21 +128,19 @@ eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right x) = Just x
 
 -- | Runs `pollUpstreamRSS` if the (newest) `RipTime` is available, that is if
--- there are any files for the given podcast.
+-- there are any files for the given podcast and the upstream feed is set.
 pollUpstreamRSSIfPossible :: MonadIO m
   => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> Maybe RipTime -> m ()
-pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime = do
-  now <- liftIO getCurrentTime
-  let pollingRetryDelay = RetryDelay $ durationMinutes 30
-      pollingDuration = durationHours 6
-      pollingEndTime = addUTCTime pollingDuration now
-  maybe
-    (pure ())
-    (liftIO .
-      runStderrLoggingT .
-      pollUpstreamRSS podcastId config pollingRetryDelay pollingEndTime conn
-    )
-    maybeNewestRipTime
+pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime = void . runMaybeT $
+  poll <$> MaybeT (pure maybeNewestRipTime) <*> MaybeT (pure $ upstreamFeedConfig config)
+
+  where
+    poll ripTime upstreamConfig@UpstreamFeedConfig{pollingRetryDelay, pollingDuration} = do
+      now <- getCurrentTime
+      let pollingEndTime = addUTCTime pollingDuration now
+
+      liftIO . runStderrLoggingT $
+        pollUpstreamRSS podcastId upstreamConfig pollingRetryDelay pollingEndTime conn ripTime
 
 -- | Waits until we have an upstream RSS item for the given (newest) rip. First,
 -- it waits until the upstream RSS changes (which is typically within a few
@@ -144,19 +149,16 @@ pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime = do
 -- for the given rip, and wait for changes again if that fails.
 pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
   -- TODO too many parameters?
-  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> RipTime -> m ()
-pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
-  case T.unpack <$> upstreamRSSURL feedConfig of
-    Just url -> void . runUntil "pollRSS" retryDelay endTime $ iter url
-    -- if there is no feed URL, there is no point in using `runUntil`
-    Nothing -> pure ()
+  => UpstreamRSSFeed.PodcastId -> UpstreamFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> RipTime -> m ()
+pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime =
+  void $ runUntil "pollRSS" retryDelay endTime iter
 
   where
-    checkExistsUpstreamItemForRipTime = liftIO $ isJust <$> findUpstreamItem podcastTitle feedConfig conn (utcTime ripTime)
+    checkExistsUpstreamItemForRipTime = liftIO $ isJust <$> findUpstreamItem podcastTitle upstreamFeedConfig conn (utcTime ripTime)
 
     -- | Polls for upstream RSS changes, parses the RSS if any and saves the
     -- items in the database.
-    processUpstreamRSS url = void . runMaybeT $ do
+    processUpstreamRSS = void . runMaybeT $ do
       -- I had to remove the `MonadTrans` wrapper from `runUntil` (and
       -- thus pollHTTP`), which would allow the repeated action not to
       -- require unnecessary constraints (e.g. `MonadTime`), but
@@ -166,18 +168,20 @@ pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
       -- • Couldn't match type ‘t0 m0’ with ‘IO’
       -- Expected: IO (Maybe Bytes)
       -- Actual: t0 m0 (Maybe Bytes)
+      let url = T.unpack $ upstreamRSSURL upstreamFeedConfig
       bytes <- MaybeT $ pollHTTP retryDelay endTime conn url
       let text = TE.decodeUtf8 bytes
-      items <- MaybeT . pure . eitherToMaybe $ UpstreamRSSFeed.parse podcastTitle text
+      allItems <- MaybeT . pure . eitherToMaybe $ UpstreamRSSFeed.parse podcastTitle text
+      let items = limitItems upstreamFeedConfig allItems
       -- if we're here, then we have items
       liftIO $ saveUpstreamRSSItems conn items
 
-    iter url = do
+    iter = do
       existsUpstreamItemForRipTime <- checkExistsUpstreamItemForRipTime
       if existsUpstreamItemForRipTime
         then pure $ Result ()
         else do
-          processUpstreamRSS url
+          processUpstreamRSS
 
           -- since the polling above may take a while, we want to check whether
           -- it has produced the upstream item that we need right after
@@ -187,3 +191,8 @@ pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
           pure $ if existsUpstreamItemAfterPolling
             then Result ()
             else NoResult
+
+-- | Limits the upstream feed items based on the `maxItems` setting.
+-- Assumption: the RSS file contains newest to oldest items.
+limitItems :: UpstreamFeedConfig -> [UpstreamRSSFeed.UpstreamRSSItem] -> [UpstreamRSSFeed.UpstreamRSSItem]
+limitItems conf items = maybe items (`take` items) $ maxItems conf
