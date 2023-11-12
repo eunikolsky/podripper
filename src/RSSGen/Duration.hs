@@ -12,6 +12,8 @@ import Data.Text (Text)
 -- | A duration of time between two `UTCTime`s.
 type Duration = NominalDiffTime
 
+-- | Parses a time duration from a format that includes a number and a time
+-- unit, e.g. `42s`, `30m`, `12h`.
 parseDuration :: Text -> Either String Duration
 parseDuration = parseOnly durationParser
 
