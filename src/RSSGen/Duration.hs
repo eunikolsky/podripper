@@ -5,14 +5,15 @@ module RSSGen.Duration
   , parseDuration
   ) where
 
+import Data.Attoparsec.Text
 import Data.Time.Clock
 import Data.Text (Text)
 
 -- | A duration of time between two `UTCTime`s.
 type Duration = NominalDiffTime
 
-parseDuration :: Text -> Maybe Duration
-parseDuration = const Nothing
+parseDuration :: Text -> Either String Duration
+parseDuration = fmap fromIntegral . parseOnly @Int decimal
 
 -- | Creates a `Duration` from the given number of minutes.
 durationMinutes :: Int -> Duration

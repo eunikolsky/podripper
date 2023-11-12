@@ -62,6 +62,7 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -Werror=incomplete-patterns
   build-depends:
       aeson
+    , attoparsec
     , base >=4.11 && <10
     , bytestring
     , conduit
@@ -148,6 +149,7 @@ test-suite ripper-test
     , directory
     , filepath
     , hspec
+    , hspec-attoparsec
     , http-client
     , http-conduit
     , http-types
