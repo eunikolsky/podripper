@@ -60,7 +60,7 @@ parse podcast = parseRSS . parseXML
     parseRSSItem :: Element -> Either String UpstreamRSSItem
     parseRSSItem element = UpstreamRSSItem
       <$> (T.pack . strContent <$> findChild (unqual "title") element) <?> "no title"
-      <*> (parsePubDate =<< strContent <$> findChild (unqual "pubDate") element) <?> "no/invalid pubDate"
+      <*> (parsePubDate . strContent =<< findChild (unqual "pubDate") element) <?> "no/invalid pubDate"
       <*> (T.pack . strContent <$> findChild (unqual "description") element) <?> "no description"
       <*> (T.pack . strContent <$> findChild (unqual "guid") element) <?> "no guid"
       <*> pure podcast
