@@ -1,5 +1,10 @@
 {
     "description": "Pirate ATP Live",
     "language": "en",
-    "title": "Pirate ATP Live"
+    "title": "Pirate ATP Live",
+    "upstreamFeedConfig": {
+        "closestUpstreamItemIntervalHours": 27,
+        "maxItems": 5,
+        "upstreamRSSURL": "https://atp.fm/rss"
+    }
 }
