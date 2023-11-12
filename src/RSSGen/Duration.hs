@@ -18,11 +18,12 @@ parseDuration = parseOnly durationParser
 durationParser :: Parser Duration
 durationParser = do
   n <- decimal
-  unit <- satisfy $ inClass "sm"
+  unit <- satisfy $ inClass "smh"
 
   pure $ case unit of
     's' -> fromIntegral n
     'm' -> durationMinutes n
+    'h' -> durationHours n
     _ -> error $ "impossible unit: " <> show unit
 
 -- | Creates a `Duration` from the given number of minutes.

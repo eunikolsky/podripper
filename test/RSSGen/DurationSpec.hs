@@ -16,5 +16,9 @@ spec =
       parseDuration "1m" `shouldParse` 60
       parseDuration "120m" `shouldParse` (120 * 60)
 
+    it "parses duration in hours" $ do
+      parseDuration "1h" `shouldParse` (60 * 60)
+      parseDuration "26h" `shouldParse` (26 * 60 * 60)
+
     it "fails to parse empty input" $
       parseDuration "" `shouldSatisfy` isLeft
