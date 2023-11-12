@@ -21,7 +21,8 @@ validConfigString = [r|{
   "title": "foo", "description": "bar", "language": "en",
   "podcastLink": "podcast.link", "imageLink": "image.link",
   "selfLink": "self.link", "upstreamFeedConfig": {
-    "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8
+    "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8,
+    "maxItems": 5
   }}|]
 
 spec :: Spec
@@ -39,6 +40,7 @@ spec = do
               , upstreamFeedConfig = Just UpstreamFeedConfig
                 { upstreamRSSURL = "url"
                 , closestUpstreamItemInterval = Hours 8
+                , maxItems = Just 5
                 }
               }
         eitherDecode' validConfigString `shouldBe` Right expected
@@ -57,6 +59,28 @@ spec = do
               , imageLink = "image.link"
               , selfLink = "self.link"
               , upstreamFeedConfig = Nothing
+              }
+        eitherDecode' text `shouldBe` Right expected
+
+      it "parses JSON without upstreamFeedConfig.maxItems" $ do
+        let text = [r|{
+        "title": "foo", "description": "bar", "language": "en",
+        "podcastLink": "podcast.link", "imageLink": "image.link",
+        "selfLink": "self.link", "upstreamFeedConfig": {
+          "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8
+        }}|]
+            expected = RSSFeedConfig
+              { title = "foo"
+              , description = "bar"
+              , language = "en"
+              , podcastLink = "podcast.link"
+              , imageLink = "image.link"
+              , selfLink = "self.link"
+              , upstreamFeedConfig = Just UpstreamFeedConfig
+                { upstreamRSSURL = "url"
+                , closestUpstreamItemInterval = Hours 8
+                , maxItems = Nothing
+                }
               }
         eitherDecode' text `shouldBe` Right expected
 
@@ -117,6 +141,7 @@ spec = do
               , upstreamFeedConfig = Just UpstreamFeedConfig
                 { upstreamRSSURL = "url"
                 , closestUpstreamItemInterval = Hours 8
+                , maxItems = Just 5
                 }
               }
 
@@ -145,6 +170,7 @@ spec = do
               , upstreamFeedConfig = Just UpstreamFeedConfig
                 { upstreamRSSURL = "url"
                 , closestUpstreamItemInterval = Hours 8
+                , maxItems = Nothing
                 }
               }
 

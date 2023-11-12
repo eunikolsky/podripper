@@ -29,6 +29,9 @@ import RSSGen.Types
 data UpstreamFeedConfig = UpstreamFeedConfig
   { upstreamRSSURL :: T.Text
   , closestUpstreamItemInterval :: Hours
+  -- | The max number of the most recent RSS entries to import, if set;
+  -- otherwise, use all entries.
+  , maxItems :: Maybe Int
   }
   deriving (Eq, Show)
 
@@ -38,6 +41,7 @@ instance FromJSON UpstreamFeedConfig where
     -- note: the JSON key is slightly more specific because there is no type information there
     -- TODO is it possible to override the key in `FromJSON Hours` itself?
     <*> v .: "closestUpstreamItemIntervalHours"
+    <*> v .:? "maxItems"
 
 -- | Values for the RSS feed tags.
 data RSSFeedConfig = RSSFeedConfig
