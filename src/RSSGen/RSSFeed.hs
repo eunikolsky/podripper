@@ -45,8 +45,8 @@ instance FromJSON UpstreamFeedConfig where
     -- TODO is it possible to override the key in `FromJSON Hours` itself?
     <*> v .: "closestUpstreamItemIntervalHours"
     <*> v .:? "maxItems"
-    <*> v .: "pollingDurationSec"
-    <*> v .: "pollingRetryDelaySec"
+    <*> v .: "pollingDuration"
+    <*> v .: "pollingRetryDelay"
 
 -- | Values for the RSS feed tags.
 data RSSFeedConfig = RSSFeedConfig

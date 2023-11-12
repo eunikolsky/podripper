@@ -9,16 +9,16 @@ spec :: Spec
 spec =
   describe "parseDuration" $ do
     it "parses duration in seconds" $ do
-      parseDuration "5s" `shouldParse` 5
-      parseDuration "3600s" `shouldParse` 3600
+      parseDuration "5s" `shouldParse` Duration 5
+      parseDuration "3600s" `shouldParse` Duration 3600
 
     it "parses duration in minutes" $ do
-      parseDuration "1m" `shouldParse` 60
-      parseDuration "120m" `shouldParse` (120 * 60)
+      parseDuration "1m" `shouldParse` Duration 60
+      parseDuration "120m" `shouldParse` Duration (120 * 60)
 
     it "parses duration in hours" $ do
-      parseDuration "1h" `shouldParse` (60 * 60)
-      parseDuration "26h" `shouldParse` (26 * 60 * 60)
+      parseDuration "1h" `shouldParse` Duration (60 * 60)
+      parseDuration "26h" `shouldParse` Duration (26 * 60 * 60)
 
     it "fails to parse empty input" $
       parseDuration "" `shouldSatisfy` isLeft

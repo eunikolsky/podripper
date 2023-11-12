@@ -16,7 +16,7 @@ class Monad m => MonadTime m where
 
 instance MonadTime IO where
   getTime = getCurrentTime
-  sleep = threadDelay . ceiling . (* microsecondsInSecond) . realToFrac
+  sleep = threadDelay . ceiling . (* microsecondsInSecond) . realToFrac . toNominalDiffTime
 
 instance MonadTime m => MonadTime (LoggingT m) where
   getTime = lift getTime
