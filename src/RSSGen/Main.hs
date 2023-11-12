@@ -33,6 +33,7 @@ import RSSGen.PollHTTP
 import RSSGen.RSSFeed
 import RSSGen.RSSItem
 import RSSGen.RunUntil
+import RSSGen.Types
 import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 
 newtype RSSGenVersion = RSSGenVersion ()

@@ -11,6 +11,7 @@ import Data.Monoid
 import Data.Time
 import RSSGen.MonadTime
 import RSSGen.RunUntil
+import RSSGen.Types
 import Test.Hspec
 
 spec :: Spec
