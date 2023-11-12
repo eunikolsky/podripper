@@ -22,3 +22,9 @@ spec =
 
     it "fails to parse empty input" $
       parseDuration "" `shouldSatisfy` isLeft
+
+    it "fails to parse space between number and unit" $
+      parseDuration "42 s" `shouldSatisfy` isLeft
+
+    it "fails to parse fractional number" $
+      parseDuration "3.5h" `shouldSatisfy` isLeft
