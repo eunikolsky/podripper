@@ -29,5 +29,8 @@ spec =
     it "fails to parse fractional number" $
       parseDuration "3.5h" `shouldSatisfy` isLeft
 
+    it "fails to parse number without unit" $
+      parseDuration "42" `shouldSatisfy` isLeft
+
     it "doesn't accept anything after the unit" $
       parseDuration "42min" `shouldSatisfy` isLeft
