@@ -1,47 +1,83 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module RSSGen.Downloader
-  ( FakeDownloadT(..)
-  , HTTPClientDownloadT(..)
-  , MonadDownload(..)
+  ( getFile
+
+  -- * re-exports
+  , Bytes
+  , MonadIO
+  , MonadReader
+  , MonadThrow
   , URL
   ) where
 
+import Control.Applicative
 import Control.Monad.Catch
 import Control.Monad.Reader
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString.Lazy.Char8 as CL
-import Network.HTTP.Client
-import Network.HTTP.Types.Status
+import Data.Function
+import Data.List (find)
+import Data.Maybe
+import Network.HTTP.Client (Request(..), Response(..), parseRequest)
+import Network.HTTP.Types
+import Network.HTTP.Types.Header
+import RSSGen.Database
+import RSSGen.DownloaderTypes
 
-type URL = String
+-- |Downloads a file by the `URL` with an automatic response caching support,
+-- that is, the `ETag` and `Last-Modified` response headers (with the
+-- corresponding `If-None-Match` and `If-Modified-Since` request headers) if
+-- present, or the body itself otherwise. Returns the response's body on success
+-- and only if the body has changed since the last response, and `Nothing`
+-- otherwise.
+getFile :: (MonadIO m, MonadThrow m)
+  => (Request -> m (Response Bytes))
+  -- ^ the `httpBS` function
+  -> DBConnection
+  -> URL
+  -> m (Maybe Bytes)
+getFile httpBS conn url = do
+  request <- parseRequest url >>= liftIO . applyCachedResponse
+  response <- httpBS request
+  let responseSuccessful = responseStatus response == ok200
 
-type Bytes = BL.ByteString
+  maybeCachedBody <- liftIO getCachedBody
+  when responseSuccessful $ liftIO $ cacheResponse response
 
--- |The API to download files via HTTP(S).
-class Monad m => MonadDownload m where
-  -- |Downloads a file by the @URL@. Returns @Nothing@ for an error response.
-  getFile :: URL -> m (Maybe Bytes)
+  let body = responseBody response
+      -- note: `hlint` was smart to suggest replacing `maybe True (body /=)`
+      -- with `(Just body /=)`
+      bodyHasChanged = Just body /= maybeCachedBody
+  pure $ if responseSuccessful && bodyHasChanged
+    then Just body
+    else Nothing
 
+  where
+    cacheResponse r =
+      let headers = responseHeaders r
+          maybeETag = findHeaderValue hETag headers
+          maybeLastModified = findHeaderValue hLastModified headers
+          cacheItem = asum
+            [ ETagWithLastModified <$> maybeETag <*> maybeLastModified
+            , ETag <$> maybeETag
+            , LastModified <$> maybeLastModified
+            ]
+            & fromMaybe (Body $ responseBody r)
+      in setCacheItem conn url cacheItem
 
--- |A fake downloader that always returns an XML with the commented URL.
-newtype FakeDownloadT m a = FakeDownloadT { runFakeDownloadT :: m a }
-  deriving (Functor, Applicative, Monad)
+    applyCachedResponse r = do
+      item <- getCacheItem conn url
+      pure $ case item of
+        Just (ETag etag) -> r { requestHeaders =
+          requestHeaders r <> [(hIfModifiedSince, etag)] }
+        Just (LastModified lastmod) -> r { requestHeaders =
+          requestHeaders r <> [(hIfNoneMatch, lastmod)] }
+        Just (ETagWithLastModified etag lastmod) -> r { requestHeaders =
+          requestHeaders r <> [(hIfModifiedSince, etag), (hIfNoneMatch, lastmod)] }
+        _ -> r
 
-instance Monad m => MonadDownload (FakeDownloadT m) where
-  getFile url = pure . Just $ "<!-- " <> CL.pack url <> " -->"
+    getCachedBody = do
+      item <- getCacheItem conn url
+      pure $ case item of
+        Just (Body body) -> Just body
+        _ -> Nothing
 
-
--- |A downloader that uses @http-client@ and @http-client-tls@.
-newtype HTTPClientDownloadT m a = HTTPClientDownloadT { runHTTPClientDownloadT :: ReaderT Manager m a }
-  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Manager, MonadThrow)
-
-instance (MonadIO m, MonadThrow m) => MonadDownload (HTTPClientDownloadT m) where
-  getFile url = do
-    manager <- ask
-    request <- parseRequest url
-    response <- liftIO $ httpLbs request manager
-    return $ if responseStatus response == ok200
-      then Just $ responseBody response
-      else Nothing
+findHeaderValue :: HeaderName -> ResponseHeaders -> Maybe Bytes
+findHeaderValue name = fmap snd . find ((== name) . fst)

@@ -7,9 +7,9 @@ module RSSGen.Main
   , run
   ) where
 
+import Control.Monad.Logger.CallStack
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
-import qualified Data.ByteString.Lazy as BL
 import Data.List (intercalate, sortOn)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NE
@@ -17,33 +17,27 @@ import Data.Maybe
 import Data.Ord (Down(..))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import Data.Time.Clock
 import Data.Version (Version, showVersion)
-import Database.SQLite.Simple
 import Development.Shake
 import Development.Shake.Classes
 import Development.Shake.FilePath
-import Network.HTTP.Client
-import Network.HTTP.Client.TLS
 import Options.Applicative
 import qualified System.Environment as Env
 
 import qualified Paths_ripper as Paths (version)
 import RSSGen.Database
 import RSSGen.Downloader
+import RSSGen.MonadTime
+import RSSGen.PollHTTP
 import RSSGen.RSSFeed
 import RSSGen.RSSItem
+import RSSGen.RunUntil
 import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 
 newtype RSSGenVersion = RSSGenVersion ()
   deriving (Show, Typeable, Eq, Hashable, Binary, NFData)
 type instance RuleResult RSSGenVersion = Version
-
--- |This oracle is to depend on the upstream RSS without an intermediate file.
--- If the downloading failed, we don't want to fail our build.
--- URL -> Maybe T.Text
-newtype UpstreamRSS = UpstreamRSS URL
-  deriving (Show, Typeable, Eq, Hashable, Binary, NFData)
-type instance RuleResult UpstreamRSS = Maybe T.Text
 
 -- | CLI options parser to get the RSS filenames (if any) that should be built.
 -- This replaces `shake`'s built-in parser as it can't be used now since this
@@ -70,14 +64,6 @@ run filenames = do
 
     getRSSGenVersion <- addOracle $ \RSSGenVersion{} -> return Paths.version
 
-    upstreamRSS <- addOracle $ \(UpstreamRSS url) -> do
-      manager <- liftIO $ newManager tlsManagerSettings
-      -- this `liftIO` is to fix the build error:
-      -- • No instance for (exceptions-0.10.4:Control.Monad.Catch.MonadThrow
-      --                      Action)
-      --     arising from a use of ‘downloadRadioTRSS’
-      liftIO $ runReaderT (runHTTPClientDownloadT $ downloadRSS url) manager
-
     versioned 24 $ "*.rss" %> \out -> do
       void . getRSSGenVersion $ RSSGenVersion ()
 
@@ -87,48 +73,117 @@ run filenames = do
       need feedConfigFiles
       case feedConfig of
         Just config -> do
+          -- note: `openDatabase` and `closeDatabase` are not exception-safe
+          -- here, but it's fine since the program will exit soon anyway;
+          -- I have tried refactoring this to `withDatabase`, and ultimately
+          -- failed because sqlite library's `withConnection` uses `IO`, whereas
+          -- the functions here have to be in `Action` :( (`MonadUnliftIO` may
+          -- possibly help, but I doubt that)
           conn <- liftIO $ openDatabase DefaultFile
-          processUpstreamRSS upstreamRSS (T.pack podcastTitle) config conn
-          generateFeed config conn out
-          liftIO $ close conn
+
+          let podcastId = T.pack podcastTitle
+          ripFiles <- getRipFilesNewestFirst podcastId
+          let maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
+          pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime
+          generateFeed config conn out podcastId ripFiles
+
+          liftIO $ closeDatabase conn
         Nothing -> fail
           $ "Couldn't parse feed config files "
           <> intercalate ", " feedConfigFiles
 
--- | Generates the feed at the requested path.
-generateFeed :: RSSFeedConfig -> Connection -> FilePattern -> Action ()
-generateFeed feedConfig conn out = do
+-- | Returns a list of `RipFile`s for the given podcast, sorted from newest to
+-- oldest.
+getRipFilesNewestFirst :: UpstreamRSSFeed.PodcastId -> Action [RipFile]
+getRipFilesNewestFirst podcastTitle = do
   -- we need the audio files to generate the RSS, which are in the
   -- directory of the same name as the podcast title
-  let podcastTitle = dropExtension out
-  mp3Files <- getDirectoryFiles "" [podcastTitle </> "*.mp3"]
-  let findUpstreamItem = closestUpstreamItemToTime
-        (closestUpstreamItemInterval feedConfig)
-        (T.pack podcastTitle)
-        conn
-  rssItems <- liftIO . fmap (newestFirst . catMaybes) $ traverse (rssItemFromFile podcastTitle findUpstreamItem) mp3Files
+  mp3Files <- getDirectoryFiles "" [T.unpack podcastTitle </> "*.mp3"]
+  liftIO $ newestFirst . catMaybes <$> traverse ripFileFromFile mp3Files
 
-  version <- askOracle $ RSSGenVersion ()
-  writeFile' out $ feed (ProgramVersion . showVersion $ version) feedConfig rssItems
+-- | Generates the feed at the requested path.
+generateFeed :: RSSFeedConfig -> DBConnection -> FilePattern -> UpstreamRSSFeed.PodcastId -> [RipFile] -> Action ()
+generateFeed feedConfig conn out podcastTitle ripFiles = do
+  rssItems <- liftIO $ traverse (rssItemFromRipFile podcastTitle (findUpstreamItem podcastTitle feedConfig conn)) ripFiles
+  version <- fmap (ProgramVersion . showVersion) . askOracle $ RSSGenVersion ()
+  writeFile' out $ feed version feedConfig rssItems
 
-newestFirst :: [RSSItem] -> [RSSItem]
+findUpstreamItem :: UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+findUpstreamItem podcastTitle feedConfig = closestUpstreamItemToTime
+  (closestUpstreamItemInterval feedConfig)
+  podcastTitle
+
+newestFirst :: [RipFile] -> [RipFile]
 newestFirst = sortOn Down
-
--- | Downloads the upstream RSS from the URL in the config, parses it and
--- saves the items in the database.
--- Downloading is triggered every time when our RSS is requested, and
--- the RSS is not updated if the upstream RSS hasn't changed.
-processUpstreamRSS :: (UpstreamRSS -> Action (Maybe T.Text)) -> UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Connection -> Action ()
-processUpstreamRSS upstreamRSS podcastTitle config conn = void $ runMaybeT $ do
-  url <- MaybeT . pure $ upstreamRSSURL config
-  text <- MaybeT . upstreamRSS . UpstreamRSS . T.unpack $ url
-  items <- MaybeT . pure . eitherToMaybe . UpstreamRSSFeed.parse podcastTitle $ text
-  -- if we're here, then we have items
-  liftIO $ saveUpstreamRSSItems conn items
 
 eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right x) = Just x
 
-downloadRSS :: MonadDownload m => URL -> m (Maybe T.Text)
-downloadRSS = fmap (fmap (TE.decodeUtf8 . BL.toStrict)) . getFile
+-- | Runs `pollUpstreamRSS` if the (newest) `RipTime` is available, that is if
+-- there are any files for the given podcast.
+pollUpstreamRSSIfPossible :: MonadIO m
+  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> Maybe RipTime -> m ()
+pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime = do
+  now <- liftIO getCurrentTime
+  let pollingRetryDelay = RetryDelay $ durationMinutes 30
+      pollingDuration = durationHours 6
+      pollingEndTime = addUTCTime pollingDuration now
+  maybe
+    (pure ())
+    (liftIO .
+      runStderrLoggingT .
+      pollUpstreamRSS podcastId config pollingRetryDelay pollingEndTime conn
+    )
+    maybeNewestRipTime
+
+-- | Waits until we have an upstream RSS item for the given (newest) rip. First,
+-- it waits until the upstream RSS changes (which is typically within a few
+-- hours after the live stream), but it doesn't mean that it now contains the
+-- latest episode; so then it still needs to verify there is an upstream item
+-- for the given rip, and wait for changes again if that fails.
+pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
+  -- TODO too many parameters?
+  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> RipTime -> m ()
+pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
+  case T.unpack <$> upstreamRSSURL feedConfig of
+    Just url -> void . runUntil "pollRSS" retryDelay endTime $ iter url
+    -- if there is no feed URL, there is no point in using `runUntil`
+    Nothing -> pure ()
+
+  where
+    checkExistsUpstreamItemForRipTime = liftIO $ isJust <$> findUpstreamItem podcastTitle feedConfig conn (utcTime ripTime)
+
+    -- | Polls for upstream RSS changes, parses the RSS if any and saves the
+    -- items in the database.
+    processUpstreamRSS url = void . runMaybeT $ do
+      -- I had to remove the `MonadTrans` wrapper from `runUntil` (and
+      -- thus pollHTTP`), which would allow the repeated action not to
+      -- require unnecessary constraints (e.g. `MonadTime`), but
+      -- surprisingly it doesn't seem to be a big issue (yet?); having the
+      -- `MonadTrans` return type caused this type error:
+      --
+      -- • Couldn't match type ‘t0 m0’ with ‘IO’
+      -- Expected: IO (Maybe Bytes)
+      -- Actual: t0 m0 (Maybe Bytes)
+      bytes <- MaybeT $ pollHTTP retryDelay endTime conn url
+      let text = TE.decodeUtf8 bytes
+      items <- MaybeT . pure . eitherToMaybe $ UpstreamRSSFeed.parse podcastTitle text
+      -- if we're here, then we have items
+      liftIO $ saveUpstreamRSSItems conn items
+
+    iter url = do
+      existsUpstreamItemForRipTime <- checkExistsUpstreamItemForRipTime
+      if existsUpstreamItemForRipTime
+        then pure $ Result ()
+        else do
+          processUpstreamRSS url
+
+          -- since the polling above may take a while, we want to check whether
+          -- it has produced the upstream item that we need right after
+          -- receiving new RSS (if any), without waiting for another
+          -- `retryDelay` before another loop
+          existsUpstreamItemAfterPolling <- checkExistsUpstreamItemForRipTime
+          pure $ if existsUpstreamItemAfterPolling
+            then Result ()
+            else NoResult

@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           ripper
-version:        1.1.0
+version:        1.2.0
 description:    Please see the README on Github at <https://github.com/githubuser/ripper#readme>
 homepage:       https://github.com/githubuser/ripper#readme
 bug-reports:    https://github.com/githubuser/ripper/issues
@@ -34,9 +34,13 @@ library
       Ripper.Util
       RSSGen.Database
       RSSGen.Downloader
+      RSSGen.DownloaderTypes
       RSSGen.Main
+      RSSGen.MonadTime
+      RSSGen.PollHTTP
       RSSGen.RSSFeed
       RSSGen.RSSItem
+      RSSGen.RunUntil
       RSSGen.Types
       RSSGen.UpstreamRSSFeed
       Run
@@ -45,12 +49,16 @@ library
   hs-source-dirs:
       src
   default-extensions:
+      DerivingStrategies
+      FlexibleContexts
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       NamedFieldPuns
       OverloadedStrings
       ScopedTypeVariables
       TypeApplications
       NumericUnderscores
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -Werror=incomplete-patterns
   build-depends:
       aeson
     , base >=4.11 && <10
@@ -63,6 +71,7 @@ library
     , http-client-tls
     , http-conduit
     , http-types
+    , monad-logger
     , mtl
     , optparse-applicative
     , process
@@ -82,11 +91,15 @@ executable ripper-exe
   hs-source-dirs:
       app
   default-extensions:
+      DerivingStrategies
+      FlexibleContexts
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       NamedFieldPuns
       OverloadedStrings
       ScopedTypeVariables
       TypeApplications
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -Werror=incomplete-patterns -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.11 && <10
     , bytestring
@@ -108,18 +121,24 @@ test-suite ripper-test
       RipConfigSpec
       Ripper.UtilSpec
       RSSGen.DatabaseSpec
+      RSSGen.DownloaderSpec
       RSSGen.RSSFeedSpec
       RSSGen.RSSItemSpec
+      RSSGen.RunUntilSpec
       RSSGen.UpstreamRSSFeedSpec
       Paths_ripper
   hs-source-dirs:
       test
   default-extensions:
+      DerivingStrategies
+      FlexibleContexts
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       NamedFieldPuns
       OverloadedStrings
       ScopedTypeVariables
       TypeApplications
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -threaded -rtsopts -with-rtsopts=-N -Wno-missing-export-lists
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -Werror=incomplete-patterns -threaded -rtsopts -with-rtsopts=-N -Wno-missing-export-lists
   build-depends:
       aeson
     , base >=4.11 && <10
@@ -127,10 +146,16 @@ test-suite ripper-test
     , directory
     , filepath
     , hspec
+    , http-client
     , http-conduit
+    , http-types
+    , monad-logger
+    , mtl
     , raw-strings-qq
     , rio >=0.1.12.0
     , ripper
+    , sqlite-simple
     , text
     , time
+    , transformers
   default-language: Haskell2010

@@ -1,5 +1,5 @@
 name:                ripper
-version:             1.1.0
+version:             1.2.0
 github:              githubuser/ripper
 license:             MIT
 author:              Author name here
@@ -24,6 +24,10 @@ dependencies:
 - rio >= 0.1.12.0
 
 default-extensions:
+- DerivingStrategies
+- FlexibleContexts
+- GeneralizedNewtypeDeriving
+- ImportQualifiedPost
 - NamedFieldPuns
 - OverloadedStrings
 - ScopedTypeVariables
@@ -41,6 +45,7 @@ ghc-options:
 - -Wredundant-constraints
 - -Werror=missing-methods
 - -Werror=missing-fields
+- -Werror=incomplete-patterns
 
 library:
   source-dirs: src
@@ -57,6 +62,7 @@ library:
     - http-client
     - http-client-tls
     - http-types
+    - monad-logger
     - mtl
     - optparse-applicative
     - process
@@ -98,10 +104,16 @@ tests:
     - directory
     - filepath
     - hspec
+    - http-client
     - http-conduit
+    - http-types
+    - monad-logger
+    - mtl
     - raw-strings-qq
+    - sqlite-simple
     - text
     - time
+    - transformers
 
     ghc-options:
     - -threaded

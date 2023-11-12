@@ -62,7 +62,11 @@ clean-build-linux:
 
 .PHONY:
 build-ripper-linux:
-	stack --docker build
+	@# clearing `SSH_AUTH_SOCK` helps with an error from docker (4.24.2) that has
+	@# started appearing all of a sudden:
+	@# `Error response from daemon: error while creating mount source path '/host_mnt/private/tmp/com.apple.launchd.abc/Listeners': mkdir /host_mnt/private/tmp/com.apple.launchd.abc/Listeners: operation not supported`
+	@# `/private/…/Listeners` here is the value of `SSH_AUTH_SOCK`
+	SSH_AUTH_SOCK= stack --docker build
 
 ### local testing actions
 
