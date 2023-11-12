@@ -13,7 +13,17 @@ import Data.Text (Text)
 type Duration = NominalDiffTime
 
 parseDuration :: Text -> Either String Duration
-parseDuration = fmap fromIntegral . parseOnly @Int decimal
+parseDuration = parseOnly durationParser
+
+durationParser :: Parser Duration
+durationParser = do
+  n <- decimal
+  unit <- satisfy $ inClass "sm"
+
+  pure $ case unit of
+    's' -> fromIntegral n
+    'm' -> durationMinutes n
+    _ -> error $ "impossible unit: " <> show unit
 
 -- | Creates a `Duration` from the given number of minutes.
 durationMinutes :: Int -> Duration
