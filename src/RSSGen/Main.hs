@@ -175,7 +175,8 @@ pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
       let url = T.unpack $ upstreamRSSURL upstreamFeedConfig
       bytes <- MaybeT $ pollHTTP retryDelay endTime conn url
       let text = TE.decodeUtf8 bytes
-      items <- MaybeT . pure . eitherToMaybe $ UpstreamRSSFeed.parse podcastTitle text
+      allItems <- MaybeT . pure . eitherToMaybe $ UpstreamRSSFeed.parse podcastTitle text
+      let items = limitItems upstreamFeedConfig allItems
       -- if we're here, then we have items
       liftIO $ saveUpstreamRSSItems conn items
 
@@ -194,3 +195,8 @@ pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
           pure $ if existsUpstreamItemAfterPolling
             then Result ()
             else NoResult
+
+-- | Limits the upstream feed items based on the `maxItems` setting.
+-- Assumption: the RSS file contains newest to oldest items.
+limitItems :: UpstreamFeedConfig -> [UpstreamRSSFeed.UpstreamRSSItem] -> [UpstreamRSSFeed.UpstreamRSSItem]
+limitItems conf items = maybe items (`take` items) $ maxItems conf
