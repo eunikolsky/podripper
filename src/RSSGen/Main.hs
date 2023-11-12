@@ -104,13 +104,19 @@ getRipFilesNewestFirst podcastTitle = do
 -- | Generates the feed at the requested path.
 generateFeed :: RSSFeedConfig -> DBConnection -> FilePattern -> UpstreamRSSFeed.PodcastId -> [RipFile] -> Action ()
 generateFeed feedConfig conn out podcastTitle ripFiles = do
-  rssItems <- liftIO $ traverse (rssItemFromRipFile podcastTitle (findUpstreamItem podcastTitle feedConfig conn)) ripFiles
+  let findUpstreamItemIfPossible = maybe
+        -- if there is no `upstreamFeedConfig` for the podcast, the returning
+        -- function will always return `Nothing`
+        (const $ pure Nothing)
+        (\conf -> findUpstreamItem podcastTitle conf conn)
+        (upstreamFeedConfig feedConfig)
+  rssItems <- liftIO $ traverse (rssItemFromRipFile podcastTitle findUpstreamItemIfPossible) ripFiles
   version <- fmap (ProgramVersion . showVersion) . askOracle $ RSSGenVersion ()
   writeFile' out $ feed version feedConfig rssItems
 
-findUpstreamItem :: UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
-findUpstreamItem podcastTitle feedConfig = closestUpstreamItemToTime
-  (closestUpstreamItemInterval feedConfig)
+findUpstreamItem :: UpstreamRSSFeed.PodcastId -> UpstreamFeedConfig -> DBConnection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+findUpstreamItem podcastTitle upstreamFeedConfig = closestUpstreamItemToTime
+  (closestUpstreamItemInterval upstreamFeedConfig)
   podcastTitle
 
 newestFirst :: [RipFile] -> [RipFile]
@@ -146,17 +152,17 @@ pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
   -- TODO too many parameters?
   => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> RipTime -> m ()
 pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
-  case T.unpack <$> upstreamRSSURL feedConfig of
-    Just url -> void . runUntil "pollRSS" retryDelay endTime $ iter url
-    -- if there is no feed URL, there is no point in using `runUntil`
+  case upstreamFeedConfig feedConfig of
+    Just upstreamFeedConfig -> void . runUntil "pollRSS" retryDelay endTime $ iter upstreamFeedConfig
+    -- if there is no upstream feed, there is no point in using `runUntil`
     Nothing -> pure ()
 
   where
-    checkExistsUpstreamItemForRipTime = liftIO $ isJust <$> findUpstreamItem podcastTitle feedConfig conn (utcTime ripTime)
+    checkExistsUpstreamItemForRipTime conf = liftIO $ isJust <$> findUpstreamItem podcastTitle conf conn (utcTime ripTime)
 
     -- | Polls for upstream RSS changes, parses the RSS if any and saves the
     -- items in the database.
-    processUpstreamRSS url = void . runMaybeT $ do
+    processUpstreamRSS upstreamFeedConfig = void . runMaybeT $ do
       -- I had to remove the `MonadTrans` wrapper from `runUntil` (and
       -- thus pollHTTP`), which would allow the repeated action not to
       -- require unnecessary constraints (e.g. `MonadTime`), but
@@ -166,24 +172,25 @@ pollUpstreamRSS podcastTitle feedConfig retryDelay endTime conn ripTime =
       -- • Couldn't match type ‘t0 m0’ with ‘IO’
       -- Expected: IO (Maybe Bytes)
       -- Actual: t0 m0 (Maybe Bytes)
+      let url = T.unpack $ upstreamRSSURL upstreamFeedConfig
       bytes <- MaybeT $ pollHTTP retryDelay endTime conn url
       let text = TE.decodeUtf8 bytes
       items <- MaybeT . pure . eitherToMaybe $ UpstreamRSSFeed.parse podcastTitle text
       -- if we're here, then we have items
       liftIO $ saveUpstreamRSSItems conn items
 
-    iter url = do
-      existsUpstreamItemForRipTime <- checkExistsUpstreamItemForRipTime
+    iter upstreamFeedConfig = do
+      existsUpstreamItemForRipTime <- checkExistsUpstreamItemForRipTime upstreamFeedConfig
       if existsUpstreamItemForRipTime
         then pure $ Result ()
         else do
-          processUpstreamRSS url
+          processUpstreamRSS upstreamFeedConfig
 
           -- since the polling above may take a while, we want to check whether
           -- it has produced the upstream item that we need right after
           -- receiving new RSS (if any), without waiting for another
           -- `retryDelay` before another loop
-          existsUpstreamItemAfterPolling <- checkExistsUpstreamItemForRipTime
+          existsUpstreamItemAfterPolling <- checkExistsUpstreamItemForRipTime upstreamFeedConfig
           pure $ if existsUpstreamItemAfterPolling
             then Result ()
             else NoResult
