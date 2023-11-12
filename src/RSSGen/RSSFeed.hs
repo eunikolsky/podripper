@@ -21,6 +21,7 @@ import System.Directory
 import System.FilePath
 import Text.XML.Light
 
+import RSSGen.Duration
 import RSSGen.RSSItem
 import RSSGen.Types
 

@@ -6,7 +6,7 @@ import Control.Concurrent
 import Control.Monad.Logger.CallStack
 import Control.Monad.Trans
 import Data.Time.Clock
-import RSSGen.Types
+import RSSGen.Duration
 
 -- | Monad that provides access to the time-related functionality, namely
 -- getting the current time and sleeping for a duration of time.
