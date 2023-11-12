@@ -74,10 +74,10 @@ openDatabase fileSpec = do
       \ url TEXT NOT NULL,\
       \ eTag BLOB,\
       \ lastModified BLOB,\
-      \ body BLOB\
-        \ CONSTRAINT either_etag_lastmod_or_body\
-          \ CHECK ( (eTag NOTNULL OR lastModified NOTNULL) <> (body NOTNULL) ),\
+      \ body BLOB,\
       \ modifiedAt INTEGER NOT NULL DEFAULT(strftime('%s', 'now')),\
+      \ CONSTRAINT either_etag_lastmod_or_body\
+        \ CHECK ( (eTag NOTNULL OR lastModified NOTNULL) <> (body NOTNULL) ),\
       \ UNIQUE (url) ON CONFLICT REPLACE);"
 
 closeDatabase :: Connection -> IO ()
