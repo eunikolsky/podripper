@@ -22,8 +22,18 @@ validConfigString = [r|{
   "podcastLink": "podcast.link", "imageLink": "image.link",
   "selfLink": "self.link", "upstreamFeedConfig": {
     "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8,
+    "pollingRetryDelaySec": 360, "pollingDurationSec": 7200,
     "maxItems": 5
   }}|]
+
+parsedUpstreamFeedConfig :: UpstreamFeedConfig
+parsedUpstreamFeedConfig = UpstreamFeedConfig
+  { upstreamRSSURL = "url"
+  , closestUpstreamItemInterval = Hours 8
+  , maxItems = Just 5
+  , pollingDuration = 7200
+  , pollingRetryDelay = RetryDelay 360
+  }
 
 spec :: Spec
 spec = do
@@ -37,11 +47,7 @@ spec = do
               , podcastLink = "podcast.link"
               , imageLink = "image.link"
               , selfLink = "self.link"
-              , upstreamFeedConfig = Just UpstreamFeedConfig
-                { upstreamRSSURL = "url"
-                , closestUpstreamItemInterval = Hours 8
-                , maxItems = Just 5
-                }
+              , upstreamFeedConfig = Just parsedUpstreamFeedConfig
               }
         eitherDecode' validConfigString `shouldBe` Right expected
 
@@ -67,7 +73,8 @@ spec = do
         "title": "foo", "description": "bar", "language": "en",
         "podcastLink": "podcast.link", "imageLink": "image.link",
         "selfLink": "self.link", "upstreamFeedConfig": {
-          "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8
+          "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8,
+          "pollingRetryDelaySec": 360, "pollingDurationSec": 7200
         }}|]
             expected = RSSFeedConfig
               { title = "foo"
@@ -80,6 +87,8 @@ spec = do
                 { upstreamRSSURL = "url"
                 , closestUpstreamItemInterval = Hours 8
                 , maxItems = Nothing
+                , pollingDuration = 7200
+                , pollingRetryDelay = RetryDelay 360
                 }
               }
         eitherDecode' text `shouldBe` Right expected
@@ -138,11 +147,7 @@ spec = do
               , podcastLink = "overwrite"
               , imageLink = "newImage"
               , selfLink = "self.link"
-              , upstreamFeedConfig = Just UpstreamFeedConfig
-                { upstreamRSSURL = "url"
-                , closestUpstreamItemInterval = Hours 8
-                , maxItems = Just 5
-                }
+              , upstreamFeedConfig = Just parsedUpstreamFeedConfig
               }
 
         (config, _) <- parseFeedConfig dir feedName
@@ -153,7 +158,9 @@ spec = do
         BS.writeFile filename [r|{
           "title": "foo", "description": "bar", "language": "en",
           "upstreamFeedConfig": {
-            "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8
+            "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8,
+            "pollingRetryDelaySec": 360, "pollingDurationSec": 7200,
+            "maxItems": 5
           }}|]
         BS.writeFile overlayFilename [r|{
           "podcastLink": "podcast.link", "imageLink": "image.link",
@@ -167,11 +174,7 @@ spec = do
               , podcastLink = "podcast.link"
               , imageLink = "image.link"
               , selfLink = "self.link"
-              , upstreamFeedConfig = Just UpstreamFeedConfig
-                { upstreamRSSURL = "url"
-                , closestUpstreamItemInterval = Hours 8
-                , maxItems = Nothing
-                }
+              , upstreamFeedConfig = Just parsedUpstreamFeedConfig
               }
 
         (config, _) <- parseFeedConfig dir feedName

@@ -32,6 +32,8 @@ data UpstreamFeedConfig = UpstreamFeedConfig
   -- | The max number of the most recent RSS entries to import, if set;
   -- otherwise, use all entries.
   , maxItems :: Maybe Int
+  , pollingDuration :: Duration
+  , pollingRetryDelay :: RetryDelay
   }
   deriving (Eq, Show)
 
@@ -42,6 +44,8 @@ instance FromJSON UpstreamFeedConfig where
     -- TODO is it possible to override the key in `FromJSON Hours` itself?
     <*> v .: "closestUpstreamItemIntervalHours"
     <*> v .:? "maxItems"
+    <*> v .: "pollingDurationSec"
+    <*> v .: "pollingRetryDelaySec"
 
 -- | Values for the RSS feed tags.
 data RSSFeedConfig = RSSFeedConfig
