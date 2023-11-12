@@ -19,6 +19,7 @@ durationParser :: Parser Duration
 durationParser = do
   n <- decimal
   unit <- satisfy $ inClass "smh"
+  endOfInput
 
   pure $ case unit of
     's' -> fromIntegral n
