@@ -27,9 +27,9 @@ run = do
   let maybeOutputDir = optionsOutputDirectory options
   for_ maybeOutputDir ensureDirectory
 
-  let ripTimeout = secondsToTimeout . realToFrac . toNominalDiffTime $ optionsRipLength options
-      reconnectDelay = secondsToTimeout $ optionsReconnectDelay options
-      smallReconnectDelay = secondsToTimeout $ optionsSmallReconnectDelay options
+  let ripTimeout = durationToTimeout $ optionsRipLength options
+      reconnectDelay = durationToTimeout . Duration . realToFrac $ optionsReconnectDelay options
+      smallReconnectDelay = durationToTimeout . Duration . realToFrac $ optionsSmallReconnectDelay options
 
   userAgent <- asks appUserAgent
 
@@ -158,10 +158,10 @@ handleResourceVanished = handleJust
   -- would require manual rethrowing of all other types of exceptions
   (\e -> logError (displayShow e) >> pure RipNothing)
 
--- | Converts the number of seconds to the number of microseconds expected by `timeout`.
-secondsToTimeout :: Float -> Int
-secondsToTimeout = round . (* seconds)
-  where seconds = 1_000_000
+-- | Converts the `Duration` to the number of microseconds expected by `timeout`.
+durationToTimeout :: Duration -> Int
+durationToTimeout = round . (* microsecondsInSecond) . toNominalDiffTime
+  where microsecondsInSecond = 1_000_000
 
 ensureDirectory :: MonadIO m => FilePath -> m ()
 ensureDirectory = liftIO . createDirectoryIfMissing createParents
