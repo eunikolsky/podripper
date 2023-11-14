@@ -15,7 +15,7 @@ import System.FilePath
 import Test.Hspec
 import Text.RawString.QQ
 import qualified Data.ByteString as BS
-import RSSGen.Duration (durationHours, durationMinutes)
+import RSSGen.Duration
 
 validConfigString :: IsString s => s
 validConfigString = [r|{

@@ -7,8 +7,8 @@ import Control.Monad.Logger.CallStack
 import Control.Monad.Reader
 import Data.Text qualified as T
 import Data.Time.Clock
+import RSSGen.Duration
 import RSSGen.MonadTime
-import RSSGen.Types
 
 -- | The result of a step: either no usable result, or a result of type `a`.
 data StepResult a = NoResult | Result !a

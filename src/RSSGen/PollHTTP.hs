@@ -7,9 +7,9 @@ import Data.Time.Clock
 import Network.HTTP.Simple
 import RSSGen.Database
 import RSSGen.Downloader
+import RSSGen.Duration
 import RSSGen.MonadTime
 import RSSGen.RunUntil
-import RSSGen.Types
 
 -- | Wrapper around `getFile` that repeatedly tries to get an updated response
 -- from the `url` until it's successful or until `endTime`.

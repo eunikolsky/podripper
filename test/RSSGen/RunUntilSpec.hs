@@ -12,7 +12,6 @@ import Data.Time
 import RSSGen.Duration
 import RSSGen.MonadTime
 import RSSGen.RunUntil
-import RSSGen.Types
 import Test.Hspec
 
 spec :: Spec

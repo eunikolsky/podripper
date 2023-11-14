@@ -1,5 +1,6 @@
 module RSSGen.Duration
   ( Duration(..)
+  , RetryDelay(..)
   , durationHours
   , durationMinutes
   , parseDuration
@@ -41,3 +42,9 @@ durationMinutes = Duration . realToFrac . (* 60)
 -- | Creates a `Duration` from the given number of hours.
 durationHours :: Int -> Duration
 durationHours = durationMinutes . (* 60)
+
+-- | Duration of time to sleep for between retries in `runUntil`.
+--
+-- (Is this separate type really necessary?)
+newtype RetryDelay = RetryDelay { toDuration :: Duration }
+  deriving newtype (Show, Eq, FromJSON)
