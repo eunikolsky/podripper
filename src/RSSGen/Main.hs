@@ -84,8 +84,14 @@ run filenames = do
 
           let podcastId = T.pack podcastTitle
           ripFiles <- getRipFilesNewestFirst podcastId
+          -- generate the feed with what we have immediately without possibly
+          -- waiting for the upstream feed updates
+          generateFeed config conn out podcastId ripFiles
+
           let maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
           pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime
+          -- generate the feed again after possibly getting some upstream feed
+          -- updates
           generateFeed config conn out podcastId ripFiles
 
           liftIO $ closeDatabase conn
@@ -113,7 +119,7 @@ generateFeed feedConfig conn out podcastTitle ripFiles = do
         (upstreamFeedConfig feedConfig)
   rssItems <- liftIO $ traverse (rssItemFromRipFile podcastTitle findUpstreamItemIfPossible) ripFiles
   version <- fmap (ProgramVersion . showVersion) . askOracle $ RSSGenVersion ()
-  writeFile' out $ feed version feedConfig rssItems
+  writeFileChanged out $ feed version feedConfig rssItems
 
 findUpstreamItem :: UpstreamRSSFeed.PodcastId -> UpstreamFeedConfig -> DBConnection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
 findUpstreamItem podcastTitle upstreamFeedConfig = closestUpstreamItemToTime
