@@ -24,6 +24,7 @@ import Data.Time
 import Data.Time.Calendar.OrdinalDate
 import Network.HTTP.Simple
 import RIO (whenM, IsString, threadDelay)
+import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
 import qualified Ripper.Main as Ripper (run)
@@ -83,7 +84,7 @@ waitForStream RipConfigExt{config} =
   in if ripName == "atp" then
     toProcessReady <$> runFor
       (retrySec config)
-      (fromIntegral $ durationSec config)
+      (duration config)
       (fromProcessReady <$> waitForATP)
     else pure $ Just originalStreamURL
 
@@ -146,7 +147,7 @@ rip RipConfigExt{config, rawRipDir} (StreamURL url) =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir
-        , Ripper.optionsRipLengthSeconds = fromIntegral $ durationSec config
+        , Ripper.optionsRipLength = duration config
         , Ripper.optionsReconnectDelay = fromIntegral $ retrySec config
         , Ripper.optionsSmallReconnectDelay = 1
         , Ripper.optionsStreamURL = url
@@ -154,7 +155,7 @@ rip RipConfigExt{config, rawRipDir} (StreamURL url) =
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
   -- throws an exception, so `catchExceptions` is required
-  in runFor (retrySec config) (fromIntegral $ durationSec config) $ do
+  in runFor (retrySec config) (duration config) $ do
     putStrLn "starting the ripper"
     catchExceptions $ Ripper.run options
 
@@ -195,10 +196,10 @@ instance ProcessReadinessType () where
 -- returns the `Ready` state, with the `retryDelaySec` between each invocation.
 -- If it isn't `Ready` until the `duration` expires, the final state is what
 -- the action returns (that is, `NotReady`).
-runFor :: ProcessReadinessType r => Int -> NominalDiffTime -> IO r -> IO r
+runFor :: ProcessReadinessType r => Int -> Duration -> IO r -> IO r
 runFor retryDelaySec duration io = do
   now <- getCurrentTime
-  let endTime = addUTCTime duration now
+  let endTime = addUTCTime (toNominalDiffTime duration) now
   putStrLn $ mconcat ["now ", show now, " + ", show duration, " = end time ", show endTime]
   go endTime
 

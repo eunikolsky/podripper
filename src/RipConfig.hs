@@ -7,12 +7,12 @@ module RipConfig
 import Data.Aeson (FromJSON)
 import Data.Text (Text)
 import GHC.Generics
+import RSSGen.Duration
 
 -- | Configuration necessary to rip a stream.
 data RipConfig = RipConfig
   { streamURL :: !Text
-    -- TODO introduce a `Duration` type, which can parse strings like "2h"
-  , durationSec :: !Int
+  , duration :: !Duration
   , retrySec :: !Int
   , ripDirName :: !Text
   , podArtist :: !Text

@@ -1,7 +1,7 @@
 {
   "_comment": "a stream for testing",
   "streamURL": "https://stream.radiojar.com/t2n88q0st5quv",
-  "durationSec": 5,
+  "duration": "5s",
   "retrySec": 5,
   "ripDirName": "eradio",
   "podArtist": "Voice of America",

@@ -3,6 +3,7 @@
 module RipConfigSpec where
 
 import Data.Aeson
+import RSSGen.Duration
 import RipConfig
 import Test.Hspec
 import Text.RawString.QQ
@@ -15,7 +16,7 @@ spec = do
       it "parses json with all fields" $ do
         let s = encodeUtf8 [r|{
           "streamURL": "http://example.org",
-          "durationSec": 4,
+          "duration": "4m",
           "retrySec": 8,
           "ripDirName": "test",
           "podArtist": "Хакер",
@@ -24,7 +25,7 @@ spec = do
 
         let expected = RipConfig
               { streamURL = "http://example.org"
-              , durationSec = 4
+              , duration = durationMinutes 4
               , retrySec = 8
               , ripDirName = "test"
               , podArtist = "Хакер"
@@ -36,8 +37,8 @@ spec = do
       it "ignores unknown fields" $ do
         let s = encodeUtf8 [r|{
           "streamURL": "http://example.org",
-          "durationSec": 4,
-          "_comment_durationSec": "just 4",
+          "duration": "4s",
+          "_comment_duration": "just 4",
           "retrySec": 8,
           "ripDirName": "test",
           "podArtist": "Хакер",
@@ -47,7 +48,7 @@ spec = do
 
         let expected = RipConfig
               { streamURL = "http://example.org"
-              , durationSec = 4
+              , duration = Duration 4
               , retrySec = 8
               , ripDirName = "test"
               , podArtist = "Хакер"

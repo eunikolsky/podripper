@@ -1,7 +1,6 @@
 {
   "streamURL": "https://stream.rcmp.me/stream",
-  "durationSec": 28800,
-  "_comment_durationSec": "8 hours",
+  "duration": "8h",
   "retrySec": 5,
   "ripDirName": "rcmp",
   "podArtist": "Канадский Лось и компания",

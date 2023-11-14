@@ -4,6 +4,7 @@ module Ripper.Main
   ) where
 
 import Data.Version (showVersion)
+import RSSGen.Duration
 import Ripper.Import
 import Options.Applicative
 import qualified Paths_ripper
@@ -36,10 +37,11 @@ ripperParser = Options
                 <> metavar "DIR"
                 )
       )
-  <*> option auto ( short 'l'
-                <> help "How long to rip, in seconds"
-                <> metavar "seconds"
-                  )
+  <*> option duration
+      ( short 'l'
+      <> help "How long to rip (e.g. 2h)"
+      <> metavar "rip_duration"
+      )
   <*> option auto ( short 'r'
                 <> help "Reconnect delay, in seconds"
                 <> metavar "reconnect_delay"
@@ -55,3 +57,6 @@ ripperParser = Options
   <*> strArgument ( metavar "URL"
                 <> help "Stream URL"
                   )
+
+duration :: ReadM Duration
+duration = eitherReader $ parseDuration . T.pack

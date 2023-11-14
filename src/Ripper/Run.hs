@@ -19,6 +19,7 @@ import RIO.Time
 import System.IO.Error (isResourceVanishedError)
 
 import Ripper.Import
+import RSSGen.Duration
 
 run :: RIO App ()
 run = do
@@ -26,7 +27,7 @@ run = do
   let maybeOutputDir = optionsOutputDirectory options
   for_ maybeOutputDir ensureDirectory
 
-  let ripTimeout = secondsToTimeout $ optionsRipLengthSeconds options
+  let ripTimeout = secondsToTimeout . realToFrac . toNominalDiffTime $ optionsRipLength options
       reconnectDelay = secondsToTimeout $ optionsReconnectDelay options
       smallReconnectDelay = secondsToTimeout $ optionsSmallReconnectDelay options
 
