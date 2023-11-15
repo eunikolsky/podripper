@@ -10,7 +10,7 @@ module RSSGen.Duration
   , toSeconds
   ) where
 
-import Data.Aeson
+import Data.Aeson hiding ((<?>))
 import Data.Attoparsec.Text
 import Data.Time.Clock
 import Data.Text (Text)
@@ -53,8 +53,8 @@ parseDuration = parseOnly durationParser
 
 durationParser :: Parser Duration
 durationParser = do
-  n <- decimal
-  unit <- satisfy $ inClass "smh"
+  n <- decimal <?> "duration amount"
+  unit <- satisfy (inClass "smh") <?> "duration unit"
   endOfInput
 
   pure $ case unit of
