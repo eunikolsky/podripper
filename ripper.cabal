@@ -55,6 +55,7 @@ library
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       NamedFieldPuns
+      NumericUnderscores
       OverloadedStrings
       ScopedTypeVariables
       TypeApplications
@@ -98,6 +99,7 @@ executable ripper-exe
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       NamedFieldPuns
+      NumericUnderscores
       OverloadedStrings
       ScopedTypeVariables
       TypeApplications
@@ -138,6 +140,7 @@ test-suite ripper-test
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       NamedFieldPuns
+      NumericUnderscores
       OverloadedStrings
       ScopedTypeVariables
       TypeApplications

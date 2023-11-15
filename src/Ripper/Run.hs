@@ -28,8 +28,8 @@ run = do
   for_ maybeOutputDir ensureDirectory
 
   let ripTimeout = durationToTimeout $ optionsRipLength options
-      reconnectDelay = durationToTimeout . Duration . realToFrac $ optionsReconnectDelay options
-      smallReconnectDelay = durationToTimeout . Duration . realToFrac $ optionsSmallReconnectDelay options
+      reconnectDelay = optionsReconnectDelay options
+      smallReconnectDelay = optionsSmallReconnectDelay options
 
   userAgent <- asks appUserAgent
 
@@ -56,7 +56,7 @@ instance HasLogFunc env => MonadRipper (RIO env) where
   shouldRepeat = pure True
 
 -- | The endless ripping loop.
-ripper :: (MonadRipper m) => Request -> Maybe FilePath -> Int -> Int -> m ()
+ripper :: (MonadRipper m) => Request -> Maybe FilePath -> RetryDelay -> RetryDelay -> m ()
 ripper request maybeOutputDir reconnectDelay smallReconnectDelay = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
@@ -76,7 +76,8 @@ ripper request maybeOutputDir reconnectDelay smallReconnectDelay = evalStateT go
       modify' (<> Any isSuccessfulRip)
       wasEverSuccessfulRip <- get
 
-      lift . delayReconnect $ if getAny wasEverSuccessfulRip then smallReconnectDelay else reconnectDelay
+      lift . delayReconnect . durationToTimeout . toDuration $
+        if getAny wasEverSuccessfulRip then smallReconnectDelay else reconnectDelay
       whenM (lift shouldRepeat) go
 
 delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => Int -> m ()

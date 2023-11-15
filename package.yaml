@@ -29,6 +29,7 @@ default-extensions:
 - GeneralizedNewtypeDeriving
 - ImportQualifiedPost
 - NamedFieldPuns
+- NumericUnderscores
 - OverloadedStrings
 - ScopedTypeVariables
 - TypeApplications

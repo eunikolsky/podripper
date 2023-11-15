@@ -16,13 +16,13 @@ data Options = Options
   , optionsOutputDirectory :: !(Maybe FilePath)
   -- | Record the stream for this duration.
   , optionsRipLength :: !Duration
-  -- | Wait this many seconds before trying to reconnect when there were no
+  -- | Delay for this duration before trying to reconnect when there were no
   -- recordings yet, i.e. the stream hasn't started yet.
-  , optionsReconnectDelay :: !Float
-  -- | Wait this many seconds before trying to reconnect since there was a
+  , optionsReconnectDelay :: !RetryDelay
+  -- | Delay for this duration before trying to reconnect since there was a
   -- recording, i.e. either the stream is live and there was a disconnect, or
   -- the stream has ended.
-  , optionsSmallReconnectDelay :: !Float
+  , optionsSmallReconnectDelay :: !RetryDelay
   , optionsStreamURL :: !Text
   }
 

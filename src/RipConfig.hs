@@ -13,7 +13,7 @@ import RSSGen.Duration
 data RipConfig = RipConfig
   { streamURL :: !Text
   , duration :: !Duration
-  , retrySec :: !Int
+  , retry :: !RetryDelay
   , ripDirName :: !Text
   , podArtist :: !Text
   , podAlbum :: !Text

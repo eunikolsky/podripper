@@ -42,21 +42,26 @@ ripperParser = Options
       <> help "How long to rip (e.g. 2h)"
       <> metavar "rip_duration"
       )
-  <*> option auto ( short 'r'
-                <> help "Reconnect delay, in seconds"
-                <> metavar "reconnect_delay"
-                <> value 5
-                <> showDefault
-                  )
-  <*> option auto ( short 's'
-                <> help "Small reconnect delay, in seconds"
-                <> metavar "reconnect_delay"
-                <> value 1
-                <> showDefault
-                  )
+  <*> option retryDelay
+      ( short 'r'
+      <> help "Reconnect delay (e.g. 1m)"
+      <> metavar "reconnect_delay"
+      <> value (RetryDelay $ Duration 5)
+      <> showDefault
+      )
+  <*> option retryDelay
+      ( short 's'
+      <> help "Small reconnect delay (e.g. 5s)"
+      <> metavar "reconnect_delay"
+      <> value (RetryDelay $ Duration 1)
+      <> showDefault
+      )
   <*> strArgument ( metavar "URL"
                 <> help "Stream URL"
                   )
 
 duration :: ReadM Duration
 duration = eitherReader $ parseDuration . T.pack
+
+retryDelay :: ReadM RetryDelay
+retryDelay = RetryDelay <$> duration

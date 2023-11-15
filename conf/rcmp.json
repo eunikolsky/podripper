@@ -1,7 +1,7 @@
 {
   "streamURL": "https://stream.rcmp.me/stream",
   "duration": "8h",
-  "retrySec": 5,
+  "retry": "5s",
   "ripDirName": "rcmp",
   "podArtist": "Канадский Лось и компания",
   "podAlbum": "Пиратский Канадский Лось и компания"
