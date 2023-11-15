@@ -42,7 +42,6 @@ library
       RSSGen.RSSFeed
       RSSGen.RSSItem
       RSSGen.RunUntil
-      RSSGen.Types
       RSSGen.UpstreamRSSFeed
       Run
   other-modules:

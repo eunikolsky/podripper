@@ -8,7 +8,7 @@ import Data.Time.Clock
 
 import RSSGen.Database
 import RSSGen.DownloaderTypes
-import RSSGen.Types
+import RSSGen.Duration
 import RSSGen.UpstreamRSSFeed
 
 import Test.Hspec
@@ -26,7 +26,7 @@ spec = do
 
       actual <- withDB $ \conn -> do
         saveUpstreamRSSItems conn [item0, item1]
-        closestUpstreamItemToTime (Hours 24) podcastId conn time
+        closestUpstreamItemToTime (durationHours 24) podcastId conn time
       actual `shouldBe` Just item1
 
     it "returns Nothing when closest item is more than one day away" $ do
@@ -36,14 +36,14 @@ spec = do
 
       actual <- withDB $ \conn -> do
         saveUpstreamRSSItems conn [item0, item1]
-        closestUpstreamItemToTime (Hours 24) podcastId conn time
+        closestUpstreamItemToTime (durationHours 24) podcastId conn time
       actual `shouldBe` Nothing
 
     it "returns Nothing when there are no items" $ do
       let time = utcTime 2020 01 03 12 00 00
 
       actual <- withDB $ \conn ->
-        closestUpstreamItemToTime (Hours 24) podcastId conn time
+        closestUpstreamItemToTime (durationHours 24) podcastId conn time
       actual `shouldBe` Nothing
 
     it "returns newest item when there are multiple items within one day" $ do
@@ -53,7 +53,7 @@ spec = do
 
       actual <- withDB $ \conn -> do
         saveUpstreamRSSItems conn [newer, older]
-        closestUpstreamItemToTime (Hours 24) podcastId conn time
+        closestUpstreamItemToTime (durationHours 24) podcastId conn time
       actual `shouldBe` Just newer
 
     it "returns newest item when there are multiple items within specified interval" $ do
@@ -64,7 +64,7 @@ spec = do
 
       actual <- withDB $ \conn -> do
         saveUpstreamRSSItems conn [tooNew, newer, older]
-        closestUpstreamItemToTime (Hours 2) podcastId conn time
+        closestUpstreamItemToTime (durationHours 2) podcastId conn time
       actual `shouldBe` Just newer
 
     it "returns the closest item within specified interval in the past" $ do
@@ -74,7 +74,7 @@ spec = do
 
       actual <- withDB $ \conn -> do
         saveUpstreamRSSItems conn [item0, item1]
-        closestUpstreamItemToTime (Hours 12) podcastId conn time
+        closestUpstreamItemToTime (durationHours 12) podcastId conn time
       actual `shouldBe` Just item1
 
   describe "CacheItem" $ do

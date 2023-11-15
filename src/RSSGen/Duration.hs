@@ -4,6 +4,7 @@ module RSSGen.Duration
   , durationHours
   , durationMinutes
   , parseDuration
+  , toSeconds
   ) where
 
 import Data.Aeson
@@ -17,6 +18,10 @@ newtype Duration = Duration { toNominalDiffTime :: NominalDiffTime }
 
 instance FromJSON Duration where
   parseJSON = withText "Duration" $ either fail pure . parseDuration
+
+-- | Returns the number of seconds, rounded up, of this `Duration`.
+toSeconds :: Duration -> Int
+toSeconds = ceiling . toNominalDiffTime
 
 -- | Parses a time duration from a format that includes a number and a time
 -- unit, e.g. `42s`, `30m`, `12h`.

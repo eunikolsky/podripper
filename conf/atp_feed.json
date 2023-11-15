@@ -3,7 +3,7 @@
     "language": "en",
     "title": "Pirate ATP Live",
     "upstreamFeedConfig": {
-        "closestUpstreamItemIntervalHours": 27,
+        "closestUpstreamItemInterval": "27h",
         "maxItems": 5,
         "pollingDuration": "27h",
         "pollingDuration_comment": "the biggest duration between a live stream and the published feed has been 25:28 recently (#553)",

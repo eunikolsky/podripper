@@ -3,8 +3,8 @@
 
 module RSSGen.RSSFeedSpec where
 
+import RSSGen.Duration
 import RSSGen.RSSFeed
-import RSSGen.Types
 
 import Control.Monad
 import Data.Aeson
@@ -15,14 +15,13 @@ import System.FilePath
 import Test.Hspec
 import Text.RawString.QQ
 import qualified Data.ByteString as BS
-import RSSGen.Duration
 
 validConfigString :: IsString s => s
 validConfigString = [r|{
   "title": "foo", "description": "bar", "language": "en",
   "podcastLink": "podcast.link", "imageLink": "image.link",
   "selfLink": "self.link", "upstreamFeedConfig": {
-    "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8,
+    "upstreamRSSURL": "url", "closestUpstreamItemInterval": "8h",
     "pollingRetryDelay": "5m", "pollingDuration": "4h",
     "maxItems": 5
   }}|]
@@ -30,7 +29,7 @@ validConfigString = [r|{
 parsedUpstreamFeedConfig :: UpstreamFeedConfig
 parsedUpstreamFeedConfig = UpstreamFeedConfig
   { upstreamRSSURL = "url"
-  , closestUpstreamItemInterval = Hours 8
+  , closestUpstreamItemInterval = durationHours 8
   , maxItems = Just 5
   , pollingDuration = durationHours 4
   , pollingRetryDelay = RetryDelay $ durationMinutes 5
@@ -74,7 +73,7 @@ spec = do
         "title": "foo", "description": "bar", "language": "en",
         "podcastLink": "podcast.link", "imageLink": "image.link",
         "selfLink": "self.link", "upstreamFeedConfig": {
-          "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8,
+          "upstreamRSSURL": "url", "closestUpstreamItemInterval": "8h",
           "pollingRetryDelay": "5m", "pollingDuration": "1h"
         }}|]
             expected = RSSFeedConfig
@@ -86,7 +85,7 @@ spec = do
               , selfLink = "self.link"
               , upstreamFeedConfig = Just UpstreamFeedConfig
                 { upstreamRSSURL = "url"
-                , closestUpstreamItemInterval = Hours 8
+                , closestUpstreamItemInterval = durationHours 8
                 , maxItems = Nothing
                 , pollingDuration = durationHours 1
                 , pollingRetryDelay = RetryDelay $ durationMinutes 5
@@ -159,7 +158,7 @@ spec = do
         BS.writeFile filename [r|{
           "title": "foo", "description": "bar", "language": "en",
           "upstreamFeedConfig": {
-            "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8,
+            "upstreamRSSURL": "url", "closestUpstreamItemInterval": "8h",
             "pollingRetryDelay": "5m", "pollingDuration": "4h",
             "maxItems": 5
           }}|]

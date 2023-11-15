@@ -3,7 +3,7 @@
     "language": "ru",
     "title": "Радио-Т Поток",
     "upstreamFeedConfig": {
-        "closestUpstreamItemIntervalHours": 24,
+        "closestUpstreamItemInterval": "24h",
         "pollingDuration": "6h",
         "pollingRetryDelay": "30m",
         "upstreamRSSURL": "https://radio-t.com/podcast.rss"
