@@ -23,9 +23,9 @@ spec = do
         let numActions = 3
             testState = TestState (repeat RipNothing) numActions
 
-            delay = RetryDelay $ Duration 1.5
-            delayDiffTime = 1_500_000
-            smallDelay = RetryDelay $ Duration 1.4
+            delay = RetryDelay $ Duration 3
+            delayDiffTime = 3_000_000
+            smallDelay = RetryDelay $ Duration 1
             request = parseRequest_ "http://localhost/"
             expectedDelays = replicate numActions delayDiffTime
 
@@ -34,9 +34,9 @@ spec = do
         delays `shouldBe` expectedDelays
 
     context "after a successful recording" $ do
-      let smallDelay = RetryDelay $ Duration 1.4
-          smallDelayDiffTime = 1_400_000
-          delay = RetryDelay $ Duration 1.5
+      let smallDelay = RetryDelay $ Duration 1
+          smallDelayDiffTime = 1_000_000
+          delay = RetryDelay $ Duration 3
 
       it "uses a small reconnect delay" $ do
         let numActions = 3

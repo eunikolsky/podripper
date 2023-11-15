@@ -4,7 +4,7 @@ module RSSGen.Duration
   , durationHours
   , durationMinutes
   , parseDuration
-  , toSeconds
+  , toNominalDiffTime
   ) where
 
 import Data.Aeson
@@ -12,16 +12,19 @@ import Data.Attoparsec.Text
 import Data.Time.Clock
 import Data.Text (Text)
 
--- | A duration of time between two `UTCTime`s.
-newtype Duration = Duration { toNominalDiffTime :: NominalDiffTime }
-  deriving newtype (Show, Eq)
+-- | A second-precision duration of time between two `UTCTime`s.
+newtype Duration = Duration { toSeconds :: Int }
+  deriving newtype (Eq)
+
+instance Show Duration where
+  show = (<> "s") . show . toSeconds
 
 instance FromJSON Duration where
   parseJSON = withText "Duration" $ either fail pure . parseDuration
 
--- | Returns the number of seconds, rounded up, of this `Duration`.
-toSeconds :: Duration -> Int
-toSeconds = ceiling . toNominalDiffTime
+-- | Converts the `Duration` to `NominalDiffTime`.
+toNominalDiffTime :: Duration -> NominalDiffTime
+toNominalDiffTime = realToFrac . toSeconds
 
 -- | Parses a time duration from a format that includes a number and a time
 -- unit, e.g. `42s`, `30m`, `12h`.
@@ -35,14 +38,14 @@ durationParser = do
   endOfInput
 
   pure $ case unit of
-    's' -> Duration $ fromIntegral n
+    's' -> Duration n
     'm' -> durationMinutes n
     'h' -> durationHours n
     _ -> error $ "impossible unit: " <> show unit
 
 -- | Creates a `Duration` from the given number of minutes.
 durationMinutes :: Int -> Duration
-durationMinutes = Duration . realToFrac . (* 60)
+durationMinutes = Duration . (* 60)
 
 -- | Creates a `Duration` from the given number of hours.
 durationHours :: Int -> Duration
