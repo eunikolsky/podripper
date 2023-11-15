@@ -13,12 +13,12 @@ spec =
       parseDuration "3600s" `shouldParse` durationSeconds 3600
 
     it "parses duration in minutes" $ do
-      parseDuration "1m" `shouldParse` durationSeconds 60
-      parseDuration "120m" `shouldParse` durationSeconds (120 * 60)
+      parseDuration "1m" `shouldParse` durationMinutes 1
+      parseDuration "120m" `shouldParse` durationMinutes 120
 
     it "parses duration in hours" $ do
-      parseDuration "1h" `shouldParse` durationSeconds (60 * 60)
-      parseDuration "26h" `shouldParse` durationSeconds (26 * 60 * 60)
+      parseDuration "1h" `shouldParse` durationHours 1
+      parseDuration "26h" `shouldParse` durationHours 26
 
     it "fails to parse empty input" $
       parseDuration "" `shouldSatisfy` isLeft

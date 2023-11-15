@@ -39,19 +39,19 @@ ripperParser = Options
       )
   <*> option duration
       ( short 'l'
-      <> help "How long to rip (e.g. 2h)"
+      <> help (mconcat ["How long to rip (e.g. ", show (durationHours 2), ")"])
       <> metavar "rip_duration"
       )
   <*> option retryDelay
       ( short 'r'
-      <> help "Reconnect delay (e.g. 1m)"
+      <> help (mconcat ["Reconnect delay (e.g. ", show (RetryDelay $ durationMinutes 1), ")"])
       <> metavar "reconnect_delay"
       <> value (RetryDelay $ durationSeconds 5)
       <> showDefault
       )
   <*> option retryDelay
       ( short 's'
-      <> help "Small reconnect delay (e.g. 5s)"
+      <> help (mconcat ["Small reconnect delay (e.g. ", show (RetryDelay $ durationSeconds 5), ")"])
       <> metavar "reconnect_delay"
       <> value (RetryDelay $ durationSeconds 1)
       <> showDefault

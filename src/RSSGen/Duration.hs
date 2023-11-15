@@ -16,11 +16,13 @@ import Data.Time.Clock
 import Data.Text (Text)
 
 -- | A second-precision duration of time between two `UTCTime`s.
-newtype Duration = Duration { toSeconds :: Int }
-  deriving newtype (Eq)
+data Duration = Seconds Int | Minutes Int | Hours Int
+  deriving (Eq)
 
 instance Show Duration where
-  show = (<> "s") . show . toSeconds
+  show (Seconds s) = show s <> "s"
+  show (Minutes m) = show m <> "m"
+  show (Hours h) = show h <> "h"
 
 instance FromJSON Duration where
   parseJSON = withText "Duration" $ either fail pure . parseDuration
@@ -28,6 +30,11 @@ instance FromJSON Duration where
 -- | Converts the `Duration` to `NominalDiffTime`.
 toNominalDiffTime :: Duration -> NominalDiffTime
 toNominalDiffTime = realToFrac . toSeconds
+
+toSeconds :: Duration -> Int
+toSeconds (Seconds s) = s
+toSeconds (Minutes m) = m * 60
+toSeconds (Hours h) = h * 60 * 60
 
 -- | Converts the `Duration` to the number of microseconds for the `threadDelay`
 -- function.
@@ -51,22 +58,23 @@ durationParser = do
   endOfInput
 
   pure $ case unit of
-    's' -> Duration n
+    's' -> durationSeconds n
     'm' -> durationMinutes n
     'h' -> durationHours n
     _ -> error $ "impossible unit: " <> show unit
 
 -- | Creates a `Duration` from the given number of seconds.
 durationSeconds :: Int -> Duration
-durationSeconds = Duration
+-- TODO simplify to `Minutes`/`Hours` if divisible
+durationSeconds = Seconds
 
 -- | Creates a `Duration` from the given number of minutes.
 durationMinutes :: Int -> Duration
-durationMinutes = Duration . (* 60)
+durationMinutes = Minutes
 
 -- | Creates a `Duration` from the given number of hours.
 durationHours :: Int -> Duration
-durationHours = durationMinutes . (* 60)
+durationHours = Hours
 
 -- | Duration of time to sleep for between retries in `runUntil`.
 --
