@@ -226,7 +226,7 @@ runFor retryDelay duration io = do
         if readinessIsReady processReadiness then pure processReadiness
         else if haveEnoughTimeForNextIteration then do
           -- FIXME the same implementation as in `MonadTime`
-          threadDelay . ceiling . (* microsecondsInSecond) . realToFrac . toNominalDiffTime . toDuration $ retryDelay
+          threadDelay . toMicroseconds . toDuration $ retryDelay
           go endTime
         -- TODO is it possible to simplify the implementation? there are too
         -- many return points here
@@ -234,8 +234,6 @@ runFor retryDelay duration io = do
 
       -- didn't manage to get the ready status before out-of-time => not ready
       else pure mkNotReady
-
-    microsecondsInSecond = 1_000_000 :: Double
 
 -- | Catches synchronous exceptions (most importantly, IO exceptions) from the
 -- given IO action so that they don't crash the program (this should emulate the

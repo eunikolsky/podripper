@@ -16,12 +16,8 @@ class Monad m => MonadTime m where
 
 instance MonadTime IO where
   getTime = getCurrentTime
-  sleep = threadDelay . ceiling . (* microsecondsInSecond) . realToFrac . toNominalDiffTime
+  sleep = threadDelay . toMicroseconds
 
 instance MonadTime m => MonadTime (LoggingT m) where
   getTime = lift getTime
   sleep = lift . sleep
-
--- TODO remove duplicate in `Podripper`
-microsecondsInSecond :: Double
-microsecondsInSecond = 1_000_000

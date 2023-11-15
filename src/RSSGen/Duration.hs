@@ -4,6 +4,7 @@ module RSSGen.Duration
   , durationHours
   , durationMinutes
   , parseDuration
+  , toMicroseconds
   , toNominalDiffTime
   ) where
 
@@ -25,6 +26,16 @@ instance FromJSON Duration where
 -- | Converts the `Duration` to `NominalDiffTime`.
 toNominalDiffTime :: Duration -> NominalDiffTime
 toNominalDiffTime = realToFrac . toSeconds
+
+-- | Converts the `Duration` to the number of microseconds for the `threadDelay`
+-- function.
+--
+-- 64-bit `Int` should be enough to represent 28 hours.
+toMicroseconds :: Duration -> Int
+toMicroseconds = (* microsecondsInSecond) . toSeconds
+
+microsecondsInSecond :: Num a => a
+microsecondsInSecond = 1_000_000
 
 -- | Parses a time duration from a format that includes a number and a time
 -- unit, e.g. `42s`, `30m`, `12h`.

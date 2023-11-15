@@ -27,7 +27,7 @@ run = do
   let maybeOutputDir = optionsOutputDirectory options
   for_ maybeOutputDir ensureDirectory
 
-  let ripTimeout = durationToTimeout $ optionsRipLength options
+  let ripTimeout = toMicroseconds $ optionsRipLength options
       reconnectDelay = optionsReconnectDelay options
       smallReconnectDelay = optionsSmallReconnectDelay options
 
@@ -76,7 +76,7 @@ ripper request maybeOutputDir reconnectDelay smallReconnectDelay = evalStateT go
       modify' (<> Any isSuccessfulRip)
       wasEverSuccessfulRip <- get
 
-      lift . delayReconnect . durationToTimeout . toDuration $
+      lift . delayReconnect . toMicroseconds . toDuration $
         if getAny wasEverSuccessfulRip then smallReconnectDelay else reconnectDelay
       whenM (lift shouldRepeat) go
 
@@ -158,11 +158,6 @@ handleResourceVanished = handleJust
   -- after filtering, so I could use `handle` to avoid that, but that implementation
   -- would require manual rethrowing of all other types of exceptions
   (\e -> logError (displayShow e) >> pure RipNothing)
-
--- | Converts the `Duration` to the number of microseconds expected by `timeout`.
-durationToTimeout :: Duration -> Int
-durationToTimeout = round . (* microsecondsInSecond) . toNominalDiffTime
-  where microsecondsInSecond = 1_000_000
 
 ensureDirectory :: MonadIO m => FilePath -> m ()
 ensureDirectory = liftIO . createDirectoryIfMissing createParents
