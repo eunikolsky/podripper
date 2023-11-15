@@ -1,7 +1,7 @@
 {
   "streamURL": "https://stream.radio-t.com/",
   "duration": "5h",
-  "retry": "5s",
+  "retryDelay": "5s",
   "ripDirName": "radiot",
   "podArtist": "Umputun, Bobuk, Gray, Ksenks, Alek.sys",
   "podAlbum": "Радио-Т Поток"

@@ -83,7 +83,7 @@ waitForStream RipConfigExt{config} =
   -- FIXME support this via the config file
   in if ripName == "atp" then
     toProcessReady <$> runFor
-      (retry config)
+      (retryDelay config)
       (duration config)
       (fromProcessReady <$> waitForATP)
     else pure $ Just originalStreamURL
@@ -148,14 +148,14 @@ rip RipConfigExt{config, rawRipDir} (StreamURL url) =
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir
         , Ripper.optionsRipLength = duration config
-        , Ripper.optionsReconnectDelay = retry config
+        , Ripper.optionsReconnectDelay = retryDelay config
         , Ripper.optionsSmallReconnectDelay = RetryDelay $ Duration 1
         , Ripper.optionsStreamURL = url
         }
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
   -- throws an exception, so `catchExceptions` is required
-  in runFor (retry config) (duration config) $ do
+  in runFor (retryDelay config) (duration config) $ do
     putStrLn "starting the ripper"
     catchExceptions $ Ripper.run options
 

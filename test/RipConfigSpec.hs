@@ -17,7 +17,7 @@ spec = do
         let s = encodeUtf8 [r|{
           "streamURL": "http://example.org",
           "duration": "4m",
-          "retry": "8s",
+          "retryDelay": "8s",
           "ripDirName": "test",
           "podArtist": "Хакер",
           "podAlbum": "Hackers"
@@ -26,7 +26,7 @@ spec = do
         let expected = RipConfig
               { streamURL = "http://example.org"
               , duration = durationMinutes 4
-              , retry = RetryDelay $ Duration 8
+              , retryDelay = RetryDelay $ Duration 8
               , ripDirName = "test"
               , podArtist = "Хакер"
               , podAlbum = "Hackers"
@@ -39,7 +39,7 @@ spec = do
           "streamURL": "http://example.org",
           "duration": "4s",
           "_comment_duration": "just 4",
-          "retry": "2m",
+          "retryDelay": "2m",
           "ripDirName": "test",
           "podArtist": "Хакер",
           "podAlbum": "Hackers",
@@ -49,7 +49,7 @@ spec = do
         let expected = RipConfig
               { streamURL = "http://example.org"
               , duration = Duration 4
-              , retry = RetryDelay $ durationMinutes 2
+              , retryDelay = RetryDelay $ durationMinutes 2
               , ripDirName = "test"
               , podArtist = "Хакер"
               , podAlbum = "Hackers"

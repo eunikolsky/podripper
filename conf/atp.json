@@ -1,7 +1,7 @@
 {
   "streamURL": "https://atp.fm:8443/listen",
   "duration": "5h",
-  "retry": "15s",
+  "retryDelay": "15s",
   "ripDirName": "atp",
   "podArtist": "Marco Arment, Casey Liss, and John Siracusa",
   "podAlbum": "ATP Live"
