@@ -3,8 +3,8 @@
 
 module RSSGen.RSSFeedSpec where
 
+import RSSGen.Duration
 import RSSGen.RSSFeed
-import RSSGen.Types
 
 import Control.Monad
 import Data.Aeson
@@ -21,18 +21,18 @@ validConfigString = [r|{
   "title": "foo", "description": "bar", "language": "en",
   "podcastLink": "podcast.link", "imageLink": "image.link",
   "selfLink": "self.link", "upstreamFeedConfig": {
-    "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8,
-    "pollingRetryDelaySec": 360, "pollingDurationSec": 7200,
+    "upstreamRSSURL": "url", "closestUpstreamItemInterval": "8h",
+    "pollingRetryDelay": "5m", "pollingDuration": "4h",
     "maxItems": 5
   }}|]
 
 parsedUpstreamFeedConfig :: UpstreamFeedConfig
 parsedUpstreamFeedConfig = UpstreamFeedConfig
   { upstreamRSSURL = "url"
-  , closestUpstreamItemInterval = Hours 8
+  , closestUpstreamItemInterval = durationHours 8
   , maxItems = Just 5
-  , pollingDuration = 7200
-  , pollingRetryDelay = RetryDelay 360
+  , pollingDuration = durationHours 4
+  , pollingRetryDelay = RetryDelay $ durationMinutes 5
   }
 
 spec :: Spec
@@ -73,8 +73,8 @@ spec = do
         "title": "foo", "description": "bar", "language": "en",
         "podcastLink": "podcast.link", "imageLink": "image.link",
         "selfLink": "self.link", "upstreamFeedConfig": {
-          "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8,
-          "pollingRetryDelaySec": 360, "pollingDurationSec": 7200
+          "upstreamRSSURL": "url", "closestUpstreamItemInterval": "8h",
+          "pollingRetryDelay": "5m", "pollingDuration": "1h"
         }}|]
             expected = RSSFeedConfig
               { title = "foo"
@@ -85,10 +85,10 @@ spec = do
               , selfLink = "self.link"
               , upstreamFeedConfig = Just UpstreamFeedConfig
                 { upstreamRSSURL = "url"
-                , closestUpstreamItemInterval = Hours 8
+                , closestUpstreamItemInterval = durationHours 8
                 , maxItems = Nothing
-                , pollingDuration = 7200
-                , pollingRetryDelay = RetryDelay 360
+                , pollingDuration = durationHours 1
+                , pollingRetryDelay = RetryDelay $ durationMinutes 5
                 }
               }
         eitherDecode' text `shouldBe` Right expected
@@ -158,8 +158,8 @@ spec = do
         BS.writeFile filename [r|{
           "title": "foo", "description": "bar", "language": "en",
           "upstreamFeedConfig": {
-            "upstreamRSSURL": "url", "closestUpstreamItemIntervalHours": 8,
-            "pollingRetryDelaySec": 360, "pollingDurationSec": 7200,
+            "upstreamRSSURL": "url", "closestUpstreamItemInterval": "8h",
+            "pollingRetryDelay": "5m", "pollingDuration": "4h",
             "maxItems": 5
           }}|]
         BS.writeFile overlayFilename [r|{

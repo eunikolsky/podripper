@@ -1,6 +1,6 @@
 # Maintainer: Eugene Nikolsky <e@egeek.me>
 pkgname=podripper
-pkgver=1.2.2
+pkgver=1.3.0
 pkgrel=1
 pkgdesc="Rips online podcast streams and generates RSS for them"
 arch=('x86_64')

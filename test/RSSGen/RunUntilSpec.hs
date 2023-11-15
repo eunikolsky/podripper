@@ -9,9 +9,9 @@ import Data.Functor
 import Data.IORef
 import Data.Monoid
 import Data.Time
+import RSSGen.Duration
 import RSSGen.MonadTime
 import RSSGen.RunUntil
-import RSSGen.Types
 import Test.Hspec
 
 spec :: Spec
@@ -54,7 +54,7 @@ startTime = testDay 0 1 0
 endTime = testDay 0 8 0
 
 retryDelay :: RetryDelay
-retryDelay = RetryDelay 60
+retryDelay = RetryDelay $ durationSeconds 60
 
 testDay :: Int -> Int -> Int -> UTCTime
 testDay h m s = UTCTime (fromGregorian 2023 01 01) (secondsToDiffTime . fromIntegral $ s + (m * 60) + (h * 3600))
@@ -77,7 +77,7 @@ newtype MockTimeT m a = MockTimeT (StateT (UTCTime, CallCount) m a)
 instance Monad m => MonadTime (MockTimeT m) where
   getTime = gets fst
   sleep duration = modify' $ \(time, callCount) ->
-    (addUTCTime duration time, callCount <> (CallCount . Sum $ 1))
+    (addUTCTime (toNominalDiffTime duration) time, callCount <> (CallCount . Sum $ 1))
 
 runMockTime :: Monad m => UTCTime -> MockTimeT m a -> m (a, CallCount)
 runMockTime time (MockTimeT w) = second snd <$> runStateT w (time, CallCount 0)

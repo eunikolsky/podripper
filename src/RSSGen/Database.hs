@@ -24,7 +24,7 @@ import Data.Time.Clock
 import Data.Time.Format
 
 import RSSGen.DownloaderTypes
-import RSSGen.Types
+import RSSGen.Duration
 import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 
 -- | Type alias for the database's `Connection` to have a more descriptive type.
@@ -94,16 +94,20 @@ saveUpstreamRSSItems conn
 
   where oldestFirst = sortOn UpstreamRSSFeed.pubDate
 
--- | Returns an upstream RSS item closest to @time@ if it's within the specified amount of hours.
-closestUpstreamItemToTime :: Hours -> UpstreamRSSFeed.PodcastId -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
-closestUpstreamItemToTime (Hours maxHours) podcast conn time = do
+-- | Returns an upstream RSS item closest to @time@ if it's within the specified
+-- `duration`.
+closestUpstreamItemToTime :: Duration -> UpstreamRSSFeed.PodcastId -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+closestUpstreamItemToTime duration podcast conn time = do
   r <- queryNamed conn
     "SELECT podcast,title,description,guid,publishedAt FROM episode\
     \ WHERE podcast = :podcast AND\
-      \ (publishedAt BETWEEN strftime('%s', :date, '-' || :hours || ' hours') AND strftime('%s', :date, '+' || :hours || ' hours'))\
+      \ (publishedAt BETWEEN strftime('%s', :date, '-' || :seconds || ' seconds') AND strftime('%s', :date, '+' || :seconds || ' seconds'))\
     \ ORDER BY abs(publishedAt - strftime('%s', :date)) DESC, publishedAt DESC\
     \ LIMIT 1"
-    [":podcast" := podcast, ":date" := formatTime defaultTimeLocale "%F %T" time, ":hours" := maxHours]
+    [ ":podcast" := podcast
+    , ":date" := formatTime defaultTimeLocale "%F %T" time
+    , ":seconds" := toSeconds duration
+    ]
   pure $ listToMaybe r
 
 setCacheItem :: Connection -> URL -> CacheItem -> IO ()

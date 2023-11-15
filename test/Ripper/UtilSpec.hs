@@ -10,6 +10,7 @@ import RIO.List
 import RIO.Partial (fromJust)
 import RIO.State
 import RIO.Writer
+import RSSGen.Duration
 import Ripper.Run
 import System.IO.Error
 import Test.Hspec
@@ -22,24 +23,29 @@ spec = do
         let numActions = 3
             testState = TestState (repeat RipNothing) numActions
 
-            delay = 10000
+            delay = RetryDelay $ durationSeconds 3
+            delayDiffTime = 3_000_000
+            smallDelay = RetryDelay $ durationSeconds 1
             request = parseRequest_ "http://localhost/"
-            expectedDelays = replicate numActions delay
+            expectedDelays = replicate numActions delayDiffTime
 
-            delays = runTestM testState $ ripper request Nothing delay 999
+            delays = runTestM testState $ ripper request Nothing delay smallDelay
 
         delays `shouldBe` expectedDelays
 
     context "after a successful recording" $ do
+      let smallDelay = RetryDelay $ durationSeconds 1
+          smallDelayDiffTime = 1_000_000
+          delay = RetryDelay $ durationSeconds 3
+
       it "uses a small reconnect delay" $ do
         let numActions = 3
             testState = TestState (repeat RipRecorded) numActions
 
-            smallDelay = 999
             request = parseRequest_ "http://localhost/"
-            expectedDelays = replicate numActions smallDelay
+            expectedDelays = replicate numActions smallDelayDiffTime
 
-            delays = runTestM testState $ ripper request Nothing 10000 smallDelay
+            delays = runTestM testState $ ripper request Nothing delay smallDelay
 
         delays `shouldBe` expectedDelays
 
@@ -47,11 +53,10 @@ spec = do
         let numActions = 3
             testState = TestState (RipRecorded : repeat RipNothing) numActions
 
-            smallDelay = 999
             request = parseRequest_ "http://localhost/"
-            expectedDelays = replicate numActions smallDelay
+            expectedDelays = replicate numActions smallDelayDiffTime
 
-            delays = runTestM testState $ ripper request Nothing 10000 smallDelay
+            delays = runTestM testState $ ripper request Nothing delay smallDelay
 
         delays `shouldBe` expectedDelays
 
@@ -95,10 +100,12 @@ data TestState = TestState
   -- ^ the test should terminate when the number reaches zero
   }
 
-newtype TestM a = TestM (StateT TestState (Writer [Int]) a)
-  deriving newtype (Functor, Applicative, Monad, MonadState TestState, MonadWriter [Int])
+type CollectedDelays = [Int]
 
-runTestM :: TestState -> TestM a -> [Int]
+newtype TestM a = TestM (StateT TestState (Writer CollectedDelays) a)
+  deriving newtype (Functor, Applicative, Monad, MonadState TestState, MonadWriter CollectedDelays)
+
+runTestM :: TestState -> TestM a -> CollectedDelays
 runTestM testState (TestM r) = execWriter $ evalStateT r testState
 
 instance MonadRipper TestM where

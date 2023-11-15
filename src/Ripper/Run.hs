@@ -19,6 +19,7 @@ import RIO.Time
 import System.IO.Error (isResourceVanishedError)
 
 import Ripper.Import
+import RSSGen.Duration
 
 run :: RIO App ()
 run = do
@@ -26,9 +27,9 @@ run = do
   let maybeOutputDir = optionsOutputDirectory options
   for_ maybeOutputDir ensureDirectory
 
-  let ripTimeout = secondsToTimeout $ optionsRipLengthSeconds options
-      reconnectDelay = secondsToTimeout $ optionsReconnectDelay options
-      smallReconnectDelay = secondsToTimeout $ optionsSmallReconnectDelay options
+  let ripTimeout = toMicroseconds $ optionsRipLength options
+      reconnectDelay = optionsReconnectDelay options
+      smallReconnectDelay = optionsSmallReconnectDelay options
 
   userAgent <- asks appUserAgent
 
@@ -55,7 +56,7 @@ instance HasLogFunc env => MonadRipper (RIO env) where
   shouldRepeat = pure True
 
 -- | The endless ripping loop.
-ripper :: (MonadRipper m) => Request -> Maybe FilePath -> Int -> Int -> m ()
+ripper :: (MonadRipper m) => Request -> Maybe FilePath -> RetryDelay -> RetryDelay -> m ()
 ripper request maybeOutputDir reconnectDelay smallReconnectDelay = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
@@ -75,7 +76,8 @@ ripper request maybeOutputDir reconnectDelay smallReconnectDelay = evalStateT go
       modify' (<> Any isSuccessfulRip)
       wasEverSuccessfulRip <- get
 
-      lift . delayReconnect $ if getAny wasEverSuccessfulRip then smallReconnectDelay else reconnectDelay
+      lift . delayReconnect . toMicroseconds . toDuration $
+        if getAny wasEverSuccessfulRip then smallReconnectDelay else reconnectDelay
       whenM (lift shouldRepeat) go
 
 delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => Int -> m ()
@@ -156,11 +158,6 @@ handleResourceVanished = handleJust
   -- after filtering, so I could use `handle` to avoid that, but that implementation
   -- would require manual rethrowing of all other types of exceptions
   (\e -> logError (displayShow e) >> pure RipNothing)
-
--- | Converts the number of seconds to the number of microseconds expected by `timeout`.
-secondsToTimeout :: Float -> Int
-secondsToTimeout = round . (* seconds)
-  where seconds = 1_000_000
 
 ensureDirectory :: MonadIO m => FilePath -> m ()
 ensureDirectory = liftIO . createDirectoryIfMissing createParents

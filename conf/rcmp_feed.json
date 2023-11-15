@@ -3,11 +3,9 @@
     "language": "ru",
     "title": "Пиратский Канадский Лось и компания",
     "upstreamFeedConfig": {
-        "closestUpstreamItemIntervalHours": 10,
-        "pollingDurationSec": 21600,
-        "pollingDurationSec_comment": "6 hours",
-        "pollingRetryDelaySec": 1800,
-        "pollingRetryDelaySec_comment": "30 minutes",
+        "closestUpstreamItemInterval": "10h",
+        "pollingDuration": "6h",
+        "pollingRetryDelay": "30m",
         "upstreamRSSURL": "https://rcmp.me/feed/"
     }
 }

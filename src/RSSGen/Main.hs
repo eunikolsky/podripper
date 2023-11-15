@@ -28,12 +28,12 @@ import qualified System.Environment as Env
 import qualified Paths_ripper as Paths (version)
 import RSSGen.Database
 import RSSGen.Downloader
+import RSSGen.Duration
 import RSSGen.MonadTime
 import RSSGen.PollHTTP
 import RSSGen.RSSFeed
 import RSSGen.RSSItem
 import RSSGen.RunUntil
-import RSSGen.Types
 import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 
 newtype RSSGenVersion = RSSGenVersion ()
@@ -143,7 +143,7 @@ pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime = void . runM
   where
     poll ripTime upstreamConfig@UpstreamFeedConfig{pollingRetryDelay, pollingDuration} = do
       now <- getCurrentTime
-      let pollingEndTime = addUTCTime pollingDuration now
+      let pollingEndTime = addUTCTime (toNominalDiffTime pollingDuration) now
 
       liftIO . runStderrLoggingT $
         pollUpstreamRSS podcastId upstreamConfig pollingRetryDelay pollingEndTime conn ripTime

@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           ripper
-version:        1.2.2
+version:        1.3.0
 description:    Please see the README on Github at <https://github.com/githubuser/ripper#readme>
 homepage:       https://github.com/githubuser/ripper#readme
 bug-reports:    https://github.com/githubuser/ripper/issues
@@ -35,13 +35,13 @@ library
       RSSGen.Database
       RSSGen.Downloader
       RSSGen.DownloaderTypes
+      RSSGen.Duration
       RSSGen.Main
       RSSGen.MonadTime
       RSSGen.PollHTTP
       RSSGen.RSSFeed
       RSSGen.RSSItem
       RSSGen.RunUntil
-      RSSGen.Types
       RSSGen.UpstreamRSSFeed
       Run
   other-modules:
@@ -54,6 +54,7 @@ library
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       NamedFieldPuns
+      NumericUnderscores
       OverloadedStrings
       ScopedTypeVariables
       TypeApplications
@@ -61,6 +62,7 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -Werror=incomplete-patterns
   build-depends:
       aeson
+    , attoparsec
     , base >=4.11 && <10
     , bytestring
     , conduit
@@ -96,6 +98,7 @@ executable ripper-exe
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       NamedFieldPuns
+      NumericUnderscores
       OverloadedStrings
       ScopedTypeVariables
       TypeApplications
@@ -122,6 +125,7 @@ test-suite ripper-test
       Ripper.UtilSpec
       RSSGen.DatabaseSpec
       RSSGen.DownloaderSpec
+      RSSGen.DurationSpec
       RSSGen.RSSFeedSpec
       RSSGen.RSSItemSpec
       RSSGen.RunUntilSpec
@@ -135,6 +139,7 @@ test-suite ripper-test
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       NamedFieldPuns
+      NumericUnderscores
       OverloadedStrings
       ScopedTypeVariables
       TypeApplications
@@ -146,6 +151,7 @@ test-suite ripper-test
     , directory
     , filepath
     , hspec
+    , hspec-attoparsec
     , http-client
     , http-conduit
     , http-types

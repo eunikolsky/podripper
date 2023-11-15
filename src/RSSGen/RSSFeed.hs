@@ -21,31 +21,23 @@ import System.Directory
 import System.FilePath
 import Text.XML.Light
 
+import RSSGen.Duration
 import RSSGen.RSSItem
-import RSSGen.Types
 
 -- | Defines the config for the upstream RSS feed. This section may be missing
 -- from the json config if there is no upstream feed.
 data UpstreamFeedConfig = UpstreamFeedConfig
   { upstreamRSSURL :: T.Text
-  , closestUpstreamItemInterval :: Hours
+  , closestUpstreamItemInterval :: Duration
   -- | The max number of the most recent RSS entries to import, if set;
   -- otherwise, use all entries.
   , maxItems :: Maybe Int
   , pollingDuration :: Duration
   , pollingRetryDelay :: RetryDelay
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
-instance FromJSON UpstreamFeedConfig where
-  parseJSON = withObject "UpstreamFeedConfig" $ \v -> UpstreamFeedConfig
-    <$> v .: "upstreamRSSURL"
-    -- note: the JSON key is slightly more specific because there is no type information there
-    -- TODO is it possible to override the key in `FromJSON Hours` itself?
-    <*> v .: "closestUpstreamItemIntervalHours"
-    <*> v .:? "maxItems"
-    <*> v .: "pollingDurationSec"
-    <*> v .: "pollingRetryDelaySec"
+instance FromJSON UpstreamFeedConfig
 
 -- | Values for the RSS feed tags.
 data RSSFeedConfig = RSSFeedConfig

@@ -24,6 +24,7 @@ import Data.Time
 import Data.Time.Calendar.OrdinalDate
 import Network.HTTP.Simple
 import RIO (whenM, IsString, threadDelay)
+import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
 import qualified Ripper.Main as Ripper (run)
@@ -82,8 +83,8 @@ waitForStream RipConfigExt{config} =
   -- FIXME support this via the config file
   in if ripName == "atp" then
     toProcessReady <$> runFor
-      (retrySec config)
-      (fromIntegral $ durationSec config)
+      (retryDelay config)
+      (duration config)
       (fromProcessReady <$> waitForATP)
     else pure $ Just originalStreamURL
 
@@ -146,15 +147,15 @@ rip RipConfigExt{config, rawRipDir} (StreamURL url) =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir
-        , Ripper.optionsRipLengthSeconds = fromIntegral $ durationSec config
-        , Ripper.optionsReconnectDelay = fromIntegral $ retrySec config
-        , Ripper.optionsSmallReconnectDelay = 1
+        , Ripper.optionsRipLength = duration config
+        , Ripper.optionsReconnectDelay = retryDelay config
+        , Ripper.optionsSmallReconnectDelay = RetryDelay $ durationSeconds 1
         , Ripper.optionsStreamURL = url
         }
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
   -- throws an exception, so `catchExceptions` is required
-  in runFor (retrySec config) (fromIntegral $ durationSec config) $ do
+  in runFor (retryDelay config) (duration config) $ do
     putStrLn "starting the ripper"
     catchExceptions $ Ripper.run options
 
@@ -192,13 +193,13 @@ instance ProcessReadinessType () where
   showReadiness = const Nothing
 
 -- | Runs the given IO action repeatedly for the provided `duration` until it
--- returns the `Ready` state, with the `retryDelaySec` between each invocation.
+-- returns the `Ready` state, with the `retryDelay` between each invocation.
 -- If it isn't `Ready` until the `duration` expires, the final state is what
 -- the action returns (that is, `NotReady`).
-runFor :: ProcessReadinessType r => Int -> NominalDiffTime -> IO r -> IO r
-runFor retryDelaySec duration io = do
+runFor :: ProcessReadinessType r => RetryDelay -> Duration -> IO r -> IO r
+runFor retryDelay duration io = do
   now <- getCurrentTime
-  let endTime = addUTCTime duration now
+  let endTime = addUTCTime (toNominalDiffTime duration) now
   putStrLn $ mconcat ["now ", show now, " + ", show duration, " = end time ", show endTime]
   go endTime
 
@@ -212,7 +213,7 @@ runFor retryDelaySec duration io = do
         processReadiness <- io
 
         afterIO <- getCurrentTime
-        let nextNow = addUTCTime (fromIntegral retryDelaySec) afterIO
+        let nextNow = addUTCTime (toNominalDiffTime $ toDuration retryDelay) afterIO
         let haveEnoughTimeForNextIteration = nextNow < endTime
         putStrLn . mconcat $
           [ "now ", show afterIO
@@ -224,7 +225,8 @@ runFor retryDelaySec duration io = do
         -- wait until ready?
         if readinessIsReady processReadiness then pure processReadiness
         else if haveEnoughTimeForNextIteration then do
-          threadDelay $ retryDelaySec * microsecondsInSecond
+          -- FIXME the same implementation as in `MonadTime`
+          threadDelay . toMicroseconds . toDuration $ retryDelay
           go endTime
         -- TODO is it possible to simplify the implementation? there are too
         -- many return points here
@@ -232,8 +234,6 @@ runFor retryDelaySec duration io = do
 
       -- didn't manage to get the ready status before out-of-time => not ready
       else pure mkNotReady
-
-    microsecondsInSecond = 1_000_000
 
 -- | Catches synchronous exceptions (most importantly, IO exceptions) from the
 -- given IO action so that they don't crash the program (this should emulate the
