@@ -7,6 +7,7 @@ module RSSGen.Main
   , run
   ) where
 
+import Control.Monad.IO.Unlift
 import Control.Monad.Logger.CallStack
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
@@ -145,7 +146,7 @@ pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime = void . runM
       now <- getCurrentTime
       let pollingEndTime = addUTCTime (toNominalDiffTime pollingDuration) now
 
-      liftIO . runStderrLoggingT $
+      runStderrLoggingT $
         pollUpstreamRSS podcastId upstreamConfig pollingRetryDelay pollingEndTime conn ripTime
 
 -- | Waits until we have an upstream RSS item for the given (newest) rip. First,
@@ -153,7 +154,7 @@ pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime = void . runM
 -- hours after the live stream), but it doesn't mean that it now contains the
 -- latest episode; so then it still needs to verify there is an upstream item
 -- for the given rip, and wait for changes again if that fails.
-pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadIO m)
+pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadUnliftIO m)
   -- TODO too many parameters?
   => UpstreamRSSFeed.PodcastId -> UpstreamFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> RipTime -> m ()
 pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime =

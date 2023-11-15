@@ -1,5 +1,5 @@
 name:                ripper
-version:             1.3.0
+version:             1.3.1
 github:              githubuser/ripper
 license:             MIT
 author:              Author name here
@@ -73,6 +73,8 @@ library:
     - text
     - time
     - transformers
+    - unliftio
+    - unliftio-core
     - xml
 
 executables:
