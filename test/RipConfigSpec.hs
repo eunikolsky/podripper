@@ -26,7 +26,7 @@ spec = do
         let expected = RipConfig
               { streamURL = "http://example.org"
               , duration = durationMinutes 4
-              , retryDelay = RetryDelay $ Duration 8
+              , retryDelay = RetryDelay $ durationSeconds 8
               , ripDirName = "test"
               , podArtist = "Хакер"
               , podAlbum = "Hackers"
@@ -48,7 +48,7 @@ spec = do
 
         let expected = RipConfig
               { streamURL = "http://example.org"
-              , duration = Duration 4
+              , duration = durationSeconds 4
               , retryDelay = RetryDelay $ durationMinutes 2
               , ripDirName = "test"
               , podArtist = "Хакер"

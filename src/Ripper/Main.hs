@@ -46,14 +46,14 @@ ripperParser = Options
       ( short 'r'
       <> help "Reconnect delay (e.g. 1m)"
       <> metavar "reconnect_delay"
-      <> value (RetryDelay $ Duration 5)
+      <> value (RetryDelay $ durationSeconds 5)
       <> showDefault
       )
   <*> option retryDelay
       ( short 's'
       <> help "Small reconnect delay (e.g. 5s)"
       <> metavar "reconnect_delay"
-      <> value (RetryDelay $ Duration 1)
+      <> value (RetryDelay $ durationSeconds 1)
       <> showDefault
       )
   <*> strArgument ( metavar "URL"

@@ -1,11 +1,13 @@
 module RSSGen.Duration
-  ( Duration(..)
+  ( Duration
   , RetryDelay(..)
   , durationHours
   , durationMinutes
+  , durationSeconds
   , parseDuration
   , toMicroseconds
   , toNominalDiffTime
+  , toSeconds
   ) where
 
 import Data.Aeson
@@ -53,6 +55,10 @@ durationParser = do
     'm' -> durationMinutes n
     'h' -> durationHours n
     _ -> error $ "impossible unit: " <> show unit
+
+-- | Creates a `Duration` from the given number of seconds.
+durationSeconds :: Int -> Duration
+durationSeconds = Duration
 
 -- | Creates a `Duration` from the given number of minutes.
 durationMinutes :: Int -> Duration

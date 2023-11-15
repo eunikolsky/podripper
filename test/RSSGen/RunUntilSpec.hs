@@ -54,7 +54,7 @@ startTime = testDay 0 1 0
 endTime = testDay 0 8 0
 
 retryDelay :: RetryDelay
-retryDelay = RetryDelay $ Duration 60
+retryDelay = RetryDelay $ durationSeconds 60
 
 testDay :: Int -> Int -> Int -> UTCTime
 testDay h m s = UTCTime (fromGregorian 2023 01 01) (secondsToDiffTime . fromIntegral $ s + (m * 60) + (h * 3600))
