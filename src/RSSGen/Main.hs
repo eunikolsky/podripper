@@ -70,11 +70,9 @@ run filenames = do
   shake shakeOpts $ do
     want $ NE.toList filenames
 
-    getRSSGenVersion <- addOracle $ \RSSGenVersion{} -> return Paths.version
+    void . addOracle $ \RSSGenVersion{} -> return Paths.version
 
     versioned 24 $ "*.rss" %> \out -> do
-      void . getRSSGenVersion $ RSSGenVersion ()
-
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
       let podcastTitle = dropExtension out
       (feedConfig, feedConfigFiles) <- liftIO $ parseFeedConfig configDir podcastTitle
