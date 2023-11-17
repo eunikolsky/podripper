@@ -79,7 +79,7 @@ run filenames = do
       need feedConfigFiles
       case feedConfig of
         Just config ->
-          withDatabase DefaultFile $ \conn -> do
+          actionWithDatabase DefaultFile $ \conn -> do
             let podcastId = T.pack podcastTitle
             ripFiles <- getRipFilesNewestFirst podcastId
             -- generate the feed with what we have immediately without possibly
@@ -87,7 +87,7 @@ run filenames = do
             generateFeed config conn out podcastId ripFiles
 
             let maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
-            pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime
+            pollUpstreamRSSIfPossible podcastId config maybeNewestRipTime
             -- generate the feed again after possibly getting some upstream feed
             -- updates
             generateFeed config conn out podcastId ripFiles
@@ -100,13 +100,12 @@ run filenames = do
 -- | Allows to define an `Action` that has an exception-safe access to the
 -- database.
 --
--- Note: I had originally defined this function in the `Database` module, but it
--- couldn't be used here because sqlite library's `withConnection` uses `IO`,
--- whereas the functions here have to be in `Action` :( (`MonadUnliftIO` may
--- possibly help, but I doubt that). `actionBracket` is a special case defined
--- in `shake`.
-withDatabase :: FileSpec -> (DBConnection -> Action a) -> Action a
-withDatabase f = actionBracket (openDatabase f) closeDatabase
+-- Note: `Database.withDatabase` can't be used here because sqlite library's
+-- connection functions use `IO`, whereas the function here has to be in
+-- `Action` :( (`MonadUnliftIO` may possibly help, but I doubt that).
+-- `actionBracket` is a special case defined in `shake`.
+actionWithDatabase :: FileSpec -> (DBConnection -> Action a) -> Action a
+actionWithDatabase f = actionBracket (openDatabase f) closeDatabase
 
 -- | Returns a list of `RipFile`s for the given podcast, sorted from newest to
 -- oldest.
@@ -145,16 +144,16 @@ eitherToMaybe (Right x) = Just x
 -- | Runs `pollUpstreamRSS` if the (newest) `RipTime` is available, that is if
 -- there are any files for the given podcast and the upstream feed is set.
 pollUpstreamRSSIfPossible :: MonadIO m
-  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> Maybe RipTime -> m ()
-pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime = void . runMaybeT $
+  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Maybe RipTime -> m ()
+pollUpstreamRSSIfPossible podcastId config maybeNewestRipTime = void . runMaybeT $
   poll <$> MaybeT (pure maybeNewestRipTime) <*> MaybeT (pure $ upstreamFeedConfig config)
 
   where
     poll ripTime upstreamConfig@UpstreamFeedConfig{pollingRetryDelay, pollingDuration} = do
-      now <- getCurrentTime
+      now <- liftIO getCurrentTime
       let pollingEndTime = addUTCTime (toNominalDiffTime pollingDuration) now
 
-      runStderrLoggingT $
+      withDatabase DefaultFile $ \conn -> runStderrLoggingT $
         pollUpstreamRSS podcastId upstreamConfig pollingRetryDelay pollingEndTime conn ripTime
 
 -- | Waits until we have an upstream RSS item for the given (newest) rip. First,
