@@ -86,7 +86,7 @@ run filenames = do
             -- waiting for the upstream feed updates
             generateFeed config conn out podcastId ripFiles
 
-            let maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
+            let maybeNewestRipTime = utcRipTime . ripTime <$> listToMaybe ripFiles
             void $ pollUpstreamRSSIfPossible podcastId config maybeNewestRipTime
             -- generate the feed again after possibly getting some upstream feed
             -- updates
@@ -141,10 +141,10 @@ eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right x) = Just x
 
--- | Runs `pollUpstreamRSS` if the (newest) `RipTime` is available, that is if
+-- | Runs `pollUpstreamRSS` if the (newest) `UTCRipTime` is available, that is if
 -- there are any files for the given podcast and the upstream feed is set.
 pollUpstreamRSSIfPossible :: MonadIO m
-  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Maybe RipTime -> m (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Maybe UTCRipTime -> m (Maybe UpstreamRSSFeed.UpstreamRSSItem)
 pollUpstreamRSSIfPossible podcastId RSSFeedConfig{upstreamFeedConfig} maybeNewestRipTime =
   case (maybeNewestRipTime, upstreamFeedConfig) of
     (Just ripTime, Just config) -> liftIO $ poll ripTime config
@@ -165,12 +165,12 @@ pollUpstreamRSSIfPossible podcastId RSSFeedConfig{upstreamFeedConfig} maybeNewes
 -- for the given rip, and wait for changes again if that fails.
 pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadUnliftIO m)
   -- TODO too many parameters?
-  => UpstreamRSSFeed.PodcastId -> UpstreamFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> RipTime -> m (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+  => UpstreamRSSFeed.PodcastId -> UpstreamFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> UTCRipTime -> m (Maybe UpstreamRSSFeed.UpstreamRSSItem)
 pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime =
   fromStepResult <$> runUntil "pollRSS" retryDelay endTime iter
 
   where
-    checkUpstreamItemForRipTime = liftIO $ findUpstreamItem podcastTitle upstreamFeedConfig conn (utcTime ripTime)
+    checkUpstreamItemForRipTime = liftIO $ findUpstreamItem podcastTitle upstreamFeedConfig conn (toUTCTime ripTime)
 
     -- | Polls for upstream RSS changes, parses the RSS if any and saves the
     -- items in the database.
