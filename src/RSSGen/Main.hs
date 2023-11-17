@@ -56,12 +56,18 @@ rssGenParser = fmap (fromMaybe handleNothing . NE.nonEmpty) . some $ strArgument
 run :: NonEmpty FilePath -> IO ()
 run filenames = do
   shakeDir <- fromMaybe "/var/lib/podripper/shake" <$> Env.lookupEnv "SHAKE_DIR"
+  let shakeOpts = shakeOptions
+        { shakeFiles = shakeDir
+        , shakeColor = True
+        , shakeVerbosity = Diagnostic
+        , shakeLint = Just LintBasic
+        }
 
   -- `shake` doesn't parse any CLI options itself, unlike `shakeArgs`
   -- see also: https://stackoverflow.com/questions/51355993/how-to-extend-shake-with-additional-command-line-arguments/51355994#51355994
   -- TODO this function doesn't print the final status message "Build completed in Xs"
   -- even though `shakeArgs` did that by default
-  shake shakeOptions { shakeFiles = shakeDir, shakeColor = True } $ do
+  shake shakeOpts $ do
     want $ NE.toList filenames
 
     getRSSGenVersion <- addOracle $ \RSSGenVersion{} -> return Paths.version
