@@ -1,6 +1,8 @@
 module RSSGen.RunUntil
   ( StepResult(..)
+  , fromStepResult
   , runUntil
+  , toStepResult
   ) where
 
 import Control.Monad.Logger.CallStack
@@ -13,6 +15,18 @@ import RSSGen.MonadTime
 -- | The result of a step: either no usable result, or a result of type `a`.
 data StepResult a = NoResult | Result !a
   deriving (Show, Eq)
+
+-- TODO is it possible to use `Maybe` directly as a `StepResult` (make the
+-- latter a typeclass?)  so that we don't need to wrap and unwrap a `Maybe` in
+-- a few use cases
+
+toStepResult :: Maybe a -> StepResult a
+toStepResult (Just x) = Result x
+toStepResult Nothing = NoResult
+
+fromStepResult :: StepResult a -> Maybe a
+fromStepResult (Result x) = Just x
+fromStepResult NoResult = Nothing
 
 hasResult :: StepResult a -> Bool
 hasResult NoResult = False
