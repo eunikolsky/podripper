@@ -78,31 +78,35 @@ run filenames = do
       (feedConfig, feedConfigFiles) <- liftIO $ parseFeedConfig configDir podcastTitle
       need feedConfigFiles
       case feedConfig of
-        Just config -> do
-          -- note: `openDatabase` and `closeDatabase` are not exception-safe
-          -- here, but it's fine since the program will exit soon anyway;
-          -- I have tried refactoring this to `withDatabase`, and ultimately
-          -- failed because sqlite library's `withConnection` uses `IO`, whereas
-          -- the functions here have to be in `Action` :( (`MonadUnliftIO` may
-          -- possibly help, but I doubt that)
-          conn <- liftIO $ openDatabase DefaultFile
+        Just config ->
+          withDatabase DefaultFile $ \conn -> do
+            let podcastId = T.pack podcastTitle
+            ripFiles <- getRipFilesNewestFirst podcastId
+            -- generate the feed with what we have immediately without possibly
+            -- waiting for the upstream feed updates
+            generateFeed config conn out podcastId ripFiles
 
-          let podcastId = T.pack podcastTitle
-          ripFiles <- getRipFilesNewestFirst podcastId
-          -- generate the feed with what we have immediately without possibly
-          -- waiting for the upstream feed updates
-          generateFeed config conn out podcastId ripFiles
+            let maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
+            pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime
+            -- generate the feed again after possibly getting some upstream feed
+            -- updates
+            generateFeed config conn out podcastId ripFiles
 
-          let maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
-          pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime
-          -- generate the feed again after possibly getting some upstream feed
-          -- updates
-          generateFeed config conn out podcastId ripFiles
-
-          liftIO $ closeDatabase conn
         Nothing -> fail
           $ "Couldn't parse feed config files "
           <> intercalate ", " feedConfigFiles
+
+
+-- | Allows to define an `Action` that has an exception-safe access to the
+-- database.
+--
+-- Note: I had originally defined this function in the `Database` module, but it
+-- couldn't be used here because sqlite library's `withConnection` uses `IO`,
+-- whereas the functions here have to be in `Action` :( (`MonadUnliftIO` may
+-- possibly help, but I doubt that). `actionBracket` is a special case defined
+-- in `shake`.
+withDatabase :: FileSpec -> (DBConnection -> Action a) -> Action a
+withDatabase f = actionBracket (openDatabase f) closeDatabase
 
 -- | Returns a list of `RipFile`s for the given podcast, sorted from newest to
 -- oldest.
