@@ -24,6 +24,8 @@ dependencies:
 - rio >= 0.1.12.0
 
 default-extensions:
+- DeriveAnyClass
+- DeriveGeneric
 - DerivingStrategies
 - FlexibleContexts
 - GeneralizedNewtypeDeriving
@@ -72,6 +74,7 @@ library:
     - sqlite-simple
     - text
     - time
+    - time-compat
     - transformers
     - unliftio
     - unliftio-core
@@ -103,7 +106,9 @@ tests:
     source-dirs:         test
     dependencies:
     - ripper
+    - QuickCheck
     - aeson
+    - binary
     - bytestring
     - directory
     - filepath

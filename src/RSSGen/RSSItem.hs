@@ -23,6 +23,7 @@ import Data.List (isSuffixOf, stripPrefix)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import Data.Time
+import Development.Shake.Classes
 import System.Directory
 import System.FilePath.Posix
 import Text.XML.Light
@@ -38,7 +39,7 @@ data RipType
   deriving (Eq, Show)
 
 newtype UTCRipTime = UTCRipTime { toUTCTime :: UTCTime }
-  deriving newtype (Show, Eq, Ord)
+  deriving newtype (Show, Eq, Ord, Hashable, Binary, NFData)
 
 -- | Time of a rip file, extracted from its filename.
 data RipTime = RipTime

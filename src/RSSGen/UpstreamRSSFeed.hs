@@ -9,8 +9,12 @@ module RSSGen.UpstreamRSSFeed
 import Data.List (find)
 import qualified Data.Text as T
 import Data.Time.Clock
+import Data.Time.Clock.Compat ()
 import Data.Time.Format
 import Database.SQLite.Simple (FromRow(fromRow), ToRow(toRow), field)
+import Development.Shake.Classes
+import GHC.Generics
+import RSSGen.BinaryUTCTime ()
 import Text.XML.Light
 
 -- |The podcast name to which the RSS item belongs.
@@ -24,7 +28,7 @@ data UpstreamRSSItem = UpstreamRSSItem
   , guid :: T.Text
   , podcast :: PodcastId
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic, Hashable, Binary, NFData)
 
 instance FromRow UpstreamRSSItem where
   fromRow = do

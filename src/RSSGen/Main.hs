@@ -23,6 +23,7 @@ import Data.Version (Version, showVersion)
 import Development.Shake
 import Development.Shake.Classes
 import Development.Shake.FilePath
+import GHC.Generics
 import Options.Applicative
 import qualified System.Environment as Env
 
@@ -37,8 +38,27 @@ import RSSGen.RSSItem
 import RSSGen.RunUntil
 import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 
+-- | This oracle is needed to politely ask `shake` to poll for upstream RSS
+-- changes, which is basically a wrapper around `pollUpstreamRSSIfPossible`
+-- (using it directly does not work!). The question's types here are the
+-- parameters types of the function (`DBConnection` can't be persisted
+-- (`Binary`), so it can't be a parameter) and the answer's type is the
+-- function's return type. The main effect of the oracle is to update the
+-- database with the latest upstream RSS items.
+--
+-- A nice side effect of using the oracle is that even though we're asking for
+-- the upstream item every time the RSS is generated, it won't be updated if
+-- the item doesn't change (there are two layers of caching here though: one is
+-- the database for all items and the other is `shake` for this particular
+-- item).
+newtype UpstreamItem = UpstreamItem (UpstreamRSSFeed.PodcastId, RSSFeedConfig, Maybe UTCRipTime)
+  deriving newtype (Show, Typeable, Eq, Hashable, Binary, NFData)
+  deriving (Generic)
+type instance RuleResult UpstreamItem = Maybe UpstreamRSSFeed.UpstreamRSSItem
+
 newtype RSSGenVersion = RSSGenVersion ()
-  deriving (Show, Typeable, Eq, Hashable, Binary, NFData)
+  deriving newtype (Show, Typeable, Eq, Hashable, Binary, NFData)
+  deriving (Generic)
 type instance RuleResult RSSGenVersion = Version
 
 -- | CLI options parser to get the RSS filenames (if any) that should be built.
@@ -72,6 +92,9 @@ run filenames = do
 
     void . addOracle $ \RSSGenVersion{} -> return Paths.version
 
+    pollRSSItem <- addOracle $ \(UpstreamItem (podcastId, feedConfig, maybeRipTime)) ->
+      pollUpstreamRSSIfPossible podcastId feedConfig maybeRipTime
+
     versioned 24 $ "*.rss" %> \out -> do
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
       let podcastTitle = dropExtension out
@@ -87,7 +110,11 @@ run filenames = do
             generateFeed config conn out podcastId ripFiles
 
             let maybeNewestRipTime = utcRipTime . ripTime <$> listToMaybe ripFiles
-            void $ pollUpstreamRSSIfPossible podcastId config maybeNewestRipTime
+            -- it may seem strange to ignore the result of the oracle, but the
+            -- main effect is to update the database because we'll need all
+            -- items for all found rips; the result value is used by `shake` to
+            -- determine whether to generate the feed
+            void . pollRSSItem $ UpstreamItem (podcastId, config, maybeNewestRipTime)
             -- generate the feed again after possibly getting some upstream feed
             -- updates
             generateFeed config conn out podcastId ripFiles
@@ -95,7 +122,6 @@ run filenames = do
         Nothing -> fail
           $ "Couldn't parse feed config files "
           <> intercalate ", " feedConfigFiles
-
 
 -- | Allows to define an `Action` that has an exception-safe access to the
 -- database.
