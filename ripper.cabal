@@ -29,6 +29,7 @@ library
       RipConfig
       Ripper.Import
       Ripper.Main
+      Ripper.RipperDelay
       Ripper.Run
       Ripper.Types
       Ripper.Util
@@ -130,6 +131,7 @@ test-suite ripper-test
   main-is: Spec.hs
   other-modules:
       RipConfigSpec
+      Ripper.RipperDelaySpec
       Ripper.UtilSpec
       RSSGen.BinaryUTCTimeSpec
       RSSGen.DatabaseSpec
