@@ -28,14 +28,6 @@ pollHTTP retryDelay endTime conn url = fromStepResult <$>
 -- TODO add a CLI option for `rssgen` to choose the upstream RSS download:
 -- waitForLatest (default); once (old impl); none.
 
-toStepResult :: Maybe Bytes -> StepResult Bytes
-toStepResult (Just b) = Result b
-toStepResult Nothing = NoResult
-
-fromStepResult :: StepResult Bytes -> Maybe Bytes
-fromStepResult (Result b) = Just b
-fromStepResult NoResult = Nothing
-
 -- | Catch and log an HTTP exception if it's thrown (e.g. `ConnectionTimeout`),
 -- so that it doesn't terminate the polling.
 httpExceptionHandler :: MonadLogger m => HttpException -> m (StepResult a)

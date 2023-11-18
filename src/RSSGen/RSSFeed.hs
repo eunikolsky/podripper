@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module RSSGen.RSSFeed
@@ -16,6 +15,7 @@ import Data.Aeson
 import qualified Data.Aeson.KeyMap as KM
 import Data.Aeson.Types
 import qualified Data.Text as T
+import Development.Shake.Classes
 import GHC.Generics
 import System.Directory
 import System.FilePath
@@ -35,7 +35,7 @@ data UpstreamFeedConfig = UpstreamFeedConfig
   , pollingDuration :: Duration
   , pollingRetryDelay :: RetryDelay
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Hashable, Binary, NFData)
 
 instance FromJSON UpstreamFeedConfig
 
@@ -49,7 +49,7 @@ data RSSFeedConfig = RSSFeedConfig
   , selfLink :: T.Text
   , upstreamFeedConfig :: !(Maybe UpstreamFeedConfig)
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Hashable, Binary, NFData)
 
 instance FromJSON RSSFeedConfig
 

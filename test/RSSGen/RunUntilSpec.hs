@@ -60,7 +60,7 @@ testDay :: Int -> Int -> Int -> UTCTime
 testDay h m s = UTCTime (fromGregorian 2023 01 01) (secondsToDiffTime . fromIntegral $ s + (m * 60) + (h * 3600))
 
 newtype CallCount = CallCount (Sum Int)
-  deriving (Semigroup, Monoid, Eq)
+  deriving newtype (Semigroup, Monoid, Eq)
 
 instance Show CallCount where
   show (CallCount (Sum n)) = "CallCount " <> show n
@@ -72,7 +72,7 @@ instance Show CallCount where
 -- time is increased by the given `sleep` durations; `CallCount` tracks the
 -- number of `sleep` calls.
 newtype MockTimeT m a = MockTimeT (StateT (UTCTime, CallCount) m a)
-  deriving (Functor, Applicative, Monad, MonadTrans, MonadState (UTCTime, CallCount), MonadIO, MonadLogger)
+  deriving newtype (Functor, Applicative, Monad, MonadTrans, MonadState (UTCTime, CallCount), MonadIO, MonadLogger)
 
 instance Monad m => MonadTime (MockTimeT m) where
   getTime = gets fst

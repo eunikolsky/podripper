@@ -5,12 +5,14 @@ module RSSGen.RSSItem
   ( RSSItem(..)
   , RipFile(..)
   , RipTime
+  , UTCRipTime
   , localTimeToZonedTime
   , renderItem
   , ripFileFromFile
   , rssItemFromRipFile
+  , toUTCTime
+  , utcRipTime
   , zonedTime
-  , utcTime
   ) where
 
 import Control.Monad.IO.Class
@@ -21,6 +23,7 @@ import Data.List (isSuffixOf, stripPrefix)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import Data.Time
+import Development.Shake.Classes
 import System.Directory
 import System.FilePath.Posix
 import Text.XML.Light
@@ -35,15 +38,18 @@ data RipType
   | SourceRip
   deriving (Eq, Show)
 
+newtype UTCRipTime = UTCRipTime { toUTCTime :: UTCTime }
+  deriving newtype (Show, Eq, Ord, Hashable, Binary, NFData)
+
 -- | Time of a rip file, extracted from its filename.
 data RipTime = RipTime
   { zonedTime :: !ZonedTime
-  , utcTime :: !UTCTime
+  , utcRipTime :: !UTCRipTime
   }
   deriving (Show)
 
 instance Eq RipTime where
-  (==) = (==) `on` utcTime
+  (==) = (==) `on` utcRipTime
 
 -- | Information about a rip file, which is read from the filesystem.
 data RipFile = RipFile
@@ -56,7 +62,7 @@ data RipFile = RipFile
 
 instance Ord RipFile where
   -- is this a valid definition given that `Eq` compares all the fields?
-  (<=) = (<=) `on` utcTime . ripTime
+  (<=) = (<=) `on` utcRipTime . ripTime
 
 -- | An item in an RSS feed, based on a present file, including information from
 -- an upstream RSS item if any.
@@ -94,7 +100,7 @@ ripFileFromFile filename = runMaybeT $ do
 -- @podcastTitle@.
 rssItemFromRipFile :: UpstreamRSSFeed.PodcastId -> (UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)) -> RipFile -> IO RSSItem
 rssItemFromRipFile podcastTitle findUpstreamItem ripFile@RipFile{..} = do
-  maybeUpstreamItem <- findUpstreamItem $ utcTime ripTime
+  maybeUpstreamItem <- findUpstreamItem . toUTCTime . utcRipTime $ ripTime
   let title = T.pack $ mconcat
         [ if ripType == SourceRip then "SOURCE " else ""
         , titlePubDate $ zonedTime ripTime
@@ -157,7 +163,7 @@ localTimeToZonedTime localTime = do
   -- but converting local time to UTC also requires a timezone
   localTZ <- getTimeZoneAtLocalTime localTime
   let utcTime = localTimeToUTC localTZ localTime
-  pure RipTime{zonedTime = utcToZonedTime localTZ utcTime, utcTime}
+  pure RipTime{zonedTime = utcToZonedTime localTZ utcTime, utcRipTime = UTCRipTime utcTime}
 
 -- | Renders the RSS item into an XML element for the feed. First parameter
 -- is the base URL for the file.

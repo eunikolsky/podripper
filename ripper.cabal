@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           ripper
-version:        1.3.1
+version:        1.3.2
 description:    Please see the README on Github at <https://github.com/githubuser/ripper#readme>
 homepage:       https://github.com/githubuser/ripper#readme
 bug-reports:    https://github.com/githubuser/ripper/issues
@@ -32,6 +32,7 @@ library
       Ripper.Run
       Ripper.Types
       Ripper.Util
+      RSSGen.BinaryUTCTime
       RSSGen.Database
       RSSGen.Downloader
       RSSGen.DownloaderTypes
@@ -49,6 +50,8 @@ library
   hs-source-dirs:
       src
   default-extensions:
+      DeriveAnyClass
+      DeriveGeneric
       DerivingStrategies
       FlexibleContexts
       GeneralizedNewtypeDeriving
@@ -82,6 +85,7 @@ library
     , sqlite-simple
     , text
     , time
+    , time-compat
     , transformers
     , unliftio
     , unliftio-core
@@ -95,6 +99,8 @@ executable ripper-exe
   hs-source-dirs:
       app
   default-extensions:
+      DeriveAnyClass
+      DeriveGeneric
       DerivingStrategies
       FlexibleContexts
       GeneralizedNewtypeDeriving
@@ -125,6 +131,7 @@ test-suite ripper-test
   other-modules:
       RipConfigSpec
       Ripper.UtilSpec
+      RSSGen.BinaryUTCTimeSpec
       RSSGen.DatabaseSpec
       RSSGen.DownloaderSpec
       RSSGen.DurationSpec
@@ -136,6 +143,8 @@ test-suite ripper-test
   hs-source-dirs:
       test
   default-extensions:
+      DeriveAnyClass
+      DeriveGeneric
       DerivingStrategies
       FlexibleContexts
       GeneralizedNewtypeDeriving
@@ -147,8 +156,10 @@ test-suite ripper-test
       TypeApplications
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Werror=missing-methods -Werror=missing-fields -Werror=incomplete-patterns -threaded -rtsopts -with-rtsopts=-N -Wno-missing-export-lists
   build-depends:
-      aeson
+      QuickCheck
+    , aeson
     , base >=4.11 && <10
+    , binary
     , bytestring
     , directory
     , filepath

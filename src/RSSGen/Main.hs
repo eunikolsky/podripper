@@ -23,6 +23,7 @@ import Data.Version (Version, showVersion)
 import Development.Shake
 import Development.Shake.Classes
 import Development.Shake.FilePath
+import GHC.Generics
 import Options.Applicative
 import qualified System.Environment as Env
 
@@ -37,8 +38,27 @@ import RSSGen.RSSItem
 import RSSGen.RunUntil
 import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 
+-- | This oracle is needed to politely ask `shake` to poll for upstream RSS
+-- changes, which is basically a wrapper around `pollUpstreamRSSIfPossible`
+-- (using it directly does not work!). The question's types here are the
+-- parameters types of the function (`DBConnection` can't be persisted
+-- (`Binary`), so it can't be a parameter) and the answer's type is the
+-- function's return type. The main effect of the oracle is to update the
+-- database with the latest upstream RSS items.
+--
+-- A nice side effect of using the oracle is that even though we're asking for
+-- the upstream item every time the RSS is generated, it won't be updated if
+-- the item doesn't change (there are two layers of caching here though: one is
+-- the database for all items and the other is `shake` for this particular
+-- item).
+newtype UpstreamItem = UpstreamItem (UpstreamRSSFeed.PodcastId, RSSFeedConfig, Maybe UTCRipTime)
+  deriving newtype (Show, Typeable, Eq, Hashable, Binary, NFData)
+  deriving (Generic)
+type instance RuleResult UpstreamItem = Maybe UpstreamRSSFeed.UpstreamRSSItem
+
 newtype RSSGenVersion = RSSGenVersion ()
-  deriving (Show, Typeable, Eq, Hashable, Binary, NFData)
+  deriving newtype (Show, Typeable, Eq, Hashable, Binary, NFData)
+  deriving (Generic)
 type instance RuleResult RSSGenVersion = Version
 
 -- | CLI options parser to get the RSS filenames (if any) that should be built.
@@ -56,49 +76,62 @@ rssGenParser = fmap (fromMaybe handleNothing . NE.nonEmpty) . some $ strArgument
 run :: NonEmpty FilePath -> IO ()
 run filenames = do
   shakeDir <- fromMaybe "/var/lib/podripper/shake" <$> Env.lookupEnv "SHAKE_DIR"
+  let shakeOpts = shakeOptions
+        { shakeFiles = shakeDir
+        , shakeColor = True
+        , shakeVerbosity = Diagnostic
+        , shakeLint = Just LintBasic
+        }
 
   -- `shake` doesn't parse any CLI options itself, unlike `shakeArgs`
   -- see also: https://stackoverflow.com/questions/51355993/how-to-extend-shake-with-additional-command-line-arguments/51355994#51355994
   -- TODO this function doesn't print the final status message "Build completed in Xs"
   -- even though `shakeArgs` did that by default
-  shake shakeOptions { shakeFiles = shakeDir, shakeColor = True } $ do
+  shake shakeOpts $ do
     want $ NE.toList filenames
 
-    getRSSGenVersion <- addOracle $ \RSSGenVersion{} -> return Paths.version
+    void . addOracle $ \RSSGenVersion{} -> return Paths.version
+
+    pollRSSItem <- addOracle $ \(UpstreamItem (podcastId, feedConfig, maybeRipTime)) ->
+      pollUpstreamRSSIfPossible podcastId feedConfig maybeRipTime
 
     versioned 24 $ "*.rss" %> \out -> do
-      void . getRSSGenVersion $ RSSGenVersion ()
-
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
       let podcastTitle = dropExtension out
       (feedConfig, feedConfigFiles) <- liftIO $ parseFeedConfig configDir podcastTitle
       need feedConfigFiles
       case feedConfig of
-        Just config -> do
-          -- note: `openDatabase` and `closeDatabase` are not exception-safe
-          -- here, but it's fine since the program will exit soon anyway;
-          -- I have tried refactoring this to `withDatabase`, and ultimately
-          -- failed because sqlite library's `withConnection` uses `IO`, whereas
-          -- the functions here have to be in `Action` :( (`MonadUnliftIO` may
-          -- possibly help, but I doubt that)
-          conn <- liftIO $ openDatabase DefaultFile
+        Just config ->
+          actionWithDatabase DefaultFile $ \conn -> do
+            let podcastId = T.pack podcastTitle
+            ripFiles <- getRipFilesNewestFirst podcastId
+            -- generate the feed with what we have immediately without possibly
+            -- waiting for the upstream feed updates
+            generateFeed config conn out podcastId ripFiles
 
-          let podcastId = T.pack podcastTitle
-          ripFiles <- getRipFilesNewestFirst podcastId
-          -- generate the feed with what we have immediately without possibly
-          -- waiting for the upstream feed updates
-          generateFeed config conn out podcastId ripFiles
+            let maybeNewestRipTime = utcRipTime . ripTime <$> listToMaybe ripFiles
+            -- it may seem strange to ignore the result of the oracle, but the
+            -- main effect is to update the database because we'll need all
+            -- items for all found rips; the result value is used by `shake` to
+            -- determine whether to generate the feed
+            void . pollRSSItem $ UpstreamItem (podcastId, config, maybeNewestRipTime)
+            -- generate the feed again after possibly getting some upstream feed
+            -- updates
+            generateFeed config conn out podcastId ripFiles
 
-          let maybeNewestRipTime = ripTime <$> listToMaybe ripFiles
-          pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime
-          -- generate the feed again after possibly getting some upstream feed
-          -- updates
-          generateFeed config conn out podcastId ripFiles
-
-          liftIO $ closeDatabase conn
         Nothing -> fail
           $ "Couldn't parse feed config files "
           <> intercalate ", " feedConfigFiles
+
+-- | Allows to define an `Action` that has an exception-safe access to the
+-- database.
+--
+-- Note: `Database.withDatabase` can't be used here because sqlite library's
+-- connection functions use `IO`, whereas the function here has to be in
+-- `Action` :( (`MonadUnliftIO` may possibly help, but I doubt that).
+-- `actionBracket` is a special case defined in `shake`.
+actionWithDatabase :: FileSpec -> (DBConnection -> Action a) -> Action a
+actionWithDatabase f = actionBracket (openDatabase f) closeDatabase
 
 -- | Returns a list of `RipFile`s for the given podcast, sorted from newest to
 -- oldest.
@@ -134,19 +167,21 @@ eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right x) = Just x
 
--- | Runs `pollUpstreamRSS` if the (newest) `RipTime` is available, that is if
+-- | Runs `pollUpstreamRSS` if the (newest) `UTCRipTime` is available, that is if
 -- there are any files for the given podcast and the upstream feed is set.
 pollUpstreamRSSIfPossible :: MonadIO m
-  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> DBConnection -> Maybe RipTime -> m ()
-pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime = void . runMaybeT $
-  poll <$> MaybeT (pure maybeNewestRipTime) <*> MaybeT (pure $ upstreamFeedConfig config)
+  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Maybe UTCRipTime -> m (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+pollUpstreamRSSIfPossible podcastId RSSFeedConfig{upstreamFeedConfig} maybeNewestRipTime =
+  case (maybeNewestRipTime, upstreamFeedConfig) of
+    (Just ripTime, Just config) -> liftIO $ poll ripTime config
+    _ -> pure Nothing
 
   where
     poll ripTime upstreamConfig@UpstreamFeedConfig{pollingRetryDelay, pollingDuration} = do
       now <- getCurrentTime
       let pollingEndTime = addUTCTime (toNominalDiffTime pollingDuration) now
 
-      runStderrLoggingT $
+      withDatabase DefaultFile $ \conn -> runStderrLoggingT $
         pollUpstreamRSS podcastId upstreamConfig pollingRetryDelay pollingEndTime conn ripTime
 
 -- | Waits until we have an upstream RSS item for the given (newest) rip. First,
@@ -156,12 +191,12 @@ pollUpstreamRSSIfPossible podcastId config conn maybeNewestRipTime = void . runM
 -- for the given rip, and wait for changes again if that fails.
 pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadUnliftIO m)
   -- TODO too many parameters?
-  => UpstreamRSSFeed.PodcastId -> UpstreamFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> RipTime -> m ()
+  => UpstreamRSSFeed.PodcastId -> UpstreamFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> UTCRipTime -> m (Maybe UpstreamRSSFeed.UpstreamRSSItem)
 pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime =
-  void $ runUntil "pollRSS" retryDelay endTime iter
+  fromStepResult <$> runUntil "pollRSS" retryDelay endTime iter
 
   where
-    checkExistsUpstreamItemForRipTime = liftIO $ isJust <$> findUpstreamItem podcastTitle upstreamFeedConfig conn (utcTime ripTime)
+    checkUpstreamItemForRipTime = liftIO $ findUpstreamItem podcastTitle upstreamFeedConfig conn (toUTCTime ripTime)
 
     -- | Polls for upstream RSS changes, parses the RSS if any and saves the
     -- items in the database.
@@ -184,20 +219,17 @@ pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime 
       liftIO $ saveUpstreamRSSItems conn items
 
     iter = do
-      existsUpstreamItemForRipTime <- checkExistsUpstreamItemForRipTime
-      if existsUpstreamItemForRipTime
-        then pure $ Result ()
-        else do
+      maybeUpstreamItemForRipTime <- checkUpstreamItemForRipTime
+      case maybeUpstreamItemForRipTime of
+        Just item -> pure $ Result item
+        Nothing -> do
           processUpstreamRSS
 
           -- since the polling above may take a while, we want to check whether
           -- it has produced the upstream item that we need right after
           -- receiving new RSS (if any), without waiting for another
           -- `retryDelay` before another loop
-          existsUpstreamItemAfterPolling <- checkExistsUpstreamItemForRipTime
-          pure $ if existsUpstreamItemAfterPolling
-            then Result ()
-            else NoResult
+          toStepResult <$> checkUpstreamItemForRipTime
 
 -- | Limits the upstream feed items based on the `maxItems` setting.
 -- Assumption: the RSS file contains newest to oldest items.

@@ -14,10 +14,12 @@ import Data.Aeson hiding ((<?>))
 import Data.Attoparsec.Text
 import Data.Time.Clock
 import Data.Text (Text)
+import Development.Shake.Classes
+import GHC.Generics
 
 -- | A second-precision duration of time between two `UTCTime`s.
 data Duration = Seconds Int | Minutes Int | Hours Int
-  deriving (Eq)
+  deriving (Eq, Generic, Hashable, Binary, NFData)
 
 instance Show Duration where
   show (Seconds s) = show s <> "s"
@@ -80,4 +82,4 @@ durationHours = Hours
 --
 -- (Is this separate type really necessary?)
 newtype RetryDelay = RetryDelay { toDuration :: Duration }
-  deriving newtype (Show, Eq, FromJSON)
+  deriving newtype (Show, Eq, FromJSON, Hashable, Binary, NFData)

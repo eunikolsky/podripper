@@ -7,6 +7,7 @@ module RSSGen.Database
   -- * database metafunctions
   , openDatabase
   , closeDatabase
+  , withDatabase
 
   -- * working with upstream RSS
   , closestUpstreamItemToTime
@@ -17,6 +18,7 @@ module RSSGen.Database
   , setCacheItem
   ) where
 
+import Control.Exception
 import Database.SQLite.Simple
 import Data.List (sortOn)
 import Data.Maybe (listToMaybe)
@@ -38,6 +40,13 @@ data FileSpec
 dbFileName :: FileSpec -> String
 dbFileName DefaultFile = "episodes.sqlite"
 dbFileName InMemory    = ""
+
+-- | Executes the given `IO` action with an exception-safe access to the
+-- database.
+withDatabase :: FileSpec -> (DBConnection -> IO a) -> IO a
+-- note: using `bracket` instead of `withConnection` because I still have to
+-- export `{open,close}Database` functions and want to use them here
+withDatabase f = bracket (openDatabase f) closeDatabase
 
 -- |Opens the episodes database and ensures the necessary tables are created.
 openDatabase :: FileSpec -> IO Connection

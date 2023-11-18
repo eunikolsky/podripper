@@ -2,7 +2,6 @@
 
 module RSSGen.DatabaseSpec where
 
-import Control.Monad.IO.Class
 import Data.Time.Calendar
 import Data.Time.Clock
 
@@ -103,9 +102,5 @@ utcTime year month day hour minute second = UTCTime
   (fromGregorian year month day)
   (secondsToDiffTime . fromIntegral $ second + (minute * 60) + (hour * 60 * 60))
 
-withDB :: MonadIO m => (DBConnection -> m a) -> m a
-withDB io = do
-  conn <- liftIO $ openDatabase InMemory
-  actual <- io conn
-  liftIO $ closeDatabase conn
-  pure actual
+withDB :: (DBConnection -> IO a) -> IO a
+withDB = withDatabase InMemory
