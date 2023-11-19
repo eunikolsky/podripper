@@ -19,6 +19,11 @@ spec = do
         let ripEndTime = addTime (negate offset) now
         pure $ getRipperDelay (Just ripEndTime) now == RetryDelay (durationSeconds 1)
 
+      prop "returns 3 s within 15 minutes" $ \(Now now) -> do
+        offset <- realToFrac <$> choose @Float ((5 * 60) + 1, 15 * 60)
+        let ripEndTime = addTime (negate offset) now
+        pure $ getRipperDelay (Just ripEndTime) now == RetryDelay (durationSeconds 3)
+
     context "without previous ripping" $
       prop "returns default delay" $ \(Now now) ->
         getRipperDelay Nothing now == RetryDelay (durationMinutes 10)
