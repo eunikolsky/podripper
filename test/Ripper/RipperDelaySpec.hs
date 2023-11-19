@@ -39,6 +39,11 @@ spec = do
             now = addTime (minutes 15 + seconds 1) ripEndTime
         getRipperDelay testIntervals Nothing now `shouldBe` intervalDelay
 
+      it "returns fixed delay when inside second time interval" $ do
+        let ripEndTime = [tz|2023-11-18 22:00:00 [Europe/Kyiv]|] -- Saturday
+            now = addTime (minutes 15 + seconds 1) ripEndTime
+        getRipperDelay testIntervals Nothing now `shouldBe` intervalDelay
+
       it "returns default delay when there are no time intervals" $ do
         let ripEndTime = [tz|2023-11-19 04:00:00 [Europe/Kyiv]|] -- Sunday
             now = addTime (minutes 15 + seconds 1) ripEndTime

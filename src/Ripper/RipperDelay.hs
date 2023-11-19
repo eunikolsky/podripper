@@ -39,17 +39,19 @@ getRipperDelay intervals (Just ripEndTime) now
 
   where timeSinceRipEnd = now `diffTZTime` ripEndTime
 
-getRipperDelay [] Nothing _ = defaultDelay
+getRipperDelay intervals Nothing localNow = if any nowWithinInterval intervals
+  then standardIntervalDelay
+  else defaultDelay
 
-getRipperDelay (interval:_) Nothing localNow = if nowWithinInterval then standardIntervalDelay else defaultDelay
   where
-    nowWithinInterval = nextWeekdayIsToday && nowWithinTimeInterval
-    nextWeekdayIsToday = firstDayOfWeekOnAfter (riWeekday interval) today == today
-    nowWithinTimeInterval = localTimeOfDay now `between` riTimeInterval interval
-    today = localDay now
+    nowWithinInterval interval = nextWeekdayIsToday interval && nowWithinTimeInterval interval
+    nextWeekdayIsToday interval = let today = todayInIntervalTZ interval in
+      firstDayOfWeekOnAfter (riWeekday interval) today == today
+    nowWithinTimeInterval interval = localTimeOfDay (nowInIntervalTZ interval) `between` riTimeInterval interval
+    todayInIntervalTZ = localDay . nowInIntervalTZ
     -- this is the passed `localNow` (in the program's current timezone)
     -- converted to the interval's timezone
-    now = tzTimeLocalTime $ inTZ (toTZInfo $ riTZ interval) localNow
+    nowInIntervalTZ interval = tzTimeLocalTime $ inTZ (toTZInfo $ riTZ interval) localNow
 
 between :: Ord a => a -> (a, a) -> Bool
 x `between` (from, to) = x >= from && x <= to
