@@ -29,17 +29,34 @@ spec = do
         let ripEndTime = addTime (negate offset) now
         pure $ getRipperDelay interval (Just ripEndTime) now == RetryDelay (durationSeconds 3)
 
-    context "without previous ripping" $ do
-      let newYork = fromLabel America__New_York
-      let interval = fromJust $ mkRipperInterval Wednesday (read "20:00:00", read "22:00:00") newYork
+      it "returns default delay when outside time interval" $ do
+        let ripEndTime = [tz|2023-11-19 04:00:00 [Europe/Kyiv]|] -- Sunday
+            now = addTime (minutes 15 + seconds 1) ripEndTime
+        getRipperDelay testInterval (Just ripEndTime) now `shouldBe` defaultDelay
 
+      it "returns fixed delay when inside time interval" $ do
+        let ripEndTime = [tz|2023-11-16 04:00:00 [Europe/Kyiv]|] -- Thursday
+            now = addTime (minutes 15 + seconds 1) ripEndTime
+        getRipperDelay testInterval Nothing now `shouldBe` intervalDelay
+
+    context "without previous ripping" $ do
       it "returns default delay when outside time interval" $ do
         let now = [tz|2023-11-19 04:00:00 [Europe/Kyiv]|] -- Sunday
-        getRipperDelay interval Nothing now `shouldBe` RetryDelay (durationMinutes 10)
+        getRipperDelay testInterval Nothing now `shouldBe` defaultDelay
 
       it "returns fixed delay when inside time interval" $ do
         let now = [tz|2023-11-16 04:00:00 [Europe/Kyiv]|] -- Thursday
-        getRipperDelay interval Nothing now `shouldBe` RetryDelay (durationSeconds 20)
+        getRipperDelay testInterval Nothing now `shouldBe` intervalDelay
+
+newYork :: TZInfo
+newYork = fromLabel America__New_York
+
+testInterval :: RipperInterval
+testInterval = fromJust $ mkRipperInterval Wednesday (read "20:00:00", read "22:00:00") newYork
+
+defaultDelay, intervalDelay :: RetryDelay
+defaultDelay = RetryDelay (durationMinutes 10)
+intervalDelay = RetryDelay (durationSeconds 20)
 
 instance Arbitrary TimeOfDay where
   arbitrary = TimeOfDay

@@ -31,9 +31,14 @@ type RipEndTime = TZTime
 type Now = TZTime
 
 getRipperDelay :: RipperInterval -> Maybe RipEndTime -> Now -> RetryDelay
-getRipperDelay _ (Just ripEndTime) now = if now `diffTZTime` ripEndTime <= minutes 5
-  then shortAfterRipDelay
-  else longerAfterRipDelay
+getRipperDelay interval (Just ripEndTime) now
+  | timeSinceRipEnd <= minutes 5 = shortAfterRipDelay
+  | timeSinceRipEnd <= minutes 15 = longerAfterRipDelay
+  -- not immediately after a rip => check for intervals
+  | otherwise = getRipperDelay interval Nothing now
+
+  where timeSinceRipEnd = now `diffTZTime` ripEndTime
+
 getRipperDelay interval Nothing localNow = if nowWithinInterval then standardIntervalDelay else defaultDelay
   where
     nowWithinInterval = nextWeekdayIsToday && nowWithinTimeInterval
