@@ -2,8 +2,10 @@ module Ripper.RipperDelay
   ( RipperInterval
   , getRipperDelay
   , mkRipperInterval
+  , riDelay
   ) where
 
+import Data.Foldable
 import Data.Time
 import Data.Time.TZInfo
 import Data.Time.TZTime
@@ -21,11 +23,13 @@ data RipperInterval = RipperInterval
   , riTimeInterval :: !(TimeOfDay, TimeOfDay)
   -- ^ `from` is always less than `to`
   , riTZ :: !TZ
+  , riDelay :: !RetryDelay
+  -- ^ the delay to use when this interval is matched
   }
   deriving Show
 
-mkRipperInterval :: DayOfWeek -> (TimeOfDay, TimeOfDay) -> TZInfo -> Maybe RipperInterval
-mkRipperInterval d ti@(from, to) tz = if from < to then Just (RipperInterval d ti $ TZ tz) else Nothing
+mkRipperInterval :: DayOfWeek -> (TimeOfDay, TimeOfDay) -> TZInfo -> RetryDelay -> Maybe RipperInterval
+mkRipperInterval d ti@(from, to) tz delay = if from < to then Just (RipperInterval d ti (TZ tz) delay) else Nothing
 
 type RipEndTime = TZTime
 type Now = TZTime
@@ -39,10 +43,7 @@ getRipperDelay intervals (Just ripEndTime) now
 
   where timeSinceRipEnd = now `diffTZTime` ripEndTime
 
-getRipperDelay intervals Nothing localNow = if any nowWithinInterval intervals
-  then standardIntervalDelay
-  else defaultDelay
-
+getRipperDelay intervals Nothing localNow = maybe defaultDelay riDelay $ find nowWithinInterval intervals
   where
     nowWithinInterval interval = nextWeekdayIsToday interval && nowWithinTimeInterval interval
     nextWeekdayIsToday interval = let today = todayInIntervalTZ interval in
@@ -64,9 +65,6 @@ shortAfterRipDelay = RetryDelay $ durationSeconds 1
 
 longerAfterRipDelay :: RetryDelay
 longerAfterRipDelay = RetryDelay $ durationSeconds 3
-
-standardIntervalDelay :: RetryDelay
-standardIntervalDelay = RetryDelay $ durationSeconds 20
 
 -- | The default ripper delay if no other rule matches.
 defaultDelay :: RetryDelay

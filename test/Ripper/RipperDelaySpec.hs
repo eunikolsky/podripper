@@ -37,12 +37,12 @@ spec = do
       it "returns fixed delay when inside first time interval" $ do
         let ripEndTime = [tz|2023-11-16 04:00:00 [Europe/Kyiv]|] -- Thursday
             now = addTime (minutes 15 + seconds 1) ripEndTime
-        getRipperDelay testIntervals Nothing now `shouldBe` intervalDelay
+        getRipperDelay testIntervals Nothing now `shouldBe` riDelay testInterval0
 
       it "returns fixed delay when inside second time interval" $ do
         let ripEndTime = [tz|2023-11-18 22:00:00 [Europe/Kyiv]|] -- Saturday
             now = addTime (minutes 15 + seconds 1) ripEndTime
-        getRipperDelay testIntervals Nothing now `shouldBe` intervalDelay
+        getRipperDelay testIntervals Nothing now `shouldBe` riDelay testInterval1
 
       it "returns default delay when there are no time intervals" $ do
         let ripEndTime = [tz|2023-11-19 04:00:00 [Europe/Kyiv]|] -- Sunday
@@ -56,21 +56,20 @@ spec = do
 
       it "returns fixed delay when inside time interval" $ do
         let now = [tz|2023-11-16 04:00:00 [Europe/Kyiv]|] -- Thursday
-        getRipperDelay testIntervals Nothing now `shouldBe` intervalDelay
+        getRipperDelay testIntervals Nothing now `shouldBe` riDelay testInterval0
 
 newYork :: TZInfo
 newYork = fromLabel America__New_York
 
 testInterval0, testInterval1 :: RipperInterval
-testInterval0 = fromJust $ mkRipperInterval Wednesday (read "20:00:00", read "22:00:00") newYork
-testInterval1 = fromJust $ mkRipperInterval Saturday (read "19:00:00", read "21:00:00") utc
+testInterval0 = fromJust $ mkRipperInterval Wednesday (read "20:00:00", read "22:00:00") newYork (RetryDelay $ durationMinutes 8)
+testInterval1 = fromJust $ mkRipperInterval Saturday (read "19:00:00", read "21:00:00") utc (RetryDelay $ durationHours 1)
 
 testIntervals :: [RipperInterval]
 testIntervals = [testInterval0, testInterval1]
 
-defaultDelay, intervalDelay :: RetryDelay
+defaultDelay :: RetryDelay
 defaultDelay = RetryDelay (durationMinutes 10)
-intervalDelay = RetryDelay (durationSeconds 20)
 
 instance Arbitrary TimeOfDay where
   arbitrary = TimeOfDay
@@ -98,4 +97,4 @@ instance Arbitrary RipperInterval where
     to <- arbitrary
     let from' = min from to
         to' = max from to
-    pure . fromJust $ mkRipperInterval day (from', to') $ fromLabel America__Anchorage
+    pure . fromJust $ mkRipperInterval day (from', to') (fromLabel America__Anchorage) (RetryDelay $ durationSeconds 20)
