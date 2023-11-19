@@ -31,16 +31,22 @@ spec = do
 
       it "returns default delay when outside of any time interval" $ do
         let ripEndTime = [tz|2023-11-19 04:00:00 [Europe/Kyiv]|] -- Sunday
+            --         =     2023-11-18 21:00:00 America/New_York, Saturday
+            --         =     2023-11-19 02:00:00 UTC, Sunday
             now = addTime (minutes 15 + seconds 1) ripEndTime
         getRipperDelay testIntervals (Just ripEndTime) now `shouldBe` defaultDelay
 
       it "returns fixed delay when inside first time interval" $ do
         let ripEndTime = [tz|2023-11-16 04:00:00 [Europe/Kyiv]|] -- Thursday
+            --         =     2023-11-15 21:00:00 America/New_York, Wednesday
+            --         =     2023-11-16 02:00:00 UTC, Thursday
             now = addTime (minutes 15 + seconds 1) ripEndTime
         getRipperDelay testIntervals Nothing now `shouldBe` riDelay testInterval0
 
       it "returns fixed delay when inside second time interval" $ do
         let ripEndTime = [tz|2023-11-18 22:00:00 [Europe/Kyiv]|] -- Saturday
+            --         =     2023-11-18 15:00:00 America/New_York, Saturday
+            --         =     2023-11-18 20:00:00 UTC, Saturday
             now = addTime (minutes 15 + seconds 1) ripEndTime
         getRipperDelay testIntervals Nothing now `shouldBe` riDelay testInterval1
 
@@ -52,10 +58,14 @@ spec = do
     context "without previous ripping" $ do
       it "returns default delay when outside time interval" $ do
         let now = [tz|2023-11-19 04:00:00 [Europe/Kyiv]|] -- Sunday
+            --  =     2023-11-18 21:00:00 America/New_York, Saturday
+            --  =     2023-11-19 02:00:00 UTC, Sunday
         getRipperDelay testIntervals Nothing now `shouldBe` defaultDelay
 
       it "returns fixed delay when inside time interval" $ do
         let now = [tz|2023-11-16 04:00:00 [Europe/Kyiv]|] -- Thursday
+            --  =     2023-11-15 21:00:00 America/New_York, Wednesday
+            --  =     2023-11-16 02:00:00 UTC, Thursday
         getRipperDelay testIntervals Nothing now `shouldBe` riDelay testInterval0
 
 newYork :: TZInfo
