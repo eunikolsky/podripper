@@ -88,6 +88,7 @@ library
     , time
     , time-compat
     , transformers
+    , tztime
     , unliftio
     , unliftio-core
     , xml
@@ -179,4 +180,5 @@ test-suite ripper-test
     , text
     , time
     , transformers
+    , tztime
   default-language: Haskell2010
