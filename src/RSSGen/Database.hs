@@ -24,6 +24,7 @@ import Data.List (sortOn)
 import Data.Maybe (listToMaybe)
 import Data.Time.Clock
 import Data.Time.Format
+import System.FilePath
 
 import RSSGen.DownloaderTypes
 import RSSGen.Duration
@@ -33,13 +34,13 @@ import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 type DBConnection = Connection
 
 data FileSpec
-  = DefaultFile -- ^ The default @episodes.sqlite@ file
-  | InMemory    -- ^ An in-memory database
+  = DefaultFile FilePath -- ^ The default @episodes.sqlite@ file in the directory
+  | InMemory             -- ^ An in-memory database
 
 -- | Returns the SQLite database string for the given file spec.
 dbFileName :: FileSpec -> String
-dbFileName DefaultFile = "episodes.sqlite"
-dbFileName InMemory    = ""
+dbFileName (DefaultFile dir) = dir </> "episodes.sqlite"
+dbFileName InMemory          = ""
 
 -- | Executes the given `IO` action with an exception-safe access to the
 -- database.

@@ -365,10 +365,9 @@ ffmpeg args ripName = do
   pure code
 
 updateRSS :: RipConfigExt -> IO ()
-updateRSS RipConfigExt{config, doneBaseDir} =
-  withCurrentDirectory doneBaseDir $ RSSGen.run rssName
+updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
   -- FIXME replace `ripDirName` with the requested rip name and remove the field
-  where rssName = NE.singleton $ T.unpack (ripDirName config) <.> "rss"
+  where rssName = NE.singleton $ doneBaseDir </> T.unpack (ripDirName config) <.> "rss"
 
 -- | Checks for the (legacy) `END_TIMESTAMP` environment variable: the value of
 -- `0` means "skip the ripping part"; all other values aren't supported at the

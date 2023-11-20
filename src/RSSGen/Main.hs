@@ -51,7 +51,7 @@ import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 -- the item doesn't change (there are two layers of caching here though: one is
 -- the database for all items and the other is `shake` for this particular
 -- item).
-newtype UpstreamItem = UpstreamItem (UpstreamRSSFeed.PodcastId, RSSFeedConfig, Maybe UTCRipTime)
+newtype UpstreamItem = UpstreamItem (UpstreamRSSFeed.PodcastId, FilePath, RSSFeedConfig, Maybe UTCRipTime)
   deriving newtype (Show, Typeable, Eq, Hashable, Binary, NFData)
   deriving (Generic)
 type instance RuleResult UpstreamItem = Maybe UpstreamRSSFeed.UpstreamRSSItem
@@ -92,19 +92,24 @@ run filenames = do
 
     void . addOracle $ \RSSGenVersion{} -> return Paths.version
 
-    pollRSSItem <- addOracle $ \(UpstreamItem (podcastId, feedConfig, maybeRipTime)) ->
-      pollUpstreamRSSIfPossible podcastId feedConfig maybeRipTime
+    pollRSSItem <- addOracle $ \(UpstreamItem (podcastId, relPath, feedConfig, maybeRipTime)) ->
+      pollUpstreamRSSIfPossible podcastId relPath feedConfig maybeRipTime
 
-    versioned 24 $ "*.rss" %> \out -> do
+    -- note: this pattern supports relative paths to `.rss` now to be able to
+    -- generate the RSS from the podripper's root data directory (parent of
+    -- `complete/`); however generating the same RSS from `complete/` and from
+    -- its parent seems to rebuild it every time
+    versioned 28 $ "//*.rss" %> \out -> do
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
-      let podcastTitle = dropExtension out
+      let podcastTitle = takeBaseName out
+          relPath = takeDirectory out
       (feedConfig, feedConfigFiles) <- liftIO $ parseFeedConfig configDir podcastTitle
       need feedConfigFiles
       case feedConfig of
         Just config ->
-          actionWithDatabase DefaultFile $ \conn -> do
+          actionWithDatabase (DefaultFile relPath) $ \conn -> do
             let podcastId = T.pack podcastTitle
-            ripFiles <- getRipFilesNewestFirst podcastId
+            ripFiles <- getRipFilesNewestFirst relPath podcastId
             -- generate the feed with what we have immediately without possibly
             -- waiting for the upstream feed updates
             generateFeed config conn out podcastId ripFiles
@@ -114,7 +119,7 @@ run filenames = do
             -- main effect is to update the database because we'll need all
             -- items for all found rips; the result value is used by `shake` to
             -- determine whether to generate the feed
-            void . pollRSSItem $ UpstreamItem (podcastId, config, maybeNewestRipTime)
+            void . pollRSSItem $ UpstreamItem (podcastId, relPath, config, maybeNewestRipTime)
             -- generate the feed again after possibly getting some upstream feed
             -- updates
             generateFeed config conn out podcastId ripFiles
@@ -134,13 +139,14 @@ actionWithDatabase :: FileSpec -> (DBConnection -> Action a) -> Action a
 actionWithDatabase f = actionBracket (openDatabase f) closeDatabase
 
 -- | Returns a list of `RipFile`s for the given podcast, sorted from newest to
--- oldest.
-getRipFilesNewestFirst :: UpstreamRSSFeed.PodcastId -> Action [RipFile]
-getRipFilesNewestFirst podcastTitle = do
+-- oldest. `relPath` is the path to the `complete/` directory relative to the
+-- current directory; it's expected to be `complete` or `.`.
+getRipFilesNewestFirst :: FilePath -> UpstreamRSSFeed.PodcastId -> Action [RipFile]
+getRipFilesNewestFirst relPath podcastTitle = do
   -- we need the audio files to generate the RSS, which are in the
   -- directory of the same name as the podcast title
-  mp3Files <- getDirectoryFiles "" [T.unpack podcastTitle </> "*.mp3"]
-  liftIO $ newestFirst . catMaybes <$> traverse ripFileFromFile mp3Files
+  mp3Files <- getDirectoryFiles relPath [T.unpack podcastTitle </> "*.mp3"]
+  liftIO $ newestFirst . catMaybes <$> traverse (ripFileFromFile relPath) mp3Files
 
 -- | Generates the feed at the requested path.
 generateFeed :: RSSFeedConfig -> DBConnection -> FilePattern -> UpstreamRSSFeed.PodcastId -> [RipFile] -> Action ()
@@ -170,8 +176,8 @@ eitherToMaybe (Right x) = Just x
 -- | Runs `pollUpstreamRSS` if the (newest) `UTCRipTime` is available, that is if
 -- there are any files for the given podcast and the upstream feed is set.
 pollUpstreamRSSIfPossible :: MonadIO m
-  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Maybe UTCRipTime -> m (Maybe UpstreamRSSFeed.UpstreamRSSItem)
-pollUpstreamRSSIfPossible podcastId RSSFeedConfig{upstreamFeedConfig} maybeNewestRipTime =
+  => UpstreamRSSFeed.PodcastId -> FilePath -> RSSFeedConfig -> Maybe UTCRipTime -> m (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+pollUpstreamRSSIfPossible podcastId relPath RSSFeedConfig{upstreamFeedConfig} maybeNewestRipTime =
   case (maybeNewestRipTime, upstreamFeedConfig) of
     (Just ripTime, Just config) -> liftIO $ poll ripTime config
     _ -> pure Nothing
@@ -181,7 +187,7 @@ pollUpstreamRSSIfPossible podcastId RSSFeedConfig{upstreamFeedConfig} maybeNewes
       now <- getCurrentTime
       let pollingEndTime = addUTCTime (toNominalDiffTime pollingDuration) now
 
-      withDatabase DefaultFile $ \conn -> runStderrLoggingT $
+      withDatabase (DefaultFile relPath) $ \conn -> runStderrLoggingT $
         pollUpstreamRSS podcastId upstreamConfig pollingRetryDelay pollingEndTime conn ripTime
 
 -- | Waits until we have an upstream RSS item for the given (newest) rip. First,

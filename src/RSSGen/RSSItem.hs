@@ -84,15 +84,15 @@ formatPubDate = formatTime defaultTimeLocale "%d %b %Y %H:%M:%S %z"
 titlePubDate :: ZonedTime -> String
 titlePubDate = formatTime defaultTimeLocale "%F %T %z"
 
--- | Creates an @RipFile@ based on the information about the file.
--- Returns @Nothing@ if the file is not found.
-ripFileFromFile :: FilePath -> IO (Maybe RipFile)
-ripFileFromFile filename = runMaybeT $ do
-  file <- MaybeT $ doesFileExist' filename
-  fileSize <- liftIO $ getFileSize file
-  (localTime, ripType) <- MaybeT . pure . parseRipDate $ file
+-- | Creates an @RipFile@ based on the information about the file located in
+-- `relPath`. Returns @Nothing@ if the file is not found.
+ripFileFromFile :: FilePath -> FilePath -> IO (Maybe RipFile)
+ripFileFromFile relPath filename = runMaybeT $ do
+  filename' <- MaybeT . doesFileExist' $ relPath </> filename
+  fileSize <- liftIO $ getFileSize filename'
+  (localTime, ripType) <- MaybeT . pure . parseRipDate $ filename'
   ripTime <- liftIO $ localTimeToZonedTime localTime
-  pure RipFile{..}
+  pure RipFile{file=filename,..}
 
 -- | Creates an @RSSItem@ from the `RipFile` by adding extra information.
 -- @findUpstreamItem@ is used to find an upstream RSS item that is close
