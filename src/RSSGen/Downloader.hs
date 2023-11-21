@@ -66,11 +66,11 @@ getFile httpBS conn url = do
       item <- getCacheItem conn url
       pure $ case item of
         Just (ETag etag) -> r { requestHeaders =
-          requestHeaders r <> [(hIfModifiedSince, etag)] }
+          requestHeaders r <> [(hIfNoneMatch, etag)] }
         Just (LastModified lastmod) -> r { requestHeaders =
-          requestHeaders r <> [(hIfNoneMatch, lastmod)] }
+          requestHeaders r <> [(hIfModifiedSince, lastmod)] }
         Just (ETagWithLastModified etag lastmod) -> r { requestHeaders =
-          requestHeaders r <> [(hIfModifiedSince, etag), (hIfNoneMatch, lastmod)] }
+          requestHeaders r <> [(hIfNoneMatch, etag), (hIfModifiedSince, lastmod)] }
         _ -> r
 
     getCachedBody = do

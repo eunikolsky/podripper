@@ -36,14 +36,14 @@ spec = do
 
       it "stores Body of a response" $ verifyStored $ Body "response body"
 
-      it "sets If-Modified-Since with stored ETag" $ do
+      it "sets If-None-Match with stored ETag" $ do
         ifModifiedSinceRef <- newIORef Nothing
 
         let url = "http://localhost"
             etag = ETag "etag"
             mockHTTPBS req = do
               writeIORef ifModifiedSinceRef .
-                findHeaderValue "If-Modified-Since" $ requestHeaders req
+                findHeaderValue "If-None-Match" $ requestHeaders req
               pure $ responseWith' etag
 
         withDB $ \conn -> do
@@ -53,14 +53,14 @@ spec = do
         actual <- readIORef ifModifiedSinceRef
         ETag <$> actual `shouldBe` Just etag
 
-      it "sets If-None-Match with stored LastModified" $ do
+      it "sets If-Modified-Since with stored LastModified" $ do
         ifNoneMatchRef <- newIORef Nothing
 
         let url = "http://localhost"
             lastmod = LastModified "last-modified"
             mockHTTPBS req = do
               writeIORef ifNoneMatchRef .
-                findHeaderValue "If-None-Match" $ requestHeaders req
+                findHeaderValue "If-Modified-Since" $ requestHeaders req
               pure $ responseWith' lastmod
 
         withDB $ \conn -> do
@@ -70,7 +70,7 @@ spec = do
         actual <- readIORef ifNoneMatchRef
         LastModified <$> actual `shouldBe` Just lastmod
 
-      it "sets Is-Modified-Since and If-None-Match with stored ETagWithLastModified" $ do
+      it "sets If-None-Match and Is-Modified-Since with stored ETagWithLastModified" $ do
         headerValuesRef <- newIORef Nothing
 
         let url = "http://localhost"
@@ -88,7 +88,7 @@ spec = do
 
         actual <- readIORef headerValuesRef
         let (ifModifiedSince, ifNoneMatch) = sequence actual
-        ETagWithLastModified <$> ifModifiedSince <*> ifNoneMatch `shouldBe` Just etagLastmod
+        ETagWithLastModified <$> ifNoneMatch <*> ifModifiedSince `shouldBe` Just etagLastmod
 
       it "returns body when response Body has changed from cached" $ do
         let url = "http://localhost"
