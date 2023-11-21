@@ -11,6 +11,7 @@ import Control.Monad.IO.Unlift
 import Control.Monad.Logger.CallStack
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
+import Data.Functor
 import Data.List (intercalate, sortOn)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NE
@@ -24,8 +25,10 @@ import Development.Shake
 import Development.Shake.Classes
 import Development.Shake.FilePath
 import GHC.Generics
+import Network.HTTP.Simple
 import Options.Applicative
 import qualified System.Environment as Env
+import UnliftIO.Exception
 
 import qualified Paths_ripper as Paths (version)
 import RSSGen.Database
@@ -99,7 +102,7 @@ run filenames = do
     -- generate the RSS from the podripper's root data directory (parent of
     -- `complete/`); however generating the same RSS from `complete/` and from
     -- its parent seems to rebuild it every time
-    versioned 28 $ "//*.rss" %> \out -> do
+    versioned 29 $ "//*.rss" %> \out -> do
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
       let podcastTitle = takeBaseName out
           relPath = takeDirectory out
@@ -198,15 +201,21 @@ pollUpstreamRSSIfPossible podcastId relPath RSSFeedConfig{upstreamFeedConfig} ma
 pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadUnliftIO m)
   -- TODO too many parameters?
   => UpstreamRSSFeed.PodcastId -> UpstreamFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> UTCRipTime -> m (Maybe UpstreamRSSFeed.UpstreamRSSItem)
-pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime =
+pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime = do
+  -- do a one-shot request for the RSS (no polling) in order to retrieve the
+  -- latest version in case anything has changed, even though we might
+  -- already have a matching upstream item
+  processUpstreamRSS $ \conn' url ->
+    handle (\e -> httpExceptionHandler e $> mempty) $ getFile httpBS conn' url
+
   fromStepResult <$> runUntil "pollRSS" retryDelay endTime iter
 
   where
     checkUpstreamItemForRipTime = liftIO $ findUpstreamItem podcastTitle upstreamFeedConfig conn (toUTCTime ripTime)
 
-    -- | Polls for upstream RSS changes, parses the RSS if any and saves the
-    -- items in the database.
-    processUpstreamRSS = void . runMaybeT $ do
+    -- | Gets the upstream RSS (whether it's polling, is dependent on `getRSS`),
+    -- parses the RSS if any and saves the items in the database.
+    processUpstreamRSS getRSS = void . runMaybeT $ do
       -- I had to remove the `MonadTrans` wrapper from `runUntil` (and
       -- thus pollHTTP`), which would allow the repeated action not to
       -- require unnecessary constraints (e.g. `MonadTime`), but
@@ -217,7 +226,7 @@ pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime 
       -- Expected: IO (Maybe Bytes)
       -- Actual: t0 m0 (Maybe Bytes)
       let url = T.unpack $ upstreamRSSURL upstreamFeedConfig
-      bytes <- MaybeT $ pollHTTP retryDelay endTime conn url
+      bytes <- MaybeT $ getRSS conn url
       let text = TE.decodeUtf8 bytes
       allItems <- MaybeT . pure . eitherToMaybe $ UpstreamRSSFeed.parse podcastTitle text
       let items = limitItems upstreamFeedConfig allItems
@@ -229,7 +238,7 @@ pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime 
       case maybeUpstreamItemForRipTime of
         Just item -> pure $ Result item
         Nothing -> do
-          processUpstreamRSS
+          processUpstreamRSS $ pollHTTP retryDelay endTime
 
           -- since the polling above may take a while, we want to check whether
           -- it has produced the upstream item that we need right after
