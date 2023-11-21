@@ -11,10 +11,12 @@ module RSSGen.Downloader
 
 import Control.Applicative
 import Control.Monad.Catch
+import Control.Monad.Logger
 import Control.Monad.Reader
 import Data.Function
 import Data.List (find)
 import Data.Maybe
+import Data.Text qualified as T
 import Network.HTTP.Client (Request(..), Response(..), parseRequest)
 import Network.HTTP.Types
 import Network.HTTP.Types.Header
@@ -27,7 +29,7 @@ import RSSGen.DownloaderTypes
 -- present, or the body itself otherwise. Returns the response's body on success
 -- and only if the body has changed since the last response, and `Nothing`
 -- otherwise.
-getFile :: (MonadIO m, MonadThrow m)
+getFile :: (MonadIO m, MonadThrow m, MonadLogger m)
   => (Request -> m (Response Bytes))
   -- ^ the `httpBS` function
   -> DBConnection
@@ -35,7 +37,12 @@ getFile :: (MonadIO m, MonadThrow m)
   -> m (Maybe Bytes)
 getFile httpBS conn url = do
   request <- parseRequest url >>= liftIO . applyCachedResponse
+  logD ["Requesting ", show request]
   response <- httpBS request
+  logD
+    [ "Response status: ", show $ responseStatus response
+    , "; headers: ", show $ responseHeaders response
+    ]
   let responseSuccessful = responseStatus response == ok200
 
   maybeCachedBody <- liftIO getCachedBody
@@ -81,3 +88,6 @@ getFile httpBS conn url = do
 
 findHeaderValue :: HeaderName -> ResponseHeaders -> Maybe Bytes
 findHeaderValue name = fmap snd . find ((== name) . fst)
+
+logD :: MonadLogger m => [String] -> m ()
+logD = logDebugN . T.pack . mconcat

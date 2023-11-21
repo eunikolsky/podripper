@@ -2,6 +2,7 @@ module RSSGen.DownloaderSpec where
 
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Logger
 import Data.IORef
 import Data.List (find)
 import Network.HTTP.Client
@@ -22,7 +23,7 @@ spec = do
                 mockHTTPBS _ = pure $ responseWith' item
 
             actual <- withDB $ \conn -> do
-              void $ getFile mockHTTPBS conn url
+              void . runNoLoggingT $ getFile mockHTTPBS conn url
               liftIO $ getCacheItem conn url
 
             actual `shouldBe` Just item
@@ -42,13 +43,13 @@ spec = do
         let url = "http://localhost"
             etag = ETag "etag"
             mockHTTPBS req = do
-              writeIORef ifModifiedSinceRef .
+              liftIO . writeIORef ifModifiedSinceRef .
                 findHeaderValue "If-None-Match" $ requestHeaders req
               pure $ responseWith' etag
 
         withDB $ \conn -> do
           liftIO $ setCacheItem conn url etag
-          void $ getFile mockHTTPBS conn url
+          void . runNoLoggingT $ getFile mockHTTPBS conn url
 
         actual <- readIORef ifModifiedSinceRef
         ETag <$> actual `shouldBe` Just etag
@@ -59,13 +60,13 @@ spec = do
         let url = "http://localhost"
             lastmod = LastModified "last-modified"
             mockHTTPBS req = do
-              writeIORef ifNoneMatchRef .
+              liftIO . writeIORef ifNoneMatchRef .
                 findHeaderValue "If-Modified-Since" $ requestHeaders req
               pure $ responseWith' lastmod
 
         withDB $ \conn -> do
           liftIO $ setCacheItem conn url lastmod
-          void $ getFile mockHTTPBS conn url
+          void . runNoLoggingT $ getFile mockHTTPBS conn url
 
         actual <- readIORef ifNoneMatchRef
         LastModified <$> actual `shouldBe` Just lastmod
@@ -76,7 +77,7 @@ spec = do
         let url = "http://localhost"
             etagLastmod = ETagWithLastModified "etag" "last-modified"
             mockHTTPBS req = do
-              writeIORef headerValuesRef $ sequence
+              liftIO . writeIORef headerValuesRef $ sequence
                 ( findHeaderValue "If-Modified-Since" $ requestHeaders req
                 , findHeaderValue "If-None-Match" $ requestHeaders req
                 )
@@ -84,7 +85,7 @@ spec = do
 
         withDB $ \conn -> do
           liftIO $ setCacheItem conn url etagLastmod
-          void $ getFile mockHTTPBS conn url
+          void . runNoLoggingT $ getFile mockHTTPBS conn url
 
         actual <- readIORef headerValuesRef
         let (ifModifiedSince, ifNoneMatch) = sequence actual
@@ -98,7 +99,7 @@ spec = do
 
         actual <- withDB $ \conn -> do
           liftIO $ setCacheItem conn url cachedBody
-          getFile mockHTTPBS conn url
+          runNoLoggingT $ getFile mockHTTPBS conn url
 
         actual `shouldBe` Just body
 
@@ -107,7 +108,7 @@ spec = do
             body = "response body"
             mockHTTPBS _ = pure $ responseWith' (Body body)
 
-        actual <- withDB $ \conn -> getFile mockHTTPBS conn url
+        actual <- withDB $ \conn -> runNoLoggingT $ getFile mockHTTPBS conn url
 
         actual `shouldBe` Just body
 
@@ -118,7 +119,7 @@ spec = do
 
         actual <- withDB $ \conn -> do
           liftIO $ setCacheItem conn url body
-          getFile mockHTTPBS conn url
+          runNoLoggingT $ getFile mockHTTPBS conn url
 
         actual `shouldBe` Nothing
 
@@ -127,7 +128,7 @@ spec = do
         let url = "http://localhost"
             mockHTTPBS _ = pure $ response notModified304
 
-        actual <- withDB $ \conn -> getFile mockHTTPBS conn url
+        actual <- withDB $ \conn -> runNoLoggingT $ getFile mockHTTPBS conn url
 
         actual `shouldBe` Nothing
 
@@ -137,7 +138,7 @@ spec = do
                 mockHTTPBS _ = pure $ responseWith status item
 
             actual <- withDB $ \conn -> do
-              void $ getFile mockHTTPBS conn url
+              void . runNoLoggingT $ getFile mockHTTPBS conn url
               liftIO $ getCacheItem conn url
 
             actual `shouldBe` Nothing
@@ -146,7 +147,7 @@ spec = do
         let url = "http://localhost"
             mockHTTPBS _ = pure $ response imATeapot418
 
-        actual <- withDB $ \conn -> getFile mockHTTPBS conn url
+        actual <- withDB $ \conn -> runNoLoggingT $ getFile mockHTTPBS conn url
 
         actual `shouldBe` Nothing
 
