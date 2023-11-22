@@ -2,10 +2,16 @@ module Ripper.RipperDelay
   ( RipperInterval
   , getRipperDelay
   , mkRipperInterval
+  , parseRipperInterval
   , riDelay
   ) where
 
+import Control.Monad.Except
+import Data.Attoparsec.Text
 import Data.Foldable
+import Data.Functor
+import Data.Maybe
+import Data.Text (Text)
 import Data.Time
 import Data.Time.TZInfo
 import Data.Time.TZTime
@@ -14,6 +20,7 @@ import RSSGen.Duration
 -- | Timezone — wrapper around `TZInfo` that `show`s only the identifier
 -- (without a long list of rules).
 newtype TZ = TZ { toTZInfo :: TZInfo }
+  deriving newtype Eq
 
 instance Show TZ where
   show = show . tziIdentifier . toTZInfo
@@ -33,7 +40,7 @@ data RipperInterval = RipperInterval
   , riDelay :: !RetryDelay
   -- ^ the delay to use when this interval is matched
   }
-  deriving Show
+  deriving (Show, Eq)
 
 -- | Smart constructor for `RipperInterval` that ensures that the time interval
 -- is ascending (`from ≥ to`).
@@ -119,3 +126,46 @@ longerAfterRipDelay = RetryDelay $ durationSeconds 3
 -- | The default ripper delay if no other rule matches.
 defaultDelay :: RetryDelay
 defaultDelay = RetryDelay $ durationMinutes 10
+
+parseRipperInterval :: Text -> IO (Either String RipperInterval)
+parseRipperInterval t = runExceptT $ do
+  (weekday, interval, tzId, delay) <- liftEither $ parseOnly pRipperInterval t
+  tz <- liftIO $ loadFromSystem tzId
+  pure . fromJust $ mkRipperInterval weekday interval tz delay
+
+pRipperInterval :: Parser (DayOfWeek, (TimeOfDay, TimeOfDay), TZIdentifier, RetryDelay)
+pRipperInterval = do
+  weekday <- pWeekday <?> "weekday"
+  skipChar ' '
+  from <- pTime <?> "from time"
+  skipChar '-'
+  to <- pTime <?> "to time"
+  skipChar ' '
+  tzId <- takeWhile1 (/= ':') <?> "timezone id"
+  void $ string ": "
+  delay <- retryDurationParser <?> "retry duration"
+  pure (weekday, (from, to), tzId, delay)
+
+pWeekday :: Parser DayOfWeek
+pWeekday = choice
+  [ string "Mo" $> Monday
+  , string "Tu" $> Tuesday
+  , string "We" $> Wednesday
+  , string "Th" $> Thursday
+  , string "Fr" $> Friday
+  , string "Sa" $> Saturday
+  , string "Su" $> Sunday
+  ]
+
+pTime :: Parser TimeOfDay
+pTime = do
+  hour <- pTwoDigitNumber
+  skipChar ':'
+  minute <- pTwoDigitNumber
+  pure $ TimeOfDay hour minute 0
+
+pTwoDigitNumber :: Parser Int
+pTwoDigitNumber = read <$> count 2 digit
+
+skipChar :: Char -> Parser ()
+skipChar = void . char

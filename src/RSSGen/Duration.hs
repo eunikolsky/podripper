@@ -5,6 +5,7 @@ module RSSGen.Duration
   , durationMinutes
   , durationSeconds
   , parseDuration
+  , retryDurationParser
   , toMicroseconds
   , toNominalDiffTime
   , toSeconds
@@ -87,3 +88,6 @@ durationHours = Hours
 -- (Is this separate type really necessary?)
 newtype RetryDelay = RetryDelay { toDuration :: Duration }
   deriving newtype (Show, Eq, Ord, FromJSON, Hashable, Binary, NFData)
+
+retryDurationParser :: Parser RetryDelay
+retryDurationParser = RetryDelay <$> durationParser

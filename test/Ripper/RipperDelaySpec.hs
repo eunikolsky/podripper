@@ -87,6 +87,20 @@ spec = do
             --  =     2023-11-15 22:00:40 UTC, Wednesday
         getRipperDelay [testInterval0, closeToTestInterval0] Nothing now `shouldBe` intervalDelay
 
+  describe "parseRipperInterval" $ do
+    it "parses an interval in UTC" $ do
+      actual <- parseRipperInterval "Mo 11:01-13:45 UTC: 8s"
+      let expected = mkRipperInterval' Monday (read "11:01:00", read "13:45:00") utc (RetryDelay $ durationSeconds 8)
+      actual `shouldBe` expected
+
+    it "parses an interval in a timezone" $ do
+      actual <- parseRipperInterval "Su 12:59-23:48 America/New_York: 9m"
+      let expected = mkRipperInterval' Sunday (read "12:59:00", read "23:48:00") (fromLabel America__New_York) (RetryDelay $ durationMinutes 9)
+      actual `shouldBe` expected
+
+mkRipperInterval' :: DayOfWeek -> (TimeOfDay, TimeOfDay) -> TZInfo -> RetryDelay -> Either a RipperInterval
+mkRipperInterval' d ti tz' = Right . fromJust . mkRipperInterval d ti tz'
+
 newYork :: TZInfo
 newYork = fromLabel America__New_York
 
