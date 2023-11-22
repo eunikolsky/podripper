@@ -68,6 +68,25 @@ spec = do
             --  =     2023-11-16 02:00:00 UTC, Thursday
         getRipperDelay testIntervals Nothing now `shouldBe` riDelay testInterval0
 
+      it "doesn't delay by more than to the next time interval" $ do
+        let closeToTestInterval0 = fromJust $ mkRipperInterval Wednesday (read "17:00:00", read "19:00:00") newYork (RetryDelay $ durationMinutes 22)
+        -- just before the interval's start
+        let now = [tz|2023-11-15 23:58:40 [Europe/Kyiv]|] -- Wednesday
+            --  =     2023-11-15 16:58:40 America/New_York, Wednesday
+            --  =     2023-11-15 21:58:40 UTC, Wednesday
+            expected = RetryDelay $ durationSeconds $ 60 + 20 + 1
+            -- ^ 16:58:40 to 17:00:00 + extra second to get into the interval
+        getRipperDelay [testInterval0, closeToTestInterval0] Nothing now `shouldBe` expected
+
+      it "doesn't consider today's interval before now" $ do
+        let intervalDelay = RetryDelay $ durationMinutes 22
+            closeToTestInterval0 = fromJust $ mkRipperInterval Wednesday (read "17:00:00", read "19:00:00") newYork intervalDelay
+        -- just after the interval's start
+        let now = [tz|2023-11-16 00:00:40 [Europe/Kyiv]|] -- Thursday
+            --  =     2023-11-15 17:00:40 America/New_York, Wednesday
+            --  =     2023-11-15 22:00:40 UTC, Wednesday
+        getRipperDelay [testInterval0, closeToTestInterval0] Nothing now `shouldBe` intervalDelay
+
 newYork :: TZInfo
 newYork = fromLabel America__New_York
 
