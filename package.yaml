@@ -76,6 +76,7 @@ library:
     - time
     - time-compat
     - transformers
+    - tztime
     - unliftio
     - unliftio-core
     - xml
@@ -124,6 +125,7 @@ tests:
     - text
     - time
     - transformers
+    - tztime
 
     ghc-options:
     - -threaded

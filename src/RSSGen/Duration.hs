@@ -12,6 +12,7 @@ module RSSGen.Duration
 
 import Data.Aeson hiding ((<?>))
 import Data.Attoparsec.Text
+import Data.Function
 import Data.Time.Clock
 import Data.Text (Text)
 import Development.Shake.Classes
@@ -25,6 +26,9 @@ instance Show Duration where
   show (Seconds s) = show s <> "s"
   show (Minutes m) = show m <> "m"
   show (Hours h) = show h <> "h"
+
+instance Ord Duration where
+  compare = compare `on` toSeconds
 
 instance FromJSON Duration where
   parseJSON = withText "Duration" $ either fail pure . parseDuration
@@ -82,4 +86,4 @@ durationHours = Hours
 --
 -- (Is this separate type really necessary?)
 newtype RetryDelay = RetryDelay { toDuration :: Duration }
-  deriving newtype (Show, Eq, FromJSON, Hashable, Binary, NFData)
+  deriving newtype (Show, Eq, Ord, FromJSON, Hashable, Binary, NFData)

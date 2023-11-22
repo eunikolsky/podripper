@@ -29,6 +29,7 @@ library
       RipConfig
       Ripper.Import
       Ripper.Main
+      Ripper.RipperDelay
       Ripper.Run
       Ripper.Types
       Ripper.Util
@@ -87,6 +88,7 @@ library
     , time
     , time-compat
     , transformers
+    , tztime
     , unliftio
     , unliftio-core
     , xml
@@ -130,6 +132,7 @@ test-suite ripper-test
   main-is: Spec.hs
   other-modules:
       RipConfigSpec
+      Ripper.RipperDelaySpec
       Ripper.UtilSpec
       RSSGen.BinaryUTCTimeSpec
       RSSGen.DatabaseSpec
@@ -177,4 +180,5 @@ test-suite ripper-test
     , text
     , time
     , transformers
+    , tztime
   default-language: Haskell2010
