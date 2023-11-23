@@ -127,6 +127,9 @@ longerAfterRipDelay = RetryDelay $ durationSeconds 3
 defaultDelay :: RetryDelay
 defaultDelay = RetryDelay $ durationMinutes 10
 
+-- | Parses a `RipperInterval` with the following format:
+-- `dw h0:m0-h1:m1 timezone: delay`, for example
+-- `Su 12:59-23:48 America/New_York: 9m`.
 parseRipperInterval :: Text -> IO (Either String RipperInterval)
 parseRipperInterval t = runExceptT $ do
   (weekday, interval, tzId, delay) <- liftEither $ parseOnly pRipperInterval t
