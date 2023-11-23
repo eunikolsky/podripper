@@ -11,7 +11,6 @@ import Control.Monad.Except
 import Data.Attoparsec.Text
 import Data.Foldable
 import Data.Functor
-import Data.Maybe
 import Data.Text (Text)
 import Data.Time
 import Data.Time.TZInfo
@@ -132,7 +131,7 @@ parseRipperInterval :: Text -> IO (Either String RipperInterval)
 parseRipperInterval t = runExceptT $ do
   (weekday, interval, tzId, delay) <- liftEither $ parseOnly pRipperInterval t
   tz <- ExceptT $ loadTZ tzId
-  pure . fromJust $ mkRipperInterval weekday interval tz delay
+  liftEither . justInterval $ mkRipperInterval weekday interval tz delay
 
   where
     loadTZ :: TZIdentifier -> IO (Either String TZInfo)
@@ -140,6 +139,9 @@ parseRipperInterval t = runExceptT $ do
 
     failedTZ :: IOException -> IO (Either String a)
     failedTZ e = pure . Left $ "Failed to load timezone: " <> show e
+
+    justInterval (Just i) = Right i
+    justInterval Nothing = Left "Couldn't parse time interval"
 
 pRipperInterval :: Parser (DayOfWeek, (TimeOfDay, TimeOfDay), TZIdentifier, RetryDelay)
 pRipperInterval = do

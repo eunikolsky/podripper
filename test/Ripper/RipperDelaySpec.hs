@@ -103,6 +103,10 @@ spec = do
       actual <- parseRipperInterval "Su 12:59-23:48 Unknown: 9m"
       actual `shouldSatisfy` isLeft
 
+    it "fails on an unordered interval" $ do
+      actual <- parseRipperInterval "Su 14:00-12:00 UTC: 9m"
+      actual `shouldSatisfy` isLeft
+
 mkRipperInterval' :: DayOfWeek -> (TimeOfDay, TimeOfDay) -> TZInfo -> RetryDelay -> Either a RipperInterval
 mkRipperInterval' d ti tz' = Right . fromJust . mkRipperInterval d ti tz'
 
