@@ -9,6 +9,7 @@ module Ripper.Run
 
 import Conduit
 import Data.Monoid (Any(..))
+import Data.Time.TZTime
 import Network.HTTP.Conduit (HttpExceptionContent(..))
 import Network.HTTP.Simple
 import RIO.Directory (createDirectoryIfMissing)
@@ -19,6 +20,7 @@ import RIO.Time
 import System.IO.Error (isResourceVanishedError)
 
 import Ripper.Import
+import Ripper.RipperDelay
 import RSSGen.Duration
 
 run :: RIO App ()
@@ -47,17 +49,22 @@ data RipResult = RipRecorded | RipNothing
 
 class Monad m => MonadRipper m where
   rip :: Request -> Maybe FilePath -> m RipResult
-  delayReconnect :: Int -> m ()
+  getRipDelay :: [RipperInterval] -> Maybe RipEndTime -> Now -> m RetryDelay
+  -- TODO can `MonadTime` be composed here to replace these two functions?
+  getTime :: m Now
+  delayReconnect :: RetryDelay -> m ()
   shouldRepeat :: m Bool
 
 instance HasLogFunc env => MonadRipper (RIO env) where
   rip = ripOneStream
+  getRipDelay is ripEnd now = pure $ getRipperDelay is ripEnd now
+  getTime = liftIO getCurrentTZTime
   delayReconnect = delayWithLog
   shouldRepeat = pure True
 
 -- | The endless ripping loop.
 ripper :: (MonadRipper m) => Request -> Maybe FilePath -> RetryDelay -> RetryDelay -> m ()
-ripper request maybeOutputDir reconnectDelay smallReconnectDelay = evalStateT go mempty
+ripper request maybeOutputDir _reconnectDelay _smallReconnectDelay = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
    - which is the same as the output monad, and the inside monad can't be the
@@ -74,16 +81,18 @@ ripper request maybeOutputDir reconnectDelay smallReconnectDelay = evalStateT go
 
       let isSuccessfulRip = result == RipRecorded
       modify' (<> Any isSuccessfulRip)
-      wasEverSuccessfulRip <- get
+      _wasEverSuccessfulRip <- get
 
-      lift . delayReconnect . toMicroseconds . toDuration $
-        if getAny wasEverSuccessfulRip then smallReconnectDelay else reconnectDelay
+      -- TODO how to get rid of `lift`s?
+      now <- lift getTime
+      delay <- lift $ getRipDelay mempty Nothing now
+      lift $ delayReconnect delay
       whenM (lift shouldRepeat) go
 
-delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => Int -> m ()
+delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => RetryDelay -> m ()
 delayWithLog reconnectDelay = do
   logDebug "Disconnected"
-  threadDelay reconnectDelay
+  threadDelay . toMicroseconds . toDuration $ reconnectDelay
   logDebug "Reconnecting"
 
 -- | Rips a stream for as long as the connection is open.
