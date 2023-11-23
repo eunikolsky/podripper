@@ -10,6 +10,7 @@ module Ripper.RipperDelay
 
 import Control.Exception
 import Control.Monad.Except
+import Data.Aeson hiding ((<?>))
 import Data.Attoparsec.Text
 import Data.Foldable
 import Data.Functor
@@ -146,6 +147,9 @@ defaultDelay = RetryDelay $ durationMinutes 10
 -- `Su 12:59-23:48 America/New_York: 9m`.
 parseRipperIntervalRef :: Text -> Either String RipperIntervalRef
 parseRipperIntervalRef = parseOnly pRipperIntervalRef
+
+instance FromJSON RipperIntervalRef where
+  parseJSON = withText "RipperIntervalRef" $ either fail pure . parseRipperIntervalRef
 
 -- | Tries to convert `RipperIntervalRef` to `RipperInterval`.
 ripperIntervalFromRef :: RipperIntervalRef -> IO (Either String RipperInterval)
