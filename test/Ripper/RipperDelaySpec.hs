@@ -3,6 +3,7 @@
 
 module Ripper.RipperDelaySpec where
 
+import Data.Either
 import Data.Maybe
 import Data.Time hiding (utc)
 import Data.Time.Calendar.OrdinalDate
@@ -97,6 +98,10 @@ spec = do
       actual <- parseRipperInterval "Su 12:59-23:48 America/New_York: 9m"
       let expected = mkRipperInterval' Sunday (read "12:59:00", read "23:48:00") (fromLabel America__New_York) (RetryDelay $ durationMinutes 9)
       actual `shouldBe` expected
+
+    it "fails on an unknown timezone" $ do
+      actual <- parseRipperInterval "Su 12:59-23:48 Unknown: 9m"
+      actual `shouldSatisfy` isLeft
 
 mkRipperInterval' :: DayOfWeek -> (TimeOfDay, TimeOfDay) -> TZInfo -> RetryDelay -> Either a RipperInterval
 mkRipperInterval' d ti tz' = Right . fromJust . mkRipperInterval d ti tz'

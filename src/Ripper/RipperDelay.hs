@@ -6,6 +6,7 @@ module Ripper.RipperDelay
   , riDelay
   ) where
 
+import Control.Exception
 import Control.Monad.Except
 import Data.Attoparsec.Text
 import Data.Foldable
@@ -130,8 +131,15 @@ defaultDelay = RetryDelay $ durationMinutes 10
 parseRipperInterval :: Text -> IO (Either String RipperInterval)
 parseRipperInterval t = runExceptT $ do
   (weekday, interval, tzId, delay) <- liftEither $ parseOnly pRipperInterval t
-  tz <- liftIO $ loadFromSystem tzId
+  tz <- ExceptT $ loadTZ tzId
   pure . fromJust $ mkRipperInterval weekday interval tz delay
+
+  where
+    loadTZ :: TZIdentifier -> IO (Either String TZInfo)
+    loadTZ = handle failedTZ . fmap Right . loadFromSystem
+
+    failedTZ :: IOException -> IO (Either String a)
+    failedTZ e = pure . Left $ "Failed to load timezone: " <> show e
 
 pRipperInterval :: Parser (DayOfWeek, (TimeOfDay, TimeOfDay), TZIdentifier, RetryDelay)
 pRipperInterval = do
