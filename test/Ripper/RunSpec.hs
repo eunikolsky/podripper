@@ -1,7 +1,8 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Ripper.UtilSpec (spec) where
+
+module Ripper.RunSpec (spec) where
 
 import Data.ByteString.Builder (toLazyByteString)
 import Ripper.Import hiding (error)
