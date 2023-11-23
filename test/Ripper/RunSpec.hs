@@ -2,10 +2,12 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TupleSections #-}
 
 module Ripper.RunSpec (spec) where
 
 import Data.ByteString.Builder (toLazyByteString)
+import Data.List (singleton)
 import Data.Time.TZTime.QQ
 import Ripper.Import hiding (error)
 import Network.HTTP.Simple (parseRequest_)
@@ -31,7 +33,7 @@ spec = do
 
             smallDelay = RetryDelay $ durationSeconds 1
             request = parseRequest_ "http://localhost/"
-            expectedDelays = replicate numActions delay
+            expectedDelays = (replicate numActions delay, replicate numActions Nothing)
 
             delays = runTestM testState $ ripper request Nothing delay smallDelay
 
@@ -108,7 +110,9 @@ data TestState = TestState
   -- ^ the emulated `now` to return in test
   }
 
-type CollectedDelays = [RetryDelay]
+-- | Collects the corresponding arguments to `delayReconnect` and `getRipDelay`
+-- in the calling order to verify them later.
+type CollectedDelays = ([RetryDelay], [Maybe RipEndTime])
 
 newtype TestM a = TestM (StateT TestState (Writer CollectedDelays) a)
   deriving newtype (Functor, Applicative, Monad, MonadState TestState, MonadWriter CollectedDelays)
@@ -123,11 +127,11 @@ instance MonadRipper TestM where
     put $ s { tsRipResult = tail }
     pure head
 
-  getRipDelay _ _ _ = gets tsRipDelay
+  getRipDelay _ ripEndTime _ = tellRipEndTime ripEndTime >> gets tsRipDelay
 
   getTime = gets tsNow
 
-  delayReconnect delay = tell [delay]
+  delayReconnect delay = tellRetryDelay delay
 
   shouldRepeat = do
     s <- get
@@ -135,3 +139,9 @@ instance MonadRipper TestM where
     put $ s { tsNumAction = iteration }
 
     pure $ iteration > 0
+
+tellRetryDelay :: RetryDelay -> TestM ()
+tellRetryDelay = tell . (, []) . singleton
+
+tellRipEndTime :: Maybe RipEndTime -> TestM ()
+tellRipEndTime = tell . ([], ) . singleton
