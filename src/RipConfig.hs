@@ -2,9 +2,8 @@ module RipConfig
   ( RipConfig(..)
   ) where
 
-import Data.Aeson (FromJSON)
+import Data.Aeson
 import Data.Text (Text)
-import GHC.Generics
 import RSSGen.Duration
 import Ripper.RipperDelay
 
@@ -14,12 +13,22 @@ data RipConfig = RipConfig
   , duration :: !Duration
   , retryDelay :: !RetryDelay
   -- FIXME remove `duration` and `retryDelay` when refactored
-  -- FIXME rename to `Refs`
-  , ripIntervals :: ![RipperIntervalRef]
+  , ripIntervalRefs :: ![RipperIntervalRef]
   , ripDirName :: !Text
   , podArtist :: !Text
   , podAlbum :: !Text
   }
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq)
 
-instance FromJSON RipConfig
+instance FromJSON RipConfig where
+  parseJSON = withObject "RipConfig" $ \o -> RipConfig
+    <$> o .: "streamURL"
+    <*> o .: "duration"
+    <*> o .: "retryDelay"
+    -- the key is called `ripIntervals` instead of `ripIntervalRefs` because
+    -- `RipperIntervalRef` is an internal workaround for pure parsers and
+    -- doesn't need to leak outside
+    <*> o .: "ripIntervals"
+    <*> o .: "ripDirName"
+    <*> o .: "podArtist"
+    <*> o .: "podAlbum"
