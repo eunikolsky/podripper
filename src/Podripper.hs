@@ -35,8 +35,6 @@ import System.Exit
 import System.FilePath
 import System.Process
 
-type RipName = Text
-
 data RipConfigExt = RipConfigExt
   { config :: !RipConfig
   , rawRipDir :: !FilePath
@@ -57,13 +55,6 @@ run ripName = do
   reencodePreviousRips configExt
   reencodeRips configExt
   updateRSS configExt
-
-loadConfig :: RipName -> IO RipConfig
-loadConfig ripName = do
-  confDir <- getConfDir
-  let confName = confDir </> T.unpack ripName <.> "json"
-  eitherConfig <- eitherDecodeFileStrict' @RipConfig confName
-  either die pure eitherConfig
 
 ensureDirs :: RipConfigExt -> IO ()
 ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
@@ -389,11 +380,6 @@ extendConfig config =
       doneBaseDir = "complete"
       doneRipDir = doneBaseDir </> rawRipDir
   in RipConfigExt{config, rawRipDir, doneRipDir, doneBaseDir}
-
-getConfDir :: IO FilePath
-getConfDir = do
-  maybeConfDir <- lookupEnv "CONF_DIR"
-  pure $ fromMaybe "/usr/share/podripper" maybeConfDir
 
 -- infix 7 <?>
 (<?>) :: Maybe a -> b -> Either b a

@@ -1,11 +1,18 @@
 module RipConfig
   ( RipConfig(..)
+  , RipName
+  , loadConfig
   ) where
 
 import Data.Aeson
+import Data.Maybe
 import Data.Text (Text)
+import Data.Text qualified as T
 import RSSGen.Duration
 import Ripper.RipperDelay
+import System.FilePath
+import System.Environment
+import System.Exit (die)
 
 -- | Configuration necessary to rip a stream.
 data RipConfig = RipConfig
@@ -33,3 +40,17 @@ instance FromJSON RipConfig where
     <*> o .: "ripDirName"
     <*> o .: "podArtist"
     <*> o .: "podAlbum"
+
+type RipName = Text
+
+loadConfig :: RipName -> IO RipConfig
+loadConfig ripName = do
+  confDir <- getConfDir
+  let confName = confDir </> T.unpack ripName <.> "json"
+  eitherConfig <- eitherDecodeFileStrict' @RipConfig confName
+  either die pure eitherConfig
+
+getConfDir :: IO FilePath
+getConfDir = do
+  maybeConfDir <- lookupEnv "CONF_DIR"
+  pure $ fromMaybe "/usr/share/podripper" maybeConfDir
