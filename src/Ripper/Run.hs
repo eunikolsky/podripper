@@ -87,9 +87,10 @@ ripper request maybeOutputDir _reconnectDelay _smallReconnectDelay = evalStateT 
       maybeLatestRipEndTime <- gets getLast
 
       -- TODO how to get rid of `lift`s?
-      now <- lift getTime
-      delay <- lift $ getRipDelay mempty maybeLatestRipEndTime now
-      lift $ delayReconnect delay
+      lift $ do
+        now <- getTime
+        delay <- getRipDelay mempty maybeLatestRipEndTime now
+        delayReconnect delay
       whenM (lift shouldRepeat) go
 
 delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => RetryDelay -> m ()
