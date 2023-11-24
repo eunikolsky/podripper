@@ -42,10 +42,10 @@ spec = do
     context "after a successful recording" $ do
       let smallDelay = RetryDelay $ durationSeconds 1
           delay = RetryDelay $ durationSeconds 3
+          ripEndTime = [tz|2023-12-31 22:59:00 [UTC]|]
 
       it "uses an after-recording delay" $ do
         let numActions = 1
-            ripEndTime = [tz|2023-12-31 22:59:00 [UTC]|]
             testState = TestState (repeat $ RipRecorded ripEndTime) numActions delay now
 
             request = parseRequest_ "http://localhost/"
@@ -55,16 +55,16 @@ spec = do
 
         args `shouldBe` expectedArgs
 
-      {-it "uses a small reconnect delay since the first successful recording" $ do
+      it "uses an after-recording delay since the first successful recording" $ do
         let numActions = 3
-            testState = TestState (RipRecorded : repeat RipNothing) numActions
+            testState = TestState (RipRecorded ripEndTime : repeat RipNothing) numActions delay now
 
             request = parseRequest_ "http://localhost/"
-            expectedArgs = replicate numActions smallDelayDiffTime
+            expectedArgs = (replicate numActions delay, replicate numActions $ Just ripEndTime)
 
             args = runTestM testState $ ripper request Nothing delay smallDelay
 
-        args `shouldBe` expectedArgs-}
+        args `shouldBe` expectedArgs
 
   describe "handleResourceVanished" $ do
     it "catches ResourceVanished IOError" $ do

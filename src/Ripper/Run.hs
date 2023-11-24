@@ -8,7 +8,7 @@ module Ripper.Run
   ) where
 
 import Conduit
-import Data.Monoid (Any(..))
+import Data.Monoid (Last(..))
 import Data.Time.TZTime
 import Network.HTTP.Conduit (HttpExceptionContent(..))
 import Network.HTTP.Simple
@@ -47,9 +47,9 @@ setUserAgent = addRequestHeader "User-Agent" . encodeUtf8
 data RipResult = RipRecorded RipEndTime | RipNothing
   deriving (Eq, Show)
 
-isSuccessfulRip :: RipResult -> Bool
-isSuccessfulRip (RipRecorded _) = True
-isSuccessfulRip RipNothing = False
+ripEndTimeFromResult :: RipResult -> Maybe RipEndTime
+ripEndTimeFromResult (RipRecorded t) = Just t
+ripEndTimeFromResult RipNothing = Nothing
 
 class Monad m => MonadRipper m where
   rip :: Request -> Maybe FilePath -> m RipResult
@@ -79,19 +79,16 @@ ripper request maybeOutputDir _reconnectDelay _smallReconnectDelay = evalStateT 
    - the result value in `runTestM`)
    -}
   where
-    go :: MonadRipper m => StateT Any m ()
+    go :: MonadRipper m => StateT (Last RipEndTime) m ()
     go = do
       result <- lift $ rip request maybeOutputDir
 
-      modify' (<> Any (isSuccessfulRip result))
-      _wasEverSuccessfulRip <- get
+      modify' (<> Last (ripEndTimeFromResult result))
+      maybeLatestRipEndTime <- gets getLast
 
       -- TODO how to get rid of `lift`s?
       now <- lift getTime
-      let maybeRipEndTime = case result of
-            RipRecorded t -> Just t
-            RipNothing -> Nothing
-      delay <- lift $ getRipDelay mempty maybeRipEndTime now
+      delay <- lift $ getRipDelay mempty maybeLatestRipEndTime now
       lift $ delayReconnect delay
       whenM (lift shouldRepeat) go
 
