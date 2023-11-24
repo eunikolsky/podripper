@@ -1,5 +1,7 @@
 module Ripper.RipperDelay
-  ( RipperInterval
+  ( Now
+  , RipEndTime
+  , RipperInterval
   , RipperIntervalRef(..)
   , getRipperDelay
   , mkRipperInterval

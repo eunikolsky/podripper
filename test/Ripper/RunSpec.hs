@@ -1,10 +1,15 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TupleSections #-}
 
 module Ripper.RunSpec (spec) where
 
 import Data.ByteString.Builder (toLazyByteString)
+import Data.List (singleton)
+import Data.Time.TZTime
+import Data.Time.TZTime.QQ
 import Ripper.Import hiding (error)
 import Network.HTTP.Simple (parseRequest_)
 import RIO.List
@@ -12,6 +17,7 @@ import RIO.Partial (fromJust)
 import RIO.State
 import RIO.Writer
 import RSSGen.Duration
+import Ripper.RipperDelay
 import Ripper.Run
 import System.IO.Error
 import Test.Hspec
@@ -20,46 +26,43 @@ spec :: Spec
 spec = do
   describe "ripper" $ do
     context "before first successful recording" $
-      it "uses the standard reconnect delay" $ do
+      it "uses a no-recording delay" $ do
         let numActions = 3
-            testState = TestState (repeat RipNothing) numActions
-
             delay = RetryDelay $ durationSeconds 3
-            delayDiffTime = 3_000_000
-            smallDelay = RetryDelay $ durationSeconds 1
+            testState = TestState (repeat RipNothing) numActions delay now
+
             request = parseRequest_ "http://localhost/"
-            expectedDelays = replicate numActions delayDiffTime
+            expectedArgs = (replicate numActions delay, replicate numActions Nothing)
 
-            delays = runTestM testState $ ripper request Nothing delay smallDelay
+            args = runTestM testState $ ripper request Nothing mempty
 
-        delays `shouldBe` expectedDelays
+        args `shouldBe` expectedArgs
 
     context "after a successful recording" $ do
-      let smallDelay = RetryDelay $ durationSeconds 1
-          smallDelayDiffTime = 1_000_000
-          delay = RetryDelay $ durationSeconds 3
+      let delay = RetryDelay $ durationSeconds 3
+          ripEndTime = [tz|2023-12-31 22:59:00 [UTC]|]
 
-      it "uses a small reconnect delay" $ do
-        let numActions = 3
-            testState = TestState (repeat RipRecorded) numActions
-
-            request = parseRequest_ "http://localhost/"
-            expectedDelays = replicate numActions smallDelayDiffTime
-
-            delays = runTestM testState $ ripper request Nothing delay smallDelay
-
-        delays `shouldBe` expectedDelays
-
-      it "uses a small reconnect delay since the first successful recording" $ do
-        let numActions = 3
-            testState = TestState (RipRecorded : repeat RipNothing) numActions
+      it "uses an after-recording delay" $ do
+        let numActions = 1
+            testState = TestState (repeat $ RipRecorded ripEndTime) numActions delay now
 
             request = parseRequest_ "http://localhost/"
-            expectedDelays = replicate numActions smallDelayDiffTime
+            expectedArgs = ([delay], [Just ripEndTime])
 
-            delays = runTestM testState $ ripper request Nothing delay smallDelay
+            args = runTestM testState $ ripper request Nothing mempty
 
-        delays `shouldBe` expectedDelays
+        args `shouldBe` expectedArgs
+
+      it "uses an after-recording delay since the first successful recording" $ do
+        let numActions = 3
+            testState = TestState (RipRecorded ripEndTime : repeat RipNothing) numActions delay now
+
+            request = parseRequest_ "http://localhost/"
+            expectedArgs = (replicate numActions delay, replicate numActions $ Just ripEndTime)
+
+            args = runTestM testState $ ripper request Nothing mempty
+
+        args `shouldBe` expectedArgs
 
   describe "handleResourceVanished" $ do
     it "catches ResourceVanished IOError" $ do
@@ -70,11 +73,12 @@ spec = do
         actual `shouldBe` RipNothing
 
     it "doesn't do anything on no exception" $ do
-      let io = pure RipRecorded
+      let result = RipRecorded now
+          io = pure result
       (_, logOpts) <- logOptionsMemory
       withLogFunc logOpts $ \logFunc -> do
         actual <- flip runReaderT logFunc $ handleResourceVanished io
-        actual `shouldBe` RipRecorded
+        actual `shouldBe` result
 
     it "ignores another IOError" $ do
       let error = mkIOError fullErrorType "" Nothing Nothing
@@ -91,6 +95,9 @@ spec = do
       builder <- readIORef builderRef
       toLazyByteString builder `shouldBe` "Network.Socket.recvBuf: resource vanished\n"
 
+now :: TZTime
+now = [tz|2023-12-31 23:00:00 [UTC]|]
+
 type NumActions = Int
 
 data TestState = TestState
@@ -99,14 +106,20 @@ data TestState = TestState
   -- which is done by removing the head at every step
   , tsNumAction :: !NumActions
   -- ^ the test should terminate when the number reaches zero
+  , tsRipDelay :: !RetryDelay
+  -- ^ the ripper delay to return in test
+  , tsNow :: !Now
+  -- ^ the emulated `now` to return in test
   }
 
-type CollectedDelays = [Int]
+-- | Collects the corresponding arguments to `delayReconnect` and `getRipDelay`
+-- in the calling order to verify them later.
+type CollectedArgs = ([RetryDelay], [Maybe RipEndTime])
 
-newtype TestM a = TestM (StateT TestState (Writer CollectedDelays) a)
-  deriving newtype (Functor, Applicative, Monad, MonadState TestState, MonadWriter CollectedDelays)
+newtype TestM a = TestM (StateT TestState (Writer CollectedArgs) a)
+  deriving newtype (Functor, Applicative, Monad, MonadState TestState, MonadWriter CollectedArgs)
 
-runTestM :: TestState -> TestM a -> CollectedDelays
+runTestM :: TestState -> TestM a -> CollectedArgs
 runTestM testState (TestM r) = execWriter $ evalStateT r testState
 
 instance MonadRipper TestM where
@@ -116,7 +129,11 @@ instance MonadRipper TestM where
     put $ s { tsRipResult = tail }
     pure head
 
-  delayReconnect delay = tell [delay]
+  getRipDelay _ ripEndTime _ = tellRipEndTime ripEndTime >> gets tsRipDelay
+
+  getTime = gets tsNow
+
+  delayReconnect delay = tellRetryDelay delay
 
   shouldRepeat = do
     s <- get
@@ -124,3 +141,9 @@ instance MonadRipper TestM where
     put $ s { tsNumAction = iteration }
 
     pure $ iteration > 0
+
+tellRetryDelay :: RetryDelay -> TestM ()
+tellRetryDelay = tell . (, []) . singleton
+
+tellRipEndTime :: Maybe RipEndTime -> TestM ()
+tellRipEndTime = tell . ([], ) . singleton

@@ -32,7 +32,7 @@ spec = do
               { streamURL = "http://example.org"
               , duration = durationMinutes 4
               , retryDelay = RetryDelay $ durationSeconds 8
-              , ripIntervals =
+              , ripIntervalRefs =
                 [ RipperIntervalRef Monday (read "13:00:00", read "15:00:00") "America/Toronto" (RetryDelay $ durationMinutes 2)
                 ]
               , ripDirName = "test"
@@ -59,7 +59,7 @@ spec = do
               { streamURL = "http://example.org"
               , duration = durationSeconds 4
               , retryDelay = RetryDelay $ durationMinutes 2
-              , ripIntervals = []
+              , ripIntervalRefs = []
               , ripDirName = "test"
               , podArtist = "Хакер"
               , podAlbum = "Hackers"

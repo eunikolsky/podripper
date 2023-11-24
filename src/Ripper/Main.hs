@@ -11,6 +11,7 @@ import qualified Paths_ripper
 import RIO.Process
 import qualified RIO.Text as T
 import qualified Ripper.Run
+import Ripper.RipperDelay
 
 run :: Options -> IO ()
 run options = do
@@ -42,19 +43,12 @@ ripperParser = Options
       <> help (mconcat ["How long to rip (e.g. ", show (durationHours 2), ")"])
       <> metavar "rip_duration"
       )
-  <*> option retryDelay
-      ( short 'r'
-      <> help (mconcat ["Reconnect delay (e.g. ", show (RetryDelay $ durationMinutes 1), ")"])
-      <> metavar "reconnect_delay"
-      <> value (RetryDelay $ durationSeconds 5)
-      <> showDefault
-      )
-  <*> option retryDelay
-      ( short 's'
-      <> help (mconcat ["Small reconnect delay (e.g. ", show (RetryDelay $ durationSeconds 5), ")"])
-      <> metavar "reconnect_delay"
-      <> value (RetryDelay $ durationSeconds 1)
-      <> showDefault
+  <*> many (
+        option ripIntervalRef
+        ( short 'i'
+        <> help "Time intervals with delays to extend the default delays"
+        <> metavar "rip_intervals"
+        )
       )
   <*> strArgument ( metavar "URL"
                 <> help "Stream URL"
@@ -63,5 +57,5 @@ ripperParser = Options
 duration :: ReadM Duration
 duration = eitherReader $ parseDuration . T.pack
 
-retryDelay :: ReadM RetryDelay
-retryDelay = RetryDelay <$> duration
+ripIntervalRef :: ReadM RipperIntervalRef
+ripIntervalRef = eitherReader $ parseRipperIntervalRef . T.pack

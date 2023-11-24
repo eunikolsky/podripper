@@ -21,12 +21,12 @@ spec :: Spec
 spec = do
   describe "getRipperDelay" $ do
     context "after ripping ended" $ do
-      prop "returns 1 s within 5 minutes" $ \interval (Now now) -> do
+      prop "returns 1 s within 5 minutes" $ \interval (ANow now) -> do
         offset <- realToFrac <$> choose @Float (0, 5 * 60)
         let ripEndTime = addTime (negate offset) now
         pure $ getRipperDelay [interval] (Just ripEndTime) now == RetryDelay (durationSeconds 1)
 
-      prop "returns 3 s within 15 minutes" $ \interval (Now now) -> do
+      prop "returns 3 s within 15 minutes" $ \interval (ANow now) -> do
         offset <- realToFrac <$> choose @Float ((5 * 60) + 1, 15 * 60)
         let ripEndTime = addTime (negate offset) now
         pure $ getRipperDelay [interval] (Just ripEndTime) now == RetryDelay (durationSeconds 3)
@@ -143,10 +143,10 @@ instance Arbitrary TimeOfDay where
     <*> chooseInt (0, 59)
     <*> (realToFrac <$> chooseInt (0, 59))
 
-newtype Now = Now TZTime
+newtype ANow = ANow TZTime
   deriving newtype (Show)
 
-instance Arbitrary Now where
+instance Arbitrary ANow where
   arbitrary = do
     day <- fromOrdinalDate
       <$> chooseInteger (2023, 2123)
@@ -154,7 +154,7 @@ instance Arbitrary Now where
     timeOfDay <- arbitrary
     let time = LocalTime day timeOfDay
     let tzInfo = fromLabel Europe__Kyiv
-    pure . Now $ fromLocalTime tzInfo time
+    pure . ANow $ fromLocalTime tzInfo time
 
 instance Arbitrary RipperInterval where
   arbitrary = do
