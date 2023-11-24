@@ -33,11 +33,11 @@ spec = do
 
             smallDelay = RetryDelay $ durationSeconds 1
             request = parseRequest_ "http://localhost/"
-            expectedDelays = (replicate numActions delay, replicate numActions Nothing)
+            expectedArgs = (replicate numActions delay, replicate numActions Nothing)
 
-            delays = runTestM testState $ ripper request Nothing delay smallDelay
+            args = runTestM testState $ ripper request Nothing delay smallDelay
 
-        delays `shouldBe` expectedDelays
+        args `shouldBe` expectedArgs
 
     {-context "after a successful recording" $ do
       let smallDelay = RetryDelay $ durationSeconds 1
@@ -49,22 +49,22 @@ spec = do
             testState = TestState (repeat RipRecorded) numActions
 
             request = parseRequest_ "http://localhost/"
-            expectedDelays = replicate numActions smallDelayDiffTime
+            expectedArgs = replicate numActions smallDelayDiffTime
 
-            delays = runTestM testState $ ripper request Nothing delay smallDelay
+            args = runTestM testState $ ripper request Nothing delay smallDelay
 
-        delays `shouldBe` expectedDelays
+        args `shouldBe` expectedArgs
 
       it "uses a small reconnect delay since the first successful recording" $ do
         let numActions = 3
             testState = TestState (RipRecorded : repeat RipNothing) numActions
 
             request = parseRequest_ "http://localhost/"
-            expectedDelays = replicate numActions smallDelayDiffTime
+            expectedArgs = replicate numActions smallDelayDiffTime
 
-            delays = runTestM testState $ ripper request Nothing delay smallDelay
+            args = runTestM testState $ ripper request Nothing delay smallDelay
 
-        delays `shouldBe` expectedDelays-}
+        args `shouldBe` expectedArgs-}
 
   describe "handleResourceVanished" $ do
     it "catches ResourceVanished IOError" $ do
@@ -112,12 +112,12 @@ data TestState = TestState
 
 -- | Collects the corresponding arguments to `delayReconnect` and `getRipDelay`
 -- in the calling order to verify them later.
-type CollectedDelays = ([RetryDelay], [Maybe RipEndTime])
+type CollectedArgs = ([RetryDelay], [Maybe RipEndTime])
 
-newtype TestM a = TestM (StateT TestState (Writer CollectedDelays) a)
-  deriving newtype (Functor, Applicative, Monad, MonadState TestState, MonadWriter CollectedDelays)
+newtype TestM a = TestM (StateT TestState (Writer CollectedArgs) a)
+  deriving newtype (Functor, Applicative, Monad, MonadState TestState, MonadWriter CollectedArgs)
 
-runTestM :: TestState -> TestM a -> CollectedDelays
+runTestM :: TestState -> TestM a -> CollectedArgs
 runTestM testState (TestM r) = execWriter $ evalStateT r testState
 
 instance MonadRipper TestM where
