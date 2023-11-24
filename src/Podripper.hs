@@ -52,7 +52,7 @@ run ripName = do
   ensureDirs configExt
   -- | the flag shows whether the live stream check has returned success since
   -- the start; we don't need to ask it anymore after that
-  maybeStreamURL <- waitForStream configExt
+  maybeStreamURL <- waitForStream config
   unless skipRipping $ maybe (pure ()) (rip configExt) maybeStreamURL
   reencodePreviousRips configExt
   reencodeRips configExt
@@ -74,8 +74,8 @@ ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
 newtype StreamURL = StreamURL Text
   deriving newtype Show
 
-waitForStream :: RipConfigExt -> IO (Maybe StreamURL)
-waitForStream RipConfigExt{config} =
+waitForStream :: RipConfig -> IO (Maybe StreamURL)
+waitForStream config =
   let ripName = ripDirName config
   -- the `atp` support is hardcoded in the program because its live stream check
   -- is more complicated and the stream URL needs to be extracted from the
