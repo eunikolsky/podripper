@@ -29,7 +29,7 @@ spec = do
         }|]
 
         let expected = RipConfig
-              { streamURL = "http://example.org"
+              { streamURL = StreamURL "http://example.org"
               , duration = durationMinutes 4
               , retryDelay = RetryDelay $ durationSeconds 8
               , ripIntervalRefs =
@@ -56,7 +56,7 @@ spec = do
         }|]
 
         let expected = RipConfig
-              { streamURL = "http://example.org"
+              { streamURL = StreamURL "http://example.org"
               , duration = durationSeconds 4
               , retryDelay = RetryDelay $ durationMinutes 2
               , ripIntervalRefs = []

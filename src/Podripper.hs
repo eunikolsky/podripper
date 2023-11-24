@@ -16,7 +16,6 @@ import Data.Maybe
 import Data.Monoid
 import Data.List (dropWhileEnd, isSuffixOf)
 import qualified Data.List.NonEmpty as NE
-import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Data.Text.Lazy.IO as TL
@@ -62,9 +61,6 @@ ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
       ensureDir = createDirectoryIfMissing createParents
   forM_ [rawRipDir, doneRipDir] ensureDir
 
-newtype StreamURL = StreamURL Text
-  deriving newtype Show
-
 waitForStream :: RipConfig -> IO (Maybe StreamURL)
 waitForStream config =
   let ripName = ripDirName config
@@ -80,7 +76,7 @@ waitForStream config =
     else pure $ Just originalStreamURL
 
   where
-    originalStreamURL = StreamURL $ streamURL config
+    originalStreamURL = streamURL config
 
     waitForATP :: IO (Maybe StreamURL)
     waitForATP = handleError <=< runExceptT $ do

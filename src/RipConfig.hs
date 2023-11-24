@@ -1,6 +1,7 @@
 module RipConfig
   ( RipConfig(..)
   , RipName
+  , StreamURL(..)
   , loadConfig
   ) where
 
@@ -14,9 +15,12 @@ import System.FilePath
 import System.Environment
 import System.Exit (die)
 
+newtype StreamURL = StreamURL Text
+  deriving newtype (Show, Eq, FromJSON)
+
 -- | Configuration necessary to rip a stream.
 data RipConfig = RipConfig
-  { streamURL :: !Text
+  { streamURL :: !StreamURL
   -- FIXME remove `duration` when endless ripping is finished
   , duration :: !Duration
   -- FIXME remove `retryDelay` when live check uses rip intervals too
