@@ -3,6 +3,7 @@
 module Ripper.Run
   ( MonadRipper(..)
   , RipResult(..)
+  , URL
   , handleResourceVanished
   , run, ripper
   ) where
@@ -35,9 +36,8 @@ run = do
 
   userAgent <- asks appUserAgent
 
-  request <- fmap (setUserAgent userAgent) . parseRequestThrow . T.unpack . optionsStreamURL $ options
   void . timeout ripTimeout
-    $ ripper request maybeOutputDir ripIntervals
+    $ ripper userAgent maybeOutputDir ripIntervals (optionsStreamURL options)
 
 -- | Returns parsed `RipperInterval`s from the `Options`. Terminates the program
 -- with an error message if an interval can't be parsed.
@@ -50,9 +50,6 @@ getRipIntervals = do
   if not (null errors)
     then error $ "Couldn't parse rip intervals: " <> show errors
     else pure intervals
-
-setUserAgent :: Text -> Request -> Request
-setUserAgent = addRequestHeader "User-Agent" . encodeUtf8
 
 -- | The result of a single rip call. The information conveyed by this type
 -- is whether the call has received and saved any data.
@@ -79,8 +76,8 @@ instance HasLogFunc env => MonadRipper (RIO env) where
   shouldRepeat = pure True
 
 -- | The endless ripping loop.
-ripper :: (MonadRipper m) => Request -> Maybe FilePath -> [RipperInterval] -> m ()
-ripper request maybeOutputDir ripperIntervals = evalStateT go mempty
+ripper :: (MonadRipper m) => Text -> Maybe FilePath -> [RipperInterval] -> URL -> m ()
+ripper userAgent maybeOutputDir ripperIntervals url = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
    - which is the same as the output monad, and the inside monad can't be the
@@ -93,6 +90,7 @@ ripper request maybeOutputDir ripperIntervals = evalStateT go mempty
   where
     go :: MonadRipper m => StateT (Last RipEndTime) m ()
     go = do
+      let request = mkRipperRequest userAgent url
       result <- lift $ rip request maybeOutputDir
 
       modify' (<> Last (ripEndTimeFromResult result))
@@ -204,3 +202,12 @@ getFilename = do
   where
     getCurrentLocalTime :: MonadIO m => m LocalTime
     getCurrentLocalTime = zonedTimeToLocalTime <$> getZonedTime
+
+type URL = Text
+
+mkRipperRequest :: Text -> URL -> Request
+-- note: this causes impure exceptions for invalid URLs
+mkRipperRequest userAgent = setUserAgent userAgent . parseRequestThrow_ . T.unpack
+
+setUserAgent :: Text -> Request -> Request
+setUserAgent = addRequestHeader "User-Agent" . encodeUtf8

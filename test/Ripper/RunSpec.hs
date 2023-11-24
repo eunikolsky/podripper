@@ -11,7 +11,6 @@ import Data.List (singleton)
 import Data.Time.TZTime
 import Data.Time.TZTime.QQ
 import Ripper.Import hiding (error)
-import Network.HTTP.Simple (parseRequest_)
 import RIO.List
 import RIO.Partial (fromJust)
 import RIO.State
@@ -31,10 +30,9 @@ spec = do
             delay = RetryDelay $ durationSeconds 3
             testState = TestState (repeat RipNothing) numActions delay now
 
-            request = parseRequest_ "http://localhost/"
             expectedArgs = (replicate numActions delay, replicate numActions Nothing)
 
-            args = runTestM testState $ ripper request Nothing mempty
+            args = runTestM testState $ ripper "" Nothing mempty testURL
 
         args `shouldBe` expectedArgs
 
@@ -46,10 +44,9 @@ spec = do
         let numActions = 1
             testState = TestState (repeat $ RipRecorded ripEndTime) numActions delay now
 
-            request = parseRequest_ "http://localhost/"
             expectedArgs = ([delay], [Just ripEndTime])
 
-            args = runTestM testState $ ripper request Nothing mempty
+            args = runTestM testState $ ripper "" Nothing mempty testURL
 
         args `shouldBe` expectedArgs
 
@@ -57,10 +54,9 @@ spec = do
         let numActions = 3
             testState = TestState (RipRecorded ripEndTime : repeat RipNothing) numActions delay now
 
-            request = parseRequest_ "http://localhost/"
             expectedArgs = (replicate numActions delay, replicate numActions $ Just ripEndTime)
 
-            args = runTestM testState $ ripper request Nothing mempty
+            args = runTestM testState $ ripper "" Nothing mempty testURL
 
         args `shouldBe` expectedArgs
 
@@ -94,6 +90,9 @@ spec = do
         flip runReaderT logFunc $ handleResourceVanished io
       builder <- readIORef builderRef
       toLazyByteString builder `shouldBe` "Network.Socket.recvBuf: resource vanished\n"
+
+testURL :: URL
+testURL = "http://localhost/"
 
 now :: TZTime
 now = [tz|2023-12-31 23:00:00 [UTC]|]
