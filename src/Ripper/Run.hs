@@ -3,7 +3,7 @@
 module Ripper.Run
   ( MonadRipper(..)
   , RipResult(..)
-  , URL
+  , URL(..)
   , handleResourceVanished
   , run, ripper
   ) where
@@ -37,7 +37,7 @@ run = do
   userAgent <- asks appUserAgent
 
   void . timeout ripTimeout
-    $ ripper userAgent maybeOutputDir ripIntervals (optionsStreamURL options)
+    $ ripper userAgent maybeOutputDir ripIntervals (URL $ optionsStreamURL options)
 
 -- | Returns parsed `RipperInterval`s from the `Options`. Terminates the program
 -- with an error message if an interval can't be parsed.
@@ -203,11 +203,11 @@ getFilename = do
     getCurrentLocalTime :: MonadIO m => m LocalTime
     getCurrentLocalTime = zonedTimeToLocalTime <$> getZonedTime
 
-type URL = Text
+newtype URL = URL { urlToText :: Text }
 
 mkRipperRequest :: Text -> URL -> Request
 -- note: this causes impure exceptions for invalid URLs
-mkRipperRequest userAgent = setUserAgent userAgent . parseRequestThrow_ . T.unpack
+mkRipperRequest userAgent = setUserAgent userAgent . parseRequestThrow_ . T.unpack . urlToText
 
 setUserAgent :: Text -> Request -> Request
 setUserAgent = addRequestHeader "User-Agent" . encodeUtf8

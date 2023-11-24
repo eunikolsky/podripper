@@ -92,7 +92,7 @@ spec = do
       toLazyByteString builder `shouldBe` "Network.Socket.recvBuf: resource vanished\n"
 
 testURL :: URL
-testURL = "http://localhost/"
+testURL = URL "http://localhost/"
 
 now :: TZTime
 now = [tz|2023-12-31 23:00:00 [UTC]|]
