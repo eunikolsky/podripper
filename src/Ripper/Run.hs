@@ -32,14 +32,12 @@ run = do
   for_ maybeOutputDir ensureDirectory
 
   let ripTimeout = toMicroseconds $ optionsRipLength options
-      reconnectDelay = optionsReconnectDelay options
-      smallReconnectDelay = optionsSmallReconnectDelay options
 
   userAgent <- asks appUserAgent
 
   request <- fmap (setUserAgent userAgent) . parseRequestThrow . T.unpack . optionsStreamURL $ options
   void . timeout ripTimeout
-    $ ripper request maybeOutputDir ripIntervals reconnectDelay smallReconnectDelay
+    $ ripper request maybeOutputDir ripIntervals
 
 -- | Returns parsed `RipperInterval`s from the `Options`. Terminates the program
 -- with an error message if an interval can't be parsed.
@@ -81,8 +79,8 @@ instance HasLogFunc env => MonadRipper (RIO env) where
   shouldRepeat = pure True
 
 -- | The endless ripping loop.
-ripper :: (MonadRipper m) => Request -> Maybe FilePath -> [RipperInterval] -> RetryDelay -> RetryDelay -> m ()
-ripper request maybeOutputDir ripperIntervals _reconnectDelay _smallReconnectDelay = evalStateT go mempty
+ripper :: (MonadRipper m) => Request -> Maybe FilePath -> [RipperInterval] -> m ()
+ripper request maybeOutputDir ripperIntervals = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
    - which is the same as the output monad, and the inside monad can't be the

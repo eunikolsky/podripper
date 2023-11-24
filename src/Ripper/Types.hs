@@ -19,13 +19,6 @@ data Options = Options
   -- | Record the stream for this duration.
   , optionsRipLength :: !Duration
   , optionsRipIntervalRefs :: ![RipperIntervalRef]
-  -- | Delay for this duration before trying to reconnect when there were no
-  -- recordings yet, i.e. the stream hasn't started yet.
-  , optionsReconnectDelay :: !RetryDelay
-  -- | Delay for this duration before trying to reconnect since there was a
-  -- recording, i.e. either the stream is live and there was a disconnect, or
-  -- the stream has ended.
-  , optionsSmallReconnectDelay :: !RetryDelay
   , optionsStreamURL :: !Text
   }
 

@@ -10,9 +10,10 @@ import Ripper.RipperDelay
 -- | Configuration necessary to rip a stream.
 data RipConfig = RipConfig
   { streamURL :: !Text
+  -- FIXME remove `duration` when endless ripping is finished
   , duration :: !Duration
+  -- FIXME remove `retryDelay` when live check uses rip intervals too
   , retryDelay :: !RetryDelay
-  -- FIXME remove `duration` and `retryDelay` when refactored
   , ripIntervalRefs :: ![RipperIntervalRef]
   , ripDirName :: !Text
   , podArtist :: !Text

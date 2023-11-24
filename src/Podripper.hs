@@ -149,8 +149,6 @@ rip RipConfigExt{config, rawRipDir} (StreamURL url) =
         , Ripper.optionsOutputDirectory = Just rawRipDir
         , Ripper.optionsRipLength = duration config
         , Ripper.optionsRipIntervalRefs = ripIntervalRefs config
-        , Ripper.optionsReconnectDelay = retryDelay config
-        , Ripper.optionsSmallReconnectDelay = RetryDelay $ durationSeconds 1
         , Ripper.optionsStreamURL = url
         }
   -- note: this loop is not needed on its own because the ripper should already

@@ -31,17 +31,15 @@ spec = do
             delay = RetryDelay $ durationSeconds 3
             testState = TestState (repeat RipNothing) numActions delay now
 
-            smallDelay = RetryDelay $ durationSeconds 1
             request = parseRequest_ "http://localhost/"
             expectedArgs = (replicate numActions delay, replicate numActions Nothing)
 
-            args = runTestM testState $ ripper request Nothing mempty delay smallDelay
+            args = runTestM testState $ ripper request Nothing mempty
 
         args `shouldBe` expectedArgs
 
     context "after a successful recording" $ do
-      let smallDelay = RetryDelay $ durationSeconds 1
-          delay = RetryDelay $ durationSeconds 3
+      let delay = RetryDelay $ durationSeconds 3
           ripEndTime = [tz|2023-12-31 22:59:00 [UTC]|]
 
       it "uses an after-recording delay" $ do
@@ -51,7 +49,7 @@ spec = do
             request = parseRequest_ "http://localhost/"
             expectedArgs = ([delay], [Just ripEndTime])
 
-            args = runTestM testState $ ripper request Nothing mempty delay smallDelay
+            args = runTestM testState $ ripper request Nothing mempty
 
         args `shouldBe` expectedArgs
 
@@ -62,7 +60,7 @@ spec = do
             request = parseRequest_ "http://localhost/"
             expectedArgs = (replicate numActions delay, replicate numActions $ Just ripEndTime)
 
-            args = runTestM testState $ ripper request Nothing mempty delay smallDelay
+            args = runTestM testState $ ripper request Nothing mempty
 
         args `shouldBe` expectedArgs
 
