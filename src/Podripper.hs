@@ -27,7 +27,7 @@ import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
 import qualified Ripper.Main as Ripper (run)
-import qualified Ripper.Types as Ripper (Options(..))
+import qualified Ripper.Types as Ripper (Options(..), URL(..))
 import System.Directory
 import System.Environment
 import System.Exit
@@ -109,7 +109,7 @@ waitForStream config =
           -- evaluated regardless of whether the previous one was a `Just`; if so,
           -- it's not a big deal as this function isn't called often
           let firstMaybe = getFirst $ foldMap First [maybeAudioSourceSrc, maybeAudioSrc, maybeFirstLink]
-          pure $ StreamURL . T.pack <$> firstMaybe
+          pure $ StreamURL . Ripper.URL . T.pack <$> firstMaybe
 
         Nothing -> pure Nothing
 

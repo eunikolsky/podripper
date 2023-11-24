@@ -3,8 +3,10 @@ module Ripper.Types
   ( App (..)
   , HasAppOptions(..)
   , Options (..)
+  , URL(..)
   ) where
 
+import Data.Aeson (FromJSON)
 import RIO
 import RIO.Process
 -- TODO move `Duration` outside of `RSSGen`?
@@ -19,8 +21,11 @@ data Options = Options
   -- | Record the stream for this duration.
   , optionsRipLength :: !Duration
   , optionsRipIntervalRefs :: ![RipperIntervalRef]
-  , optionsStreamURL :: !Text
+  , optionsStreamURL :: !URL
   }
+
+newtype URL = URL { urlToText :: Text }
+  deriving newtype (Show, Eq, FromJSON)
 
 data App = App
   { appLogFunc :: !LogFunc

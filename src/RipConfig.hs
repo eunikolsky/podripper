@@ -11,11 +11,12 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import RSSGen.Duration
 import Ripper.RipperDelay
+import Ripper.Types
 import System.FilePath
 import System.Environment
 import System.Exit (die)
 
-newtype StreamURL = StreamURL Text
+newtype StreamURL = StreamURL URL
   deriving newtype (Show, Eq, FromJSON)
 
 -- | Configuration necessary to rip a stream.
