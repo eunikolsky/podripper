@@ -8,6 +8,7 @@ module Ripper.RunSpec (spec) where
 
 import Data.ByteString.Builder (toLazyByteString)
 import Data.List (singleton)
+import Data.Time.TZTime
 import Data.Time.TZTime.QQ
 import Ripper.Import hiding (error)
 import Network.HTTP.Simple (parseRequest_)
@@ -25,10 +26,9 @@ spec :: Spec
 spec = do
   describe "ripper" $ do
     context "before first successful recording" $
-      it "uses the standard reconnect delay" $ do
+      it "uses a no-recording delay" $ do
         let numActions = 3
             delay = RetryDelay $ durationSeconds 3
-            now = [tz|2023-12-31 23:00:00 [UTC]|]
             testState = TestState (repeat RipNothing) numActions delay now
 
             smallDelay = RetryDelay $ durationSeconds 1
@@ -39,23 +39,23 @@ spec = do
 
         args `shouldBe` expectedArgs
 
-    {-context "after a successful recording" $ do
+    context "after a successful recording" $ do
       let smallDelay = RetryDelay $ durationSeconds 1
-          smallDelayDiffTime = 1_000_000
           delay = RetryDelay $ durationSeconds 3
 
-      it "uses a small reconnect delay" $ do
-        let numActions = 3
-            testState = TestState (repeat RipRecorded) numActions
+      it "uses an after-recording delay" $ do
+        let numActions = 1
+            ripEndTime = [tz|2023-12-31 22:59:00 [UTC]|]
+            testState = TestState (repeat $ RipRecorded ripEndTime) numActions delay now
 
             request = parseRequest_ "http://localhost/"
-            expectedArgs = replicate numActions smallDelayDiffTime
+            expectedArgs = ([delay], [Just ripEndTime])
 
             args = runTestM testState $ ripper request Nothing delay smallDelay
 
         args `shouldBe` expectedArgs
 
-      it "uses a small reconnect delay since the first successful recording" $ do
+      {-it "uses a small reconnect delay since the first successful recording" $ do
         let numActions = 3
             testState = TestState (RipRecorded : repeat RipNothing) numActions
 
@@ -75,11 +75,12 @@ spec = do
         actual `shouldBe` RipNothing
 
     it "doesn't do anything on no exception" $ do
-      let io = pure RipRecorded
+      let result = RipRecorded now
+          io = pure result
       (_, logOpts) <- logOptionsMemory
       withLogFunc logOpts $ \logFunc -> do
         actual <- flip runReaderT logFunc $ handleResourceVanished io
-        actual `shouldBe` RipRecorded
+        actual `shouldBe` result
 
     it "ignores another IOError" $ do
       let error = mkIOError fullErrorType "" Nothing Nothing
@@ -95,6 +96,9 @@ spec = do
         flip runReaderT logFunc $ handleResourceVanished io
       builder <- readIORef builderRef
       toLazyByteString builder `shouldBe` "Network.Socket.recvBuf: resource vanished\n"
+
+now :: TZTime
+now = [tz|2023-12-31 23:00:00 [UTC]|]
 
 type NumActions = Int
 

@@ -44,8 +44,12 @@ setUserAgent = addRequestHeader "User-Agent" . encodeUtf8
 
 -- | The result of a single rip call. The information conveyed by this type
 -- is whether the call has received and saved any data.
-data RipResult = RipRecorded | RipNothing
+data RipResult = RipRecorded RipEndTime | RipNothing
   deriving (Eq, Show)
+
+isSuccessfulRip :: RipResult -> Bool
+isSuccessfulRip (RipRecorded _) = True
+isSuccessfulRip RipNothing = False
 
 class Monad m => MonadRipper m where
   rip :: Request -> Maybe FilePath -> m RipResult
@@ -79,13 +83,15 @@ ripper request maybeOutputDir _reconnectDelay _smallReconnectDelay = evalStateT 
     go = do
       result <- lift $ rip request maybeOutputDir
 
-      let isSuccessfulRip = result == RipRecorded
-      modify' (<> Any isSuccessfulRip)
+      modify' (<> Any (isSuccessfulRip result))
       _wasEverSuccessfulRip <- get
 
       -- TODO how to get rid of `lift`s?
       now <- lift getTime
-      delay <- lift $ getRipDelay mempty Nothing now
+      let maybeRipEndTime = case result of
+            RipRecorded t -> Just t
+            RipNothing -> Nothing
+      delay <- lift $ getRipDelay mempty maybeRipEndTime now
       lift $ delayReconnect delay
       whenM (lift shouldRepeat) go
 
@@ -126,7 +132,9 @@ ripOneStream request maybeOutputDir = do
 
       filename <- liftIO getFilename
       sinkFile $ maybe filename (</> filename) maybeOutputDir
-      pure RipRecorded
+      -- we're not inside `MonadRipper` here, so we're using the original IO func
+      now <- liftIO getCurrentTZTime
+      pure $ RipRecorded now
 
   {-
    - after a possible http exception is handled, we need to figure out if
@@ -135,10 +143,11 @@ ripOneStream request maybeOutputDir = do
    - consider the value of `recordedAnythingVar`
    -}
   case ripResult of
-    RipRecorded -> pure RipRecorded
+    r@(RipRecorded _) -> pure r
     RipNothing -> do
       recordedAnything <- readIORef recordedAnythingVar
-      pure $ if recordedAnything then RipRecorded else RipNothing
+      now <- liftIO getCurrentTZTime
+      pure $ if recordedAnything then RipRecorded now else RipNothing
 
 httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m RipResult
 httpExceptionHandler e = do
