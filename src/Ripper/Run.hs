@@ -25,6 +25,8 @@ import RSSGen.Duration
 
 run :: RIO App ()
 run = do
+  ripIntervals <- getRipIntervals
+
   options <- asks appOptions
   let maybeOutputDir = optionsOutputDirectory options
   for_ maybeOutputDir ensureDirectory
@@ -37,7 +39,19 @@ run = do
 
   request <- fmap (setUserAgent userAgent) . parseRequestThrow . T.unpack . optionsStreamURL $ options
   void . timeout ripTimeout
-    $ ripper request maybeOutputDir reconnectDelay smallReconnectDelay
+    $ ripper request maybeOutputDir ripIntervals reconnectDelay smallReconnectDelay
+
+-- | Returns parsed `RipperInterval`s from the `Options`. Terminates the program
+-- with an error message if an interval can't be parsed.
+getRipIntervals :: (MonadIO m, MonadReader env m, HasAppOptions env) => m [RipperInterval]
+getRipIntervals = do
+  options <- view appOptionsL
+  let ripIntervalRefs = optionsRipIntervalRefs options
+  eitherIntervals <- liftIO $ traverse ripperIntervalFromRef ripIntervalRefs
+  let (errors, intervals) = partitionEithers eitherIntervals
+  if not (null errors)
+    then error $ "Couldn't parse rip intervals: " <> show errors
+    else pure intervals
 
 setUserAgent :: Text -> Request -> Request
 setUserAgent = addRequestHeader "User-Agent" . encodeUtf8
@@ -67,8 +81,8 @@ instance HasLogFunc env => MonadRipper (RIO env) where
   shouldRepeat = pure True
 
 -- | The endless ripping loop.
-ripper :: (MonadRipper m) => Request -> Maybe FilePath -> RetryDelay -> RetryDelay -> m ()
-ripper request maybeOutputDir _reconnectDelay _smallReconnectDelay = evalStateT go mempty
+ripper :: (MonadRipper m) => Request -> Maybe FilePath -> [RipperInterval] -> RetryDelay -> RetryDelay -> m ()
+ripper request maybeOutputDir ripperIntervals _reconnectDelay _smallReconnectDelay = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
    - which is the same as the output monad, and the inside monad can't be the
@@ -89,7 +103,7 @@ ripper request maybeOutputDir _reconnectDelay _smallReconnectDelay = evalStateT 
       -- TODO how to get rid of `lift`s?
       lift $ do
         now <- getTime
-        delay <- getRipDelay mempty maybeLatestRipEndTime now
+        delay <- getRipDelay ripperIntervals maybeLatestRipEndTime now
         delayReconnect delay
       whenM (lift shouldRepeat) go
 

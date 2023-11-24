@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module Ripper.Types
   ( App (..)
+  , HasAppOptions(..)
   , Options (..)
   ) where
 
@@ -8,6 +9,7 @@ import RIO
 import RIO.Process
 -- TODO move `Duration` outside of `RSSGen`?
 import RSSGen.Duration
+import Ripper.RipperDelay
 
 -- | Command line arguments
 data Options = Options
@@ -16,6 +18,7 @@ data Options = Options
   , optionsOutputDirectory :: !(Maybe FilePath)
   -- | Record the stream for this duration.
   , optionsRipLength :: !Duration
+  , optionsRipIntervalRefs :: ![RipperIntervalRef]
   -- | Delay for this duration before trying to reconnect when there were no
   -- recordings yet, i.e. the stream hasn't started yet.
   , optionsReconnectDelay :: !RetryDelay
@@ -34,7 +37,12 @@ data App = App
   -- Add other app-specific configuration information here
   }
 
+class HasAppOptions env where
+  appOptionsL :: Lens' env Options
+
 instance HasLogFunc App where
   logFuncL = lens appLogFunc (\x y -> x { appLogFunc = y })
 instance HasProcessContext App where
   processContextL = lens appProcessContext (\x y -> x { appProcessContext = y })
+instance HasAppOptions App where
+  appOptionsL = lens appOptions (\x y -> x { appOptions = y })

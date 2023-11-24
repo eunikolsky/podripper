@@ -14,6 +14,7 @@ data RipConfig = RipConfig
   , duration :: !Duration
   , retryDelay :: !RetryDelay
   -- FIXME remove `duration` and `retryDelay` when refactored
+  -- FIXME rename to `Refs`
   , ripIntervals :: ![RipperIntervalRef]
   , ripDirName :: !Text
   , podArtist :: !Text

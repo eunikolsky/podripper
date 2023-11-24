@@ -35,7 +35,7 @@ spec = do
             request = parseRequest_ "http://localhost/"
             expectedArgs = (replicate numActions delay, replicate numActions Nothing)
 
-            args = runTestM testState $ ripper request Nothing delay smallDelay
+            args = runTestM testState $ ripper request Nothing mempty delay smallDelay
 
         args `shouldBe` expectedArgs
 
@@ -51,7 +51,7 @@ spec = do
             request = parseRequest_ "http://localhost/"
             expectedArgs = ([delay], [Just ripEndTime])
 
-            args = runTestM testState $ ripper request Nothing delay smallDelay
+            args = runTestM testState $ ripper request Nothing mempty delay smallDelay
 
         args `shouldBe` expectedArgs
 
@@ -62,7 +62,7 @@ spec = do
             request = parseRequest_ "http://localhost/"
             expectedArgs = (replicate numActions delay, replicate numActions $ Just ripEndTime)
 
-            args = runTestM testState $ ripper request Nothing delay smallDelay
+            args = runTestM testState $ ripper request Nothing mempty delay smallDelay
 
         args `shouldBe` expectedArgs
 
