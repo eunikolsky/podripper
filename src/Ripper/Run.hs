@@ -119,7 +119,7 @@ urlFromStreamConfig (SimpleURL url) = pure . Just $ url
 
 delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => RetryDelay -> m ()
 delayWithLog reconnectDelay = do
-  logDebug "Disconnected"
+  logDebug $ "Disconnected; waiting for " <> displayShow reconnectDelay
   threadDelay . toMicroseconds . toDuration $ reconnectDelay
   logDebug "Reconnecting"
 
