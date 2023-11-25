@@ -1,8 +1,7 @@
 {-# LANGUAGE DerivingStrategies, GeneralizedNewtypeDeriving #-}
 
 module Podripper
-  ( RipName
-  , run
+  ( run
   ) where
 
 import Control.Exception
@@ -27,7 +26,7 @@ import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
 import qualified Ripper.Main as Ripper (run)
-import qualified Ripper.Types as Ripper (Options(..), URL(..))
+import qualified Ripper.Types as Ripper
 import System.Directory
 import System.Environment
 import System.Exit
@@ -41,7 +40,7 @@ data RipConfigExt = RipConfigExt
   , doneBaseDir :: !FilePath
   }
 
-run :: RipName -> IO ()
+run :: Ripper.RipName -> IO ()
 run ripName = do
   skipRipping <- getSkipRipping
   config <- loadConfig ripName
@@ -136,7 +135,7 @@ rip RipConfigExt{config, rawRipDir} (StreamURL url) =
         , Ripper.optionsOutputDirectory = Just rawRipDir
         , Ripper.optionsRipLength = duration config
         , Ripper.optionsRipIntervalRefs = ripIntervalRefs config
-        , Ripper.optionsStreamURL = url
+        , Ripper.optionsStreamConfig = Ripper.StreamConfig (ripDirName config) url
         }
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it

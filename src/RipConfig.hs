@@ -1,6 +1,5 @@
 module RipConfig
   ( RipConfig(..)
-  , RipName
   , StreamURL(..)
   , loadConfig
   ) where
@@ -45,8 +44,6 @@ instance FromJSON RipConfig where
     <*> o .: "ripDirName"
     <*> o .: "podArtist"
     <*> o .: "podAlbum"
-
-type RipName = Text
 
 loadConfig :: RipName -> IO RipConfig
 loadConfig ripName = do

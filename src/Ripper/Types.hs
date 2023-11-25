@@ -3,6 +3,8 @@ module Ripper.Types
   ( App (..)
   , HasAppOptions(..)
   , Options (..)
+  , RipName
+  , StreamConfig(..)
   , URL(..)
   ) where
 
@@ -21,8 +23,20 @@ data Options = Options
   -- | Record the stream for this duration.
   , optionsRipLength :: !Duration
   , optionsRipIntervalRefs :: ![RipperIntervalRef]
-  , optionsStreamURL :: !URL
+  , optionsStreamConfig :: !StreamConfig
   }
+
+type RipName = Text
+
+-- | The input data for the `ripper` about how to record a stream.
+data StreamConfig
+  -- | The config contains the stream name (to know how the live stream is
+  -- checked and find out the stream URL) and the stream URL if there is no
+  -- special live stream check. This is what `Podripper` uses.
+  = StreamConfig !RipName !URL
+  -- | Contains only the stream URL, without any live checks. This simplified
+  -- version should only be used by the `ripper` CLI.
+  | SimpleURL !URL
 
 newtype URL = URL { urlToText :: Text }
   deriving newtype (Show, Eq, FromJSON)

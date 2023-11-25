@@ -36,7 +36,7 @@ run = do
   userAgent <- asks appUserAgent
 
   void . timeout ripTimeout
-    $ ripper userAgent maybeOutputDir ripIntervals (optionsStreamURL options)
+    $ ripper userAgent maybeOutputDir ripIntervals (optionsStreamConfig options)
 
 -- | Returns parsed `RipperInterval`s from the `Options`. Terminates the program
 -- with an error message if an interval can't be parsed.
@@ -75,8 +75,8 @@ instance HasLogFunc env => MonadRipper (RIO env) where
   shouldRepeat = pure True
 
 -- | The endless ripping loop.
-ripper :: (MonadRipper m) => Text -> Maybe FilePath -> [RipperInterval] -> URL -> m ()
-ripper userAgent maybeOutputDir ripperIntervals url = evalStateT go mempty
+ripper :: (MonadRipper m) => Text -> Maybe FilePath -> [RipperInterval] -> StreamConfig -> m ()
+ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
    - which is the same as the output monad, and the inside monad can't be the
@@ -89,6 +89,10 @@ ripper userAgent maybeOutputDir ripperIntervals url = evalStateT go mempty
   where
     go :: MonadRipper m => StateT (Last RipEndTime) m ()
     go = do
+      let url = case streamConfig of
+            -- FIXME move the live stream check for this case
+            StreamConfig _name url' -> url'
+            SimpleURL url' -> url'
       let request = mkRipperRequest userAgent url
       result <- lift $ rip request maybeOutputDir
 
