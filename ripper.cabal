@@ -27,6 +27,7 @@ library
   exposed-modules:
       Podripper
       RipConfig
+      Ripper.ATPLiveStreamCheck
       Ripper.Import
       Ripper.Main
       Ripper.RipperDelay

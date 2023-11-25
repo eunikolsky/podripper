@@ -1,69 +1,40 @@
 {-# LANGUAGE DerivingStrategies, GeneralizedNewtypeDeriving #-}
 
 module Podripper
-  ( RipName
-  , run
+  ( run
   ) where
 
 import Control.Exception
 import Control.Monad
-import Control.Monad.Except
-import Data.Aeson hiding ((<?>))
-import qualified Data.Aeson.KeyMap as A
-import Data.Char
-import Data.Functor
 import Data.Maybe
-import Data.Monoid
-import Data.List (dropWhileEnd, isSuffixOf)
+import Data.List (isSuffixOf)
 import qualified Data.List.NonEmpty as NE
-import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Lazy.Encoding as TLE
-import qualified Data.Text.Lazy.IO as TL
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
-import Network.HTTP.Simple
 import RIO (whenM, IsString, threadDelay)
 import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
 import qualified Ripper.Main as Ripper (run)
-import qualified Ripper.Types as Ripper (Options(..))
+import qualified Ripper.Types as Ripper
+import Ripper.Util
 import System.Directory
 import System.Environment
 import System.Exit
 import System.FilePath
 import System.Process
 
-type RipName = Text
-
-data RipConfigExt = RipConfigExt
-  { config :: !RipConfig
-  , rawRipDir :: !FilePath
-  , doneRipDir :: !FilePath
-  , doneBaseDir :: !FilePath
-  }
-
-run :: RipName -> IO ()
+run :: Ripper.RipName -> IO ()
 run ripName = do
   skipRipping <- getSkipRipping
   config <- loadConfig ripName
   let configExt = extendConfig config
   ensureDirs configExt
-  -- | the flag shows whether the live stream check has returned success since
-  -- the start; we don't need to ask it anymore after that
-  maybeStreamURL <- waitForStream configExt
-  unless skipRipping $ maybe (pure ()) (rip configExt) maybeStreamURL
+  unless skipRipping $ rip configExt
   reencodePreviousRips configExt
   reencodeRips configExt
   updateRSS configExt
-
-loadConfig :: RipName -> IO RipConfig
-loadConfig ripName = do
-  confDir <- getConfDir
-  let confName = confDir </> T.unpack ripName <.> "json"
-  eitherConfig <- eitherDecodeFileStrict' @RipConfig confName
-  either die pure eitherConfig
 
 ensureDirs :: RipConfigExt -> IO ()
 ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
@@ -71,85 +42,14 @@ ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
       ensureDir = createDirectoryIfMissing createParents
   forM_ [rawRipDir, doneRipDir] ensureDir
 
-newtype StreamURL = StreamURL Text
-  deriving newtype Show
-
-waitForStream :: RipConfigExt -> IO (Maybe StreamURL)
-waitForStream RipConfigExt{config} =
-  let ripName = ripDirName config
-  -- the `atp` support is hardcoded in the program because its live stream check
-  -- is more complicated and the stream URL needs to be extracted from the
-  -- status endpoint
-  -- FIXME support this via the config file
-  in if ripName == "atp" then
-    toProcessReady <$> runFor
-      (retryDelay config)
-      (duration config)
-      (fromProcessReady <$> waitForATP)
-    else pure $ Just originalStreamURL
-
-  where
-    originalStreamURL = StreamURL $ streamURL config
-
-    waitForATP :: IO (Maybe StreamURL)
-    waitForATP = handleError <=< runExceptT $ do
-      statusResponse <- liftIO . fmap getResponseBody . httpLBS $ parseRequest_ "https://atp.fm/livestream_status"
-      liftIO . TL.putStrLn $ TLE.decodeUtf8 statusResponse
-      status <- liftEither . eitherDecode @Object $ statusResponse
-
-      isLiveValue <- liftEither $ A.lookup "live" status <?> "Can't find `live` key"
-      isLive <- liftEither $ extractBool isLiveValue
-
-      if isLive then liftIO (Just <$> getStreamURL status) else pure Nothing
-
-    extractBool :: Value -> Either String Bool
-    extractBool (Bool b) = Right b
-    extractBool x = Left $ "Expected a bool, got " <> show x
-
-    asString :: Value -> Maybe String
-    asString (String t) = Just $ T.unpack t
-    asString _ = Nothing
-
-    getStreamURL :: Object -> IO StreamURL
-    getStreamURL status = fromMaybe originalStreamURL <$>
-      case A.lookup "player" status >>= asString of
-        Just player -> do
-          -- FIXME replace with a native Haskell solution
-          maybeAudioSourceSrc <- readCommandNonEmpty "htmlq" ["-a", "src", "audio source"] player
-          maybeAudioSrc <- readCommandNonEmpty "htmlq" ["-a", "src", "audio"] player
-          maybeFirstLink <- readCommandNonEmpty "sed" ["-nE", "s/.*\"(http[^\"]+)\".*/\\1/p"] player
-          -- if I understand correctly, all three values are not lazy and are
-          -- evaluated regardless of whether the previous one was a `Just`; if so,
-          -- it's not a big deal as this function isn't called often
-          let firstMaybe = getFirst $ foldMap First [maybeAudioSourceSrc, maybeAudioSrc, maybeFirstLink]
-          pure $ StreamURL . T.pack <$> firstMaybe
-
-        Nothing -> pure Nothing
-
-    -- | Wrapper around `readCommand` that returns `Nothing` if the output is
-    -- whitespace only.
-    readCommandNonEmpty :: String -> [String] -> String -> IO (Maybe String)
-    readCommandNonEmpty prog args input = readCommand prog args input <&> (>>= skipEmpty)
-
-    skipEmpty :: String -> Maybe String
-    skipEmpty s = let trimmed = trimSpace s
-      in if null trimmed then Nothing else Just trimmed
-
-    trimSpace :: String -> String
-    trimSpace = dropWhile isSpace . dropWhileEnd isSpace
-
-    handleError :: Either String (Maybe a) -> IO (Maybe a)
-    handleError (Right b) = pure b
-    handleError (Left err) = putStrLn err $> Nothing
-
-rip :: RipConfigExt -> StreamURL -> IO ()
-rip RipConfigExt{config, rawRipDir} (StreamURL url) =
+rip :: RipConfigExt -> IO ()
+rip RipConfigExt{config, rawRipDir} =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir
         , Ripper.optionsRipLength = duration config
         , Ripper.optionsRipIntervalRefs = ripIntervalRefs config
-        , Ripper.optionsStreamURL = url
+        , Ripper.optionsStreamConfig = Ripper.StreamConfig (ripDirName config) (streamURL config)
         }
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
@@ -161,10 +61,6 @@ rip RipConfigExt{config, rawRipDir} (StreamURL url) =
 -- | Defines whether a step in the workflow is done and ready with some data `r`.
 data ProcessReadiness r = NotReady | Ready r
   deriving (Eq, Show)
-
-fromProcessReady :: Maybe r -> ProcessReadiness r
-fromProcessReady (Just r) = Ready r
-fromProcessReady Nothing = NotReady
 
 toProcessReady :: ProcessReadiness r -> Maybe r
 toProcessReady (Ready r) = Just r
@@ -288,20 +184,6 @@ reencodeRips RipConfigExt{config, rawRipDir, doneRipDir} = do
           whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
           renameFile ripName $ doneRipDir </> takeBaseName ripName <> sourceRipSuffix <.> "mp3"
 
-readCommand :: String -> [String] -> String -> IO (Maybe String)
-readCommand prog args input = do
-  (code, out, err) <- readProcessWithExitCode prog args input
-  if code == ExitSuccess
-    then pure $ Just out
-    else do
-      putStrLn $ mconcat
-        [ "readCommand ("
-        , prog, " ", show args, " <<< ", input
-        , "): exit code ", show code
-        , "; stderr: ", err
-        ]
-      pure Nothing
-
 podTitleFromFilename :: FilePath -> IO String
 podTitleFromFilename name = fromMaybe "" <$> readCommand
   -- FIXME replace with a native Haskell solution
@@ -379,23 +261,3 @@ getSkipRipping = do
     Just "0" -> pure True
     Just x -> do
       die $ mconcat ["END_TIMESTAMP envvar: only value `0` is supported, ", show x, " given; terminating"]
-
-extendConfig :: RipConfig -> RipConfigExt
-extendConfig config =
-  let
-      -- | The output directory for raw rips recorded by ripper.
-      rawRipDir = T.unpack $ ripDirName config
-      -- | The base directory for complete rips; this should be mounted from S3.
-      doneBaseDir = "complete"
-      doneRipDir = doneBaseDir </> rawRipDir
-  in RipConfigExt{config, rawRipDir, doneRipDir, doneBaseDir}
-
-getConfDir :: IO FilePath
-getConfDir = do
-  maybeConfDir <- lookupEnv "CONF_DIR"
-  pure $ fromMaybe "/usr/share/podripper" maybeConfDir
-
--- infix 7 <?>
-(<?>) :: Maybe a -> b -> Either b a
-Just x <?> _ = Right x
-Nothing <?> e = Left e

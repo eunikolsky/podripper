@@ -50,9 +50,10 @@ ripperParser = Options
         <> metavar "rip_intervals"
         )
       )
-  <*> strArgument ( metavar "URL"
-                <> help "Stream URL"
-                  )
+  <*> argument (SimpleURL . StreamURL . URL <$> str)
+      ( metavar "URL"
+      <> help "Stream URL"
+      )
 
 duration :: ReadM Duration
 duration = eitherReader $ parseDuration . T.pack

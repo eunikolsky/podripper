@@ -19,6 +19,8 @@ import qualified RIO.Text as T
 import RIO.Time
 import System.IO.Error (isResourceVanishedError)
 
+import RipConfig
+import Ripper.ATPLiveStreamCheck
 import Ripper.Import
 import Ripper.RipperDelay
 import RSSGen.Duration
@@ -35,9 +37,8 @@ run = do
 
   userAgent <- asks appUserAgent
 
-  request <- fmap (setUserAgent userAgent) . parseRequestThrow . T.unpack . optionsStreamURL $ options
   void . timeout ripTimeout
-    $ ripper request maybeOutputDir ripIntervals
+    $ ripper userAgent maybeOutputDir ripIntervals (optionsStreamConfig options)
 
 -- | Returns parsed `RipperInterval`s from the `Options`. Terminates the program
 -- with an error message if an interval can't be parsed.
@@ -51,9 +52,6 @@ getRipIntervals = do
     then error $ "Couldn't parse rip intervals: " <> show errors
     else pure intervals
 
-setUserAgent :: Text -> Request -> Request
-setUserAgent = addRequestHeader "User-Agent" . encodeUtf8
-
 -- | The result of a single rip call. The information conveyed by this type
 -- is whether the call has received and saved any data.
 data RipResult = RipRecorded RipEndTime | RipNothing
@@ -65,6 +63,7 @@ ripEndTimeFromResult RipNothing = Nothing
 
 class Monad m => MonadRipper m where
   rip :: Request -> Maybe FilePath -> m RipResult
+  checkLiveStream :: RipName -> StreamURL -> m (Maybe StreamURL)
   getRipDelay :: [RipperInterval] -> Maybe RipEndTime -> Now -> m RetryDelay
   -- TODO can `MonadTime` be composed here to replace these two functions?
   getTime :: m Now
@@ -73,14 +72,17 @@ class Monad m => MonadRipper m where
 
 instance HasLogFunc env => MonadRipper (RIO env) where
   rip = ripOneStream
+  checkLiveStream ripName url = if ripName == "atp"
+    then liftIO (checkATPLiveStream url)
+    else pure $ Just url
   getRipDelay is ripEnd now = pure $ getRipperDelay is ripEnd now
   getTime = liftIO getCurrentTZTime
   delayReconnect = delayWithLog
   shouldRepeat = pure True
 
 -- | The endless ripping loop.
-ripper :: (MonadRipper m) => Request -> Maybe FilePath -> [RipperInterval] -> m ()
-ripper request maybeOutputDir ripperIntervals = evalStateT go mempty
+ripper :: (MonadRipper m) => Text -> Maybe FilePath -> [RipperInterval] -> StreamConfig -> m ()
+ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
    - which is the same as the output monad, and the inside monad can't be the
@@ -93,9 +95,15 @@ ripper request maybeOutputDir ripperIntervals = evalStateT go mempty
   where
     go :: MonadRipper m => StateT (Last RipEndTime) m ()
     go = do
-      result <- lift $ rip request maybeOutputDir
+      maybeStreamURL <- lift $ urlFromStreamConfig streamConfig
+      case maybeStreamURL of
+        Just (StreamURL url) -> do
+          let request = mkRipperRequest userAgent url
+          result <- lift $ rip request maybeOutputDir
+          modify' (<> Last (ripEndTimeFromResult result))
 
-      modify' (<> Last (ripEndTimeFromResult result))
+        Nothing -> pure ()
+
       maybeLatestRipEndTime <- gets getLast
 
       -- TODO how to get rid of `lift`s?
@@ -105,9 +113,13 @@ ripper request maybeOutputDir ripperIntervals = evalStateT go mempty
         delayReconnect delay
       whenM (lift shouldRepeat) go
 
+urlFromStreamConfig :: MonadRipper m => StreamConfig -> m (Maybe StreamURL)
+urlFromStreamConfig (StreamConfig ripName url) = checkLiveStream ripName url
+urlFromStreamConfig (SimpleURL url) = pure . Just $ url
+
 delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => RetryDelay -> m ()
 delayWithLog reconnectDelay = do
-  logDebug "Disconnected"
+  logDebug $ "Disconnected; waiting for " <> displayShow reconnectDelay
   threadDelay . toMicroseconds . toDuration $ reconnectDelay
   logDebug "Reconnecting"
 
@@ -204,3 +216,10 @@ getFilename = do
   where
     getCurrentLocalTime :: MonadIO m => m LocalTime
     getCurrentLocalTime = zonedTimeToLocalTime <$> getZonedTime
+
+mkRipperRequest :: Text -> URL -> Request
+-- note: this causes impure exceptions for invalid URLs
+mkRipperRequest userAgent = setUserAgent userAgent . parseRequestThrow_ . T.unpack . urlToText
+
+setUserAgent :: Text -> Request -> Request
+setUserAgent = addRequestHeader "User-Agent" . encodeUtf8

@@ -6,6 +6,7 @@ module RSSGen.DownloaderTypes
 
 import qualified Data.ByteString as B
 
+-- FIXME use the other `URL` type
 type URL = String
 
 type Bytes = B.ByteString
