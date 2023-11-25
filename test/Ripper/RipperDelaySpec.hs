@@ -3,6 +3,7 @@
 
 module Ripper.RipperDelaySpec where
 
+import Data.Either
 import Data.Maybe
 import Data.Time hiding (utc)
 import Data.Time.Calendar.OrdinalDate
@@ -12,6 +13,7 @@ import Data.Time.TZTime.QQ
 import RSSGen.Duration
 import Ripper.RipperDelay
 import Test.Hspec
+import Test.Hspec.Attoparsec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 
@@ -19,12 +21,12 @@ spec :: Spec
 spec = do
   describe "getRipperDelay" $ do
     context "after ripping ended" $ do
-      prop "returns 1 s within 5 minutes" $ \interval (Now now) -> do
+      prop "returns 1 s within 5 minutes" $ \interval (ANow now) -> do
         offset <- realToFrac <$> choose @Float (0, 5 * 60)
         let ripEndTime = addTime (negate offset) now
         pure $ getRipperDelay [interval] (Just ripEndTime) now == RetryDelay (durationSeconds 1)
 
-      prop "returns 3 s within 15 minutes" $ \interval (Now now) -> do
+      prop "returns 3 s within 15 minutes" $ \interval (ANow now) -> do
         offset <- realToFrac <$> choose @Float ((5 * 60) + 1, 15 * 60)
         let ripEndTime = addTime (negate offset) now
         pure $ getRipperDelay [interval] (Just ripEndTime) now == RetryDelay (durationSeconds 3)
@@ -87,6 +89,40 @@ spec = do
             --  =     2023-11-15 22:00:40 UTC, Wednesday
         getRipperDelay [testInterval0, closeToTestInterval0] Nothing now `shouldBe` intervalDelay
 
+  describe "parseRipperIntervalRef" $ do
+    it "parses an interval in UTC" $ do
+      let actual = parseRipperIntervalRef "Mo 11:01-13:45 UTC: 8s"
+          expected = RipperIntervalRef Monday (read "11:01:00", read "13:45:00") "UTC" (RetryDelay $ durationSeconds 8)
+      actual `shouldParse` expected
+
+    it "parses an interval in a timezone" $ do
+      let actual = parseRipperIntervalRef "Su 12:59-23:48 America/New_York: 9m"
+          expected = RipperIntervalRef Sunday (read "12:59:00", read "23:48:00") "America/New_York" (RetryDelay $ durationMinutes 9)
+      actual `shouldParse` expected
+
+    it "parses an unordered interval" $ do
+      let actual = parseRipperIntervalRef "Su 14:00-12:00 UTC: 9m"
+          expected = RipperIntervalRef Sunday (read "14:00:00", read "12:00:00") "UTC" (RetryDelay $ durationMinutes 9)
+      actual `shouldParse` expected
+
+  describe "ripperIntervalFromRef" $ do
+    it "converts a valid ref" $ do
+      let interval = (read "12:59:00", read "23:48:00")
+      actual <- ripperIntervalFromRef $ RipperIntervalRef Sunday interval "America/New_York" testDelay
+      let expected = mkRipperInterval' Sunday interval (fromLabel America__New_York) testDelay
+      actual `shouldBe` expected
+
+    it "fails on an unknown timezone" $ do
+      actual <- ripperIntervalFromRef $ RipperIntervalRef Sunday (read "00:00:00", read "01:00:00") "Unknown" testDelay
+      actual `shouldSatisfy` isLeft
+
+    it "fails on an unordered interval" $ do
+      actual <- ripperIntervalFromRef $ RipperIntervalRef Sunday (read "14:00:00", read "12:00:00") "UTC" testDelay
+      actual `shouldSatisfy` isLeft
+
+mkRipperInterval' :: DayOfWeek -> (TimeOfDay, TimeOfDay) -> TZInfo -> RetryDelay -> Either a RipperInterval
+mkRipperInterval' d ti tz' = Right . fromJust . mkRipperInterval d ti tz'
+
 newYork :: TZInfo
 newYork = fromLabel America__New_York
 
@@ -97,8 +133,9 @@ testInterval1 = fromJust $ mkRipperInterval Saturday (read "19:00:00", read "21:
 testIntervals :: [RipperInterval]
 testIntervals = [testInterval0, testInterval1]
 
-defaultDelay :: RetryDelay
+defaultDelay, testDelay :: RetryDelay
 defaultDelay = RetryDelay (durationMinutes 10)
+testDelay = RetryDelay (durationMinutes 9)
 
 instance Arbitrary TimeOfDay where
   arbitrary = TimeOfDay
@@ -106,10 +143,10 @@ instance Arbitrary TimeOfDay where
     <*> chooseInt (0, 59)
     <*> (realToFrac <$> chooseInt (0, 59))
 
-newtype Now = Now TZTime
+newtype ANow = ANow TZTime
   deriving newtype (Show)
 
-instance Arbitrary Now where
+instance Arbitrary ANow where
   arbitrary = do
     day <- fromOrdinalDate
       <$> chooseInteger (2023, 2123)
@@ -117,7 +154,7 @@ instance Arbitrary Now where
     timeOfDay <- arbitrary
     let time = LocalTime day timeOfDay
     let tzInfo = fromLabel Europe__Kyiv
-    pure . Now $ fromLocalTime tzInfo time
+    pure . ANow $ fromLocalTime tzInfo time
 
 instance Arbitrary RipperInterval where
   arbitrary = do

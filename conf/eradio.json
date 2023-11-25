@@ -3,6 +3,7 @@
   "streamURL": "https://stream.radiojar.com/t2n88q0st5quv",
   "duration": "5s",
   "retryDelay": "5s",
+  "ripIntervals": [],
   "ripDirName": "eradio",
   "podArtist": "Voice of America",
   "podAlbum": "VOA Global"

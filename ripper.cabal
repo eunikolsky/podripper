@@ -27,6 +27,7 @@ library
   exposed-modules:
       Podripper
       RipConfig
+      Ripper.ATPLiveStreamCheck
       Ripper.Import
       Ripper.Main
       Ripper.RipperDelay
@@ -133,7 +134,7 @@ test-suite ripper-test
   other-modules:
       RipConfigSpec
       Ripper.RipperDelaySpec
-      Ripper.UtilSpec
+      Ripper.RunSpec
       RSSGen.BinaryUTCTimeSpec
       RSSGen.DatabaseSpec
       RSSGen.DownloaderSpec

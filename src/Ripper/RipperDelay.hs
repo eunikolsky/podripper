@@ -1,11 +1,22 @@
 module Ripper.RipperDelay
-  ( RipperInterval
+  ( Now
+  , RipEndTime
+  , RipperInterval
+  , RipperIntervalRef(..)
   , getRipperDelay
   , mkRipperInterval
+  , parseRipperIntervalRef
   , riDelay
+  , ripperIntervalFromRef
   ) where
 
+import Control.Exception
+import Control.Monad.Except
+import Data.Aeson hiding ((<?>))
+import Data.Attoparsec.Text
 import Data.Foldable
+import Data.Functor
+import Data.Text (Text)
 import Data.Time
 import Data.Time.TZInfo
 import Data.Time.TZTime
@@ -14,9 +25,22 @@ import RSSGen.Duration
 -- | Timezone — wrapper around `TZInfo` that `show`s only the identifier
 -- (without a long list of rules).
 newtype TZ = TZ { toTZInfo :: TZInfo }
+  deriving newtype Eq
 
 instance Show TZ where
   show = show . tziIdentifier . toTZInfo
+
+-- | The first step of parsing a `RipperInterval` that doesn't require any `IO`,
+-- unlike `RipperInterval`, which needs `IO` to load the timezone.
+--
+-- See also: https://stackoverflow.com/questions/46810998/give-a-default-value-for-fields-not-available-in-json-using-aeson
+data RipperIntervalRef = RipperIntervalRef
+  { rirWeekday :: !DayOfWeek
+  , rirTimeInterval :: !(TimeOfDay, TimeOfDay)
+  , rirTZ :: !TZIdentifier
+  , rirDelay :: !RetryDelay
+  }
+  deriving (Show, Eq)
 
 -- | Time interval that provides a specific ripper delay, overriding the default
 -- delay. It's used for podcasts that have known live recording times and we
@@ -33,7 +57,7 @@ data RipperInterval = RipperInterval
   , riDelay :: !RetryDelay
   -- ^ the delay to use when this interval is matched
   }
-  deriving Show
+  deriving (Show, Eq)
 
 -- | Smart constructor for `RipperInterval` that ensures that the time interval
 -- is ascending (`from ≥ to`).
@@ -119,3 +143,65 @@ longerAfterRipDelay = RetryDelay $ durationSeconds 3
 -- | The default ripper delay if no other rule matches.
 defaultDelay :: RetryDelay
 defaultDelay = RetryDelay $ durationMinutes 10
+
+-- | Parses a `RipperIntervalRef` with the following format:
+-- `dw h0:m0-h1:m1 timezone: delay`, for example
+-- `Su 12:59-23:48 America/New_York: 9m`.
+parseRipperIntervalRef :: Text -> Either String RipperIntervalRef
+parseRipperIntervalRef = parseOnly pRipperIntervalRef
+
+instance FromJSON RipperIntervalRef where
+  parseJSON = withText "RipperIntervalRef" $ either fail pure . parseRipperIntervalRef
+
+-- | Tries to convert `RipperIntervalRef` to `RipperInterval`.
+ripperIntervalFromRef :: RipperIntervalRef -> IO (Either String RipperInterval)
+ripperIntervalFromRef RipperIntervalRef{rirWeekday,rirTimeInterval,rirTZ,rirDelay} = runExceptT $ do
+  tz <- ExceptT $ loadTZ rirTZ
+  liftEither . justInterval $ mkRipperInterval rirWeekday rirTimeInterval tz rirDelay
+
+  where
+    loadTZ :: TZIdentifier -> IO (Either String TZInfo)
+    loadTZ = handle failedTZ . fmap Right . loadFromSystem
+
+    failedTZ :: IOException -> IO (Either String a)
+    failedTZ e = pure . Left $ "Failed to load timezone: " <> show e
+
+    justInterval (Just i) = Right i
+    justInterval Nothing = Left "Couldn't parse time interval"
+
+pRipperIntervalRef :: Parser RipperIntervalRef
+pRipperIntervalRef = do
+  weekday <- pWeekday <?> "weekday"
+  skipChar ' '
+  from <- pTime <?> "from time"
+  skipChar '-'
+  to <- pTime <?> "to time"
+  skipChar ' '
+  tzId <- takeWhile1 (/= ':') <?> "timezone id"
+  void $ string ": "
+  delay <- retryDurationParser <?> "retry duration"
+  pure $ RipperIntervalRef weekday (from, to) tzId delay
+
+pWeekday :: Parser DayOfWeek
+pWeekday = choice
+  [ string "Mo" $> Monday
+  , string "Tu" $> Tuesday
+  , string "We" $> Wednesday
+  , string "Th" $> Thursday
+  , string "Fr" $> Friday
+  , string "Sa" $> Saturday
+  , string "Su" $> Sunday
+  ]
+
+pTime :: Parser TimeOfDay
+pTime = do
+  hour <- pTwoDigitNumber
+  skipChar ':'
+  minute <- pTwoDigitNumber
+  pure $ TimeOfDay hour minute 0
+
+pTwoDigitNumber :: Parser Int
+pTwoDigitNumber = read <$> count 2 digit
+
+skipChar :: Char -> Parser ()
+skipChar = void . char

@@ -8,7 +8,8 @@ module Ripper.Run
   ) where
 
 import Conduit
-import Data.Monoid (Any(..))
+import Data.Monoid (Last(..))
+import Data.Time.TZTime
 import Network.HTTP.Conduit (HttpExceptionContent(..))
 import Network.HTTP.Simple
 import RIO.Directory (createDirectoryIfMissing)
@@ -18,46 +19,70 @@ import qualified RIO.Text as T
 import RIO.Time
 import System.IO.Error (isResourceVanishedError)
 
+import RipConfig
+import Ripper.ATPLiveStreamCheck
 import Ripper.Import
+import Ripper.RipperDelay
 import RSSGen.Duration
 
 run :: RIO App ()
 run = do
+  ripIntervals <- getRipIntervals
+
   options <- asks appOptions
   let maybeOutputDir = optionsOutputDirectory options
   for_ maybeOutputDir ensureDirectory
 
   let ripTimeout = toMicroseconds $ optionsRipLength options
-      reconnectDelay = optionsReconnectDelay options
-      smallReconnectDelay = optionsSmallReconnectDelay options
 
   userAgent <- asks appUserAgent
 
-  request <- fmap (setUserAgent userAgent) . parseRequestThrow . T.unpack . optionsStreamURL $ options
   void . timeout ripTimeout
-    $ ripper request maybeOutputDir reconnectDelay smallReconnectDelay
+    $ ripper userAgent maybeOutputDir ripIntervals (optionsStreamConfig options)
 
-setUserAgent :: Text -> Request -> Request
-setUserAgent = addRequestHeader "User-Agent" . encodeUtf8
+-- | Returns parsed `RipperInterval`s from the `Options`. Terminates the program
+-- with an error message if an interval can't be parsed.
+getRipIntervals :: (MonadIO m, MonadReader env m, HasAppOptions env) => m [RipperInterval]
+getRipIntervals = do
+  options <- view appOptionsL
+  let ripIntervalRefs = optionsRipIntervalRefs options
+  eitherIntervals <- liftIO $ traverse ripperIntervalFromRef ripIntervalRefs
+  let (errors, intervals) = partitionEithers eitherIntervals
+  if not (null errors)
+    then error $ "Couldn't parse rip intervals: " <> show errors
+    else pure intervals
 
 -- | The result of a single rip call. The information conveyed by this type
 -- is whether the call has received and saved any data.
-data RipResult = RipRecorded | RipNothing
+data RipResult = RipRecorded RipEndTime | RipNothing
   deriving (Eq, Show)
+
+ripEndTimeFromResult :: RipResult -> Maybe RipEndTime
+ripEndTimeFromResult (RipRecorded t) = Just t
+ripEndTimeFromResult RipNothing = Nothing
 
 class Monad m => MonadRipper m where
   rip :: Request -> Maybe FilePath -> m RipResult
-  delayReconnect :: Int -> m ()
+  checkLiveStream :: RipName -> StreamURL -> m (Maybe StreamURL)
+  getRipDelay :: [RipperInterval] -> Maybe RipEndTime -> Now -> m RetryDelay
+  -- TODO can `MonadTime` be composed here to replace these two functions?
+  getTime :: m Now
+  delayReconnect :: RetryDelay -> m ()
   shouldRepeat :: m Bool
 
 instance HasLogFunc env => MonadRipper (RIO env) where
   rip = ripOneStream
+  checkLiveStream ripName url = if ripName == "atp"
+    then liftIO (checkATPLiveStream url)
+    else pure $ Just url
+  getRipDelay is ripEnd now = pure $ getRipperDelay is ripEnd now
+  getTime = liftIO getCurrentTZTime
   delayReconnect = delayWithLog
   shouldRepeat = pure True
 
 -- | The endless ripping loop.
-ripper :: (MonadRipper m) => Request -> Maybe FilePath -> RetryDelay -> RetryDelay -> m ()
-ripper request maybeOutputDir reconnectDelay smallReconnectDelay = evalStateT go mempty
+ripper :: (MonadRipper m) => Text -> Maybe FilePath -> [RipperInterval] -> StreamConfig -> m ()
+ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
    - which is the same as the output monad, and the inside monad can't be the
@@ -68,22 +93,34 @@ ripper request maybeOutputDir reconnectDelay smallReconnectDelay = evalStateT go
    - the result value in `runTestM`)
    -}
   where
-    go :: MonadRipper m => StateT Any m ()
+    go :: MonadRipper m => StateT (Last RipEndTime) m ()
     go = do
-      result <- lift $ rip request maybeOutputDir
+      maybeStreamURL <- lift $ urlFromStreamConfig streamConfig
+      case maybeStreamURL of
+        Just (StreamURL url) -> do
+          let request = mkRipperRequest userAgent url
+          result <- lift $ rip request maybeOutputDir
+          modify' (<> Last (ripEndTimeFromResult result))
 
-      let isSuccessfulRip = result == RipRecorded
-      modify' (<> Any isSuccessfulRip)
-      wasEverSuccessfulRip <- get
+        Nothing -> pure ()
 
-      lift . delayReconnect . toMicroseconds . toDuration $
-        if getAny wasEverSuccessfulRip then smallReconnectDelay else reconnectDelay
+      maybeLatestRipEndTime <- gets getLast
+
+      -- TODO how to get rid of `lift`s?
+      lift $ do
+        now <- getTime
+        delay <- getRipDelay ripperIntervals maybeLatestRipEndTime now
+        delayReconnect delay
       whenM (lift shouldRepeat) go
 
-delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => Int -> m ()
+urlFromStreamConfig :: MonadRipper m => StreamConfig -> m (Maybe StreamURL)
+urlFromStreamConfig (StreamConfig ripName url) = checkLiveStream ripName url
+urlFromStreamConfig (SimpleURL url) = pure . Just $ url
+
+delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => RetryDelay -> m ()
 delayWithLog reconnectDelay = do
-  logDebug "Disconnected"
-  threadDelay reconnectDelay
+  logDebug $ "Disconnected; waiting for " <> displayShow reconnectDelay
+  threadDelay . toMicroseconds . toDuration $ reconnectDelay
   logDebug "Reconnecting"
 
 -- | Rips a stream for as long as the connection is open.
@@ -117,7 +154,9 @@ ripOneStream request maybeOutputDir = do
 
       filename <- liftIO getFilename
       sinkFile $ maybe filename (</> filename) maybeOutputDir
-      pure RipRecorded
+      -- we're not inside `MonadRipper` here, so we're using the original IO func
+      now <- liftIO getCurrentTZTime
+      pure $ RipRecorded now
 
   {-
    - after a possible http exception is handled, we need to figure out if
@@ -126,10 +165,11 @@ ripOneStream request maybeOutputDir = do
    - consider the value of `recordedAnythingVar`
    -}
   case ripResult of
-    RipRecorded -> pure RipRecorded
+    r@(RipRecorded _) -> pure r
     RipNothing -> do
       recordedAnything <- readIORef recordedAnythingVar
-      pure $ if recordedAnything then RipRecorded else RipNothing
+      now <- liftIO getCurrentTZTime
+      pure $ if recordedAnything then RipRecorded now else RipNothing
 
 httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m RipResult
 httpExceptionHandler e = do
@@ -176,3 +216,10 @@ getFilename = do
   where
     getCurrentLocalTime :: MonadIO m => m LocalTime
     getCurrentLocalTime = zonedTimeToLocalTime <$> getZonedTime
+
+mkRipperRequest :: Text -> URL -> Request
+-- note: this causes impure exceptions for invalid URLs
+mkRipperRequest userAgent = setUserAgent userAgent . parseRequestThrow_ . T.unpack . urlToText
+
+setUserAgent :: Text -> Request -> Request
+setUserAgent = addRequestHeader "User-Agent" . encodeUtf8
