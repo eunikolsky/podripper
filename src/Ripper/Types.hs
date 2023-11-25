@@ -6,6 +6,7 @@ module Ripper.Types
   , RipName
   , StreamConfig(..)
   , StreamURL(..)
+  , SuccessfulRip(..)
   , URL(..)
   ) where
 
@@ -44,6 +45,13 @@ data StreamConfig
 
 newtype URL = URL { urlToText :: Text }
   deriving newtype (Show, Eq, FromJSON)
+
+-- | Stores information about a successful rip. Values of this type are passed
+-- from the ripper back to the parent `Podripper` (and ultimately to the
+-- reencoding step).
+newtype SuccessfulRip = SuccessfulRip RipEndTime
+  deriving newtype Eq
+  deriving Show
 
 data App = App
   { appLogFunc :: !LogFunc

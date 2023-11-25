@@ -54,11 +54,11 @@ getRipIntervals = do
 
 -- | The result of a single rip call. The information conveyed by this type
 -- is whether the call has received and saved any data.
-data RipResult = RipRecorded RipEndTime | RipNothing
+data RipResult = RipRecorded SuccessfulRip | RipNothing
   deriving (Eq, Show)
 
 ripEndTimeFromResult :: RipResult -> Maybe RipEndTime
-ripEndTimeFromResult (RipRecorded t) = Just t
+ripEndTimeFromResult (RipRecorded (SuccessfulRip t)) = Just t
 ripEndTimeFromResult RipNothing = Nothing
 
 class Monad m => MonadRipper m where
@@ -156,7 +156,7 @@ ripOneStream request maybeOutputDir = do
       sinkFile $ maybe filename (</> filename) maybeOutputDir
       -- we're not inside `MonadRipper` here, so we're using the original IO func
       now <- liftIO getCurrentTZTime
-      pure $ RipRecorded now
+      pure . RipRecorded $ SuccessfulRip now
 
   {-
    - after a possible http exception is handled, we need to figure out if
@@ -169,7 +169,7 @@ ripOneStream request maybeOutputDir = do
     RipNothing -> do
       recordedAnything <- readIORef recordedAnythingVar
       now <- liftIO getCurrentTZTime
-      pure $ if recordedAnything then RipRecorded now else RipNothing
+      pure $ if recordedAnything then RipRecorded (SuccessfulRip now) else RipNothing
 
 httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m RipResult
 httpExceptionHandler e = do
