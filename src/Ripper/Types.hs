@@ -5,6 +5,7 @@ module Ripper.Types
   , Options (..)
   , RipName
   , StreamConfig(..)
+  , StreamURL(..)
   , URL(..)
   ) where
 
@@ -14,6 +15,9 @@ import RIO.Process
 -- TODO move `Duration` outside of `RSSGen`?
 import RSSGen.Duration
 import Ripper.RipperDelay
+
+newtype StreamURL = StreamURL URL
+  deriving newtype (Show, Eq, FromJSON)
 
 -- | Command line arguments
 data Options = Options
@@ -33,10 +37,10 @@ data StreamConfig
   -- | The config contains the stream name (to know how the live stream is
   -- checked and find out the stream URL) and the stream URL if there is no
   -- special live stream check. This is what `Podripper` uses.
-  = StreamConfig !RipName !URL
+  = StreamConfig !RipName !StreamURL
   -- | Contains only the stream URL, without any live checks. This simplified
   -- version should only be used by the `ripper` CLI.
-  | SimpleURL !URL
+  | SimpleURL !StreamURL
 
 newtype URL = URL { urlToText :: Text }
   deriving newtype (Show, Eq, FromJSON)

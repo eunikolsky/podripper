@@ -50,7 +50,7 @@ ripperParser = Options
         <> metavar "rip_intervals"
         )
       )
-  <*> argument (SimpleURL . URL <$> str)
+  <*> argument (SimpleURL . StreamURL . URL <$> str)
       ( metavar "URL"
       <> help "Stream URL"
       )

@@ -89,7 +89,7 @@ ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mem
   where
     go :: MonadRipper m => StateT (Last RipEndTime) m ()
     go = do
-      let url = case streamConfig of
+      let (StreamURL url) = case streamConfig of
             -- FIXME move the live stream check for this case
             StreamConfig _name url' -> url'
             SimpleURL url' -> url'

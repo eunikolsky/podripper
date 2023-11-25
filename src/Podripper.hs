@@ -62,7 +62,7 @@ waitForStream config =
     else pure $ Just originalStreamURL
 
 rip :: RipConfigExt -> StreamURL -> IO ()
-rip RipConfigExt{config, rawRipDir} (StreamURL url) =
+rip RipConfigExt{config, rawRipDir} url =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir

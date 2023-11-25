@@ -17,9 +17,6 @@ import System.FilePath
 import System.Environment
 import System.Exit (die)
 
-newtype StreamURL = StreamURL URL
-  deriving newtype (Show, Eq, FromJSON)
-
 -- | Configuration necessary to rip a stream.
 data RipConfig = RipConfig
   { streamURL :: !StreamURL
