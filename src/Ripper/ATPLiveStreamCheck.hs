@@ -22,6 +22,11 @@ import Ripper.Util
 -- | Checks whether the ATP's stream is live and if so, extracts the stream URL
 -- from the status response. If the stream is live, but the stream URL can't be
 -- found, uses the `originalStreamURL` (from the config).
+--
+-- The ATP support is hardcoded in the program because its live stream check
+-- is more complicated and the stream URL needs to be extracted from the
+-- status endpoint.
+-- FIXME support this via the config file
 checkATPLiveStream :: StreamURL -> IO (Maybe StreamURL)
 checkATPLiveStream originalStreamURL = handleError <=< runExceptT $ do
   statusResponse <- liftIO . fmap getResponseBody . httpLBS $ parseRequest_ "https://atp.fm/livestream_status"

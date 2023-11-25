@@ -128,6 +128,8 @@ instance MonadRipper TestM where
     put $ s { tsRipResult = tail }
     pure head
 
+  checkLiveStream _name = pure . Just
+
   getRipDelay _ ripEndTime _ = tellRipEndTime ripEndTime >> gets tsRipDelay
 
   getTime = gets tsNow

@@ -16,7 +16,6 @@ import RIO (whenM, IsString, threadDelay)
 import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
-import Ripper.ATPLiveStreamCheck
 import qualified Ripper.Main as Ripper (run)
 import qualified Ripper.Types as Ripper
 import Ripper.Util
@@ -32,10 +31,7 @@ run ripName = do
   config <- loadConfig ripName
   let configExt = extendConfig config
   ensureDirs configExt
-  -- | the flag shows whether the live stream check has returned success since
-  -- the start; we don't need to ask it anymore after that
-  maybeStreamURL <- waitForStream config
-  unless skipRipping $ maybe (pure ()) (rip configExt) maybeStreamURL
+  unless skipRipping $ rip configExt
   reencodePreviousRips configExt
   reencodeRips configExt
   updateRSS configExt
@@ -46,29 +42,14 @@ ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
       ensureDir = createDirectoryIfMissing createParents
   forM_ [rawRipDir, doneRipDir] ensureDir
 
-waitForStream :: RipConfig -> IO (Maybe StreamURL)
-waitForStream config =
-  let ripName = ripDirName config
-      originalStreamURL = streamURL config
-  -- the `atp` support is hardcoded in the program because its live stream check
-  -- is more complicated and the stream URL needs to be extracted from the
-  -- status endpoint
-  -- FIXME support this via the config file
-  in if ripName == "atp" then
-    toProcessReady <$> runFor
-      (retryDelay config)
-      (duration config)
-      (fromProcessReady <$> checkATPLiveStream originalStreamURL)
-    else pure $ Just originalStreamURL
-
-rip :: RipConfigExt -> StreamURL -> IO ()
-rip RipConfigExt{config, rawRipDir} url =
+rip :: RipConfigExt -> IO ()
+rip RipConfigExt{config, rawRipDir} =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir
         , Ripper.optionsRipLength = duration config
         , Ripper.optionsRipIntervalRefs = ripIntervalRefs config
-        , Ripper.optionsStreamConfig = Ripper.StreamConfig (ripDirName config) url
+        , Ripper.optionsStreamConfig = Ripper.StreamConfig (ripDirName config) (streamURL config)
         }
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
@@ -80,10 +61,6 @@ rip RipConfigExt{config, rawRipDir} url =
 -- | Defines whether a step in the workflow is done and ready with some data `r`.
 data ProcessReadiness r = NotReady | Ready r
   deriving (Eq, Show)
-
-fromProcessReady :: Maybe r -> ProcessReadiness r
-fromProcessReady (Just r) = Ready r
-fromProcessReady Nothing = NotReady
 
 toProcessReady :: ProcessReadiness r -> Maybe r
 toProcessReady (Ready r) = Just r

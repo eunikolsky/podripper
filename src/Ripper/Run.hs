@@ -19,6 +19,8 @@ import qualified RIO.Text as T
 import RIO.Time
 import System.IO.Error (isResourceVanishedError)
 
+import RipConfig
+import Ripper.ATPLiveStreamCheck
 import Ripper.Import
 import Ripper.RipperDelay
 import RSSGen.Duration
@@ -61,6 +63,7 @@ ripEndTimeFromResult RipNothing = Nothing
 
 class Monad m => MonadRipper m where
   rip :: Request -> Maybe FilePath -> m RipResult
+  checkLiveStream :: RipName -> StreamURL -> m (Maybe StreamURL)
   getRipDelay :: [RipperInterval] -> Maybe RipEndTime -> Now -> m RetryDelay
   -- TODO can `MonadTime` be composed here to replace these two functions?
   getTime :: m Now
@@ -69,6 +72,9 @@ class Monad m => MonadRipper m where
 
 instance HasLogFunc env => MonadRipper (RIO env) where
   rip = ripOneStream
+  checkLiveStream ripName url = if ripName == "atp"
+    then liftIO (checkATPLiveStream url)
+    else pure $ Just url
   getRipDelay is ripEnd now = pure $ getRipperDelay is ripEnd now
   getTime = liftIO getCurrentTZTime
   delayReconnect = delayWithLog
@@ -89,14 +95,15 @@ ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mem
   where
     go :: MonadRipper m => StateT (Last RipEndTime) m ()
     go = do
-      let (StreamURL url) = case streamConfig of
-            -- FIXME move the live stream check for this case
-            StreamConfig _name url' -> url'
-            SimpleURL url' -> url'
-      let request = mkRipperRequest userAgent url
-      result <- lift $ rip request maybeOutputDir
+      maybeStreamURL <- lift $ urlFromStreamConfig streamConfig
+      case maybeStreamURL of
+        Just (StreamURL url) -> do
+          let request = mkRipperRequest userAgent url
+          result <- lift $ rip request maybeOutputDir
+          modify' (<> Last (ripEndTimeFromResult result))
 
-      modify' (<> Last (ripEndTimeFromResult result))
+        Nothing -> pure ()
+
       maybeLatestRipEndTime <- gets getLast
 
       -- TODO how to get rid of `lift`s?
@@ -105,6 +112,10 @@ ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mem
         delay <- getRipDelay ripperIntervals maybeLatestRipEndTime now
         delayReconnect delay
       whenM (lift shouldRepeat) go
+
+urlFromStreamConfig :: MonadRipper m => StreamConfig -> m (Maybe StreamURL)
+urlFromStreamConfig (StreamConfig ripName url) = checkLiveStream ripName url
+urlFromStreamConfig (SimpleURL url) = pure . Just $ url
 
 delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => RetryDelay -> m ()
 delayWithLog reconnectDelay = do
