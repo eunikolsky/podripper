@@ -1,5 +1,5 @@
 module Ripper.ATPLiveStreamCheck
-  ( waitForATP
+  ( checkATPLiveStream
   ) where
 
 import Control.Monad
@@ -19,8 +19,11 @@ import RipConfig
 import Ripper.Types
 import Ripper.Util
 
-waitForATP :: StreamURL -> IO (Maybe StreamURL)
-waitForATP originalStreamURL = handleError <=< runExceptT $ do
+-- | Checks whether the ATP's stream is live and if so, extracts the stream URL
+-- from the status response. If the stream is live, but the stream URL can't be
+-- found, uses the `originalStreamURL` (from the config).
+checkATPLiveStream :: StreamURL -> IO (Maybe StreamURL)
+checkATPLiveStream originalStreamURL = handleError <=< runExceptT $ do
   statusResponse <- liftIO . fmap getResponseBody . httpLBS $ parseRequest_ "https://atp.fm/livestream_status"
   liftIO . TL.putStrLn $ TLE.decodeUtf8 statusResponse
   status <- liftEither . eitherDecode @Object $ statusResponse

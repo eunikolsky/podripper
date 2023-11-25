@@ -65,7 +65,7 @@ waitForStream config =
     toProcessReady <$> runFor
       (retryDelay config)
       (duration config)
-      (fromProcessReady <$> waitForATP originalStreamURL)
+      (fromProcessReady <$> checkATPLiveStream originalStreamURL)
     else pure $ Just originalStreamURL
 
 rip :: RipConfigExt -> StreamURL -> IO ()
