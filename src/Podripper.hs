@@ -26,13 +26,6 @@ import System.Exit
 import System.FilePath
 import System.Process
 
-data RipConfigExt = RipConfigExt
-  { config :: !RipConfig
-  , rawRipDir :: !FilePath
-  , doneRipDir :: !FilePath
-  , doneBaseDir :: !FilePath
-  }
-
 run :: Ripper.RipName -> IO ()
 run ripName = do
   skipRipping <- getSkipRipping
@@ -291,13 +284,3 @@ getSkipRipping = do
     Just "0" -> pure True
     Just x -> do
       die $ mconcat ["END_TIMESTAMP envvar: only value `0` is supported, ", show x, " given; terminating"]
-
-extendConfig :: RipConfig -> RipConfigExt
-extendConfig config =
-  let
-      -- | The output directory for raw rips recorded by ripper.
-      rawRipDir = T.unpack $ ripDirName config
-      -- | The base directory for complete rips; this should be mounted from S3.
-      doneBaseDir = "complete"
-      doneRipDir = doneBaseDir </> rawRipDir
-  in RipConfigExt{config, rawRipDir, doneRipDir, doneBaseDir}

@@ -1,6 +1,8 @@
 module RipConfig
   ( RipConfig(..)
+  , RipConfigExt(..)
   , StreamURL(..)
+  , extendConfig
   , loadConfig
   ) where
 
@@ -45,6 +47,13 @@ instance FromJSON RipConfig where
     <*> o .: "podArtist"
     <*> o .: "podAlbum"
 
+data RipConfigExt = RipConfigExt
+  { config :: !RipConfig
+  , rawRipDir :: !FilePath
+  , doneRipDir :: !FilePath
+  , doneBaseDir :: !FilePath
+  }
+
 loadConfig :: RipName -> IO RipConfig
 loadConfig ripName = do
   confDir <- getConfDir
@@ -56,3 +65,13 @@ getConfDir :: IO FilePath
 getConfDir = do
   maybeConfDir <- lookupEnv "CONF_DIR"
   pure $ fromMaybe "/usr/share/podripper" maybeConfDir
+
+extendConfig :: RipConfig -> RipConfigExt
+extendConfig config =
+  let
+      -- | The output directory for raw rips recorded by ripper.
+      rawRipDir = T.unpack $ ripDirName config
+      -- | The base directory for complete rips; this should be mounted from S3.
+      doneBaseDir = "complete"
+      doneRipDir = doneBaseDir </> rawRipDir
+  in RipConfigExt{config, rawRipDir, doneRipDir, doneBaseDir}
