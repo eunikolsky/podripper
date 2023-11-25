@@ -1,11 +1,23 @@
 {-# LANGUAGE NoImplicitPrelude #-}
--- | Silly utility module, used to demonstrate how to write a test
--- case.
+
 module Ripper.Util
-  ( plus2
+  ( readCommand
   ) where
 
 import RIO
+import System.IO (putStrLn)
+import UnliftIO.Process
 
-plus2 :: Int -> Int
-plus2 = (+ 2)
+readCommand :: String -> [String] -> String -> IO (Maybe String)
+readCommand prog args input = do
+  (code, out, err) <- readProcessWithExitCode prog args input
+  if code == ExitSuccess
+    then pure $ Just out
+    else do
+      putStrLn $ mconcat
+        [ "readCommand ("
+        , prog, " ", show args, " <<< ", input
+        , "): exit code ", show code
+        , "; stderr: ", err
+        ]
+      pure Nothing

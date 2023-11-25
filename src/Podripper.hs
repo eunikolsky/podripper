@@ -6,27 +6,20 @@ module Podripper
 
 import Control.Exception
 import Control.Monad
-import Control.Monad.Except
-import Data.Aeson hiding ((<?>))
-import qualified Data.Aeson.KeyMap as A
-import Data.Char
-import Data.Functor
 import Data.Maybe
-import Data.Monoid
-import Data.List (dropWhileEnd, isSuffixOf)
+import Data.List (isSuffixOf)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
-import qualified Data.Text.Lazy.Encoding as TLE
-import qualified Data.Text.Lazy.IO as TL
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
-import Network.HTTP.Simple
 import RIO (whenM, IsString, threadDelay)
 import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
+import Ripper.ATPLiveStreamCheck
 import qualified Ripper.Main as Ripper (run)
 import qualified Ripper.Types as Ripper
+import Ripper.Util
 import System.Directory
 import System.Environment
 import System.Exit
@@ -63,6 +56,7 @@ ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
 waitForStream :: RipConfig -> IO (Maybe StreamURL)
 waitForStream config =
   let ripName = ripDirName config
+      originalStreamURL = streamURL config
   -- the `atp` support is hardcoded in the program because its live stream check
   -- is more complicated and the stream URL needs to be extracted from the
   -- status endpoint
@@ -71,62 +65,8 @@ waitForStream config =
     toProcessReady <$> runFor
       (retryDelay config)
       (duration config)
-      (fromProcessReady <$> waitForATP)
+      (fromProcessReady <$> waitForATP originalStreamURL)
     else pure $ Just originalStreamURL
-
-  where
-    originalStreamURL = streamURL config
-
-    waitForATP :: IO (Maybe StreamURL)
-    waitForATP = handleError <=< runExceptT $ do
-      statusResponse <- liftIO . fmap getResponseBody . httpLBS $ parseRequest_ "https://atp.fm/livestream_status"
-      liftIO . TL.putStrLn $ TLE.decodeUtf8 statusResponse
-      status <- liftEither . eitherDecode @Object $ statusResponse
-
-      isLiveValue <- liftEither $ A.lookup "live" status <?> "Can't find `live` key"
-      isLive <- liftEither $ extractBool isLiveValue
-
-      if isLive then liftIO (Just <$> getStreamURL status) else pure Nothing
-
-    extractBool :: Value -> Either String Bool
-    extractBool (Bool b) = Right b
-    extractBool x = Left $ "Expected a bool, got " <> show x
-
-    asString :: Value -> Maybe String
-    asString (String t) = Just $ T.unpack t
-    asString _ = Nothing
-
-    getStreamURL :: Object -> IO StreamURL
-    getStreamURL status = fromMaybe originalStreamURL <$>
-      case A.lookup "player" status >>= asString of
-        Just player -> do
-          -- FIXME replace with a native Haskell solution
-          maybeAudioSourceSrc <- readCommandNonEmpty "htmlq" ["-a", "src", "audio source"] player
-          maybeAudioSrc <- readCommandNonEmpty "htmlq" ["-a", "src", "audio"] player
-          maybeFirstLink <- readCommandNonEmpty "sed" ["-nE", "s/.*\"(http[^\"]+)\".*/\\1/p"] player
-          -- if I understand correctly, all three values are not lazy and are
-          -- evaluated regardless of whether the previous one was a `Just`; if so,
-          -- it's not a big deal as this function isn't called often
-          let firstMaybe = getFirst $ foldMap First [maybeAudioSourceSrc, maybeAudioSrc, maybeFirstLink]
-          pure $ StreamURL . Ripper.URL . T.pack <$> firstMaybe
-
-        Nothing -> pure Nothing
-
-    -- | Wrapper around `readCommand` that returns `Nothing` if the output is
-    -- whitespace only.
-    readCommandNonEmpty :: String -> [String] -> String -> IO (Maybe String)
-    readCommandNonEmpty prog args input = readCommand prog args input <&> (>>= skipEmpty)
-
-    skipEmpty :: String -> Maybe String
-    skipEmpty s = let trimmed = trimSpace s
-      in if null trimmed then Nothing else Just trimmed
-
-    trimSpace :: String -> String
-    trimSpace = dropWhile isSpace . dropWhileEnd isSpace
-
-    handleError :: Either String (Maybe a) -> IO (Maybe a)
-    handleError (Right b) = pure b
-    handleError (Left err) = putStrLn err $> Nothing
 
 rip :: RipConfigExt -> StreamURL -> IO ()
 rip RipConfigExt{config, rawRipDir} (StreamURL url) =
@@ -274,20 +214,6 @@ reencodeRips RipConfigExt{config, rawRipDir, doneRipDir} = do
           whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
           renameFile ripName $ doneRipDir </> takeBaseName ripName <> sourceRipSuffix <.> "mp3"
 
-readCommand :: String -> [String] -> String -> IO (Maybe String)
-readCommand prog args input = do
-  (code, out, err) <- readProcessWithExitCode prog args input
-  if code == ExitSuccess
-    then pure $ Just out
-    else do
-      putStrLn $ mconcat
-        [ "readCommand ("
-        , prog, " ", show args, " <<< ", input
-        , "): exit code ", show code
-        , "; stderr: ", err
-        ]
-      pure Nothing
-
 podTitleFromFilename :: FilePath -> IO String
 podTitleFromFilename name = fromMaybe "" <$> readCommand
   -- FIXME replace with a native Haskell solution
@@ -375,8 +301,3 @@ extendConfig config =
       doneBaseDir = "complete"
       doneRipDir = doneBaseDir </> rawRipDir
   in RipConfigExt{config, rawRipDir, doneRipDir, doneBaseDir}
-
--- infix 7 <?>
-(<?>) :: Maybe a -> b -> Either b a
-Just x <?> _ = Right x
-Nothing <?> e = Left e
