@@ -1,0 +1,13 @@
+{
+  "_comment": "a local stream for testing",
+  "streamURL": "http://localhost:8008/stream",
+  "duration": "30s",
+  "retryDelay": "5s",
+  "ripIntervals": [
+    "Sa 06:00-20:00 Europe/Kyiv: 4s",
+    "Su 06:00-20:00 Europe/Kyiv: 5s"
+  ],
+  "ripDirName": "test",
+  "podArtist": "Various",
+  "podAlbum": "Test stream"
+}
