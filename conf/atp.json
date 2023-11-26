@@ -1,7 +1,6 @@
 {
   "streamURL": "https://atp.fm:8443/listen",
   "duration": "5h",
-  "retryDelay": "15s",
   "ripIntervals": [
     "We 19:30-22:30 America/New_York: 30s"
   ],

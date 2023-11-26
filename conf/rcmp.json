@@ -1,7 +1,6 @@
 {
   "streamURL": "https://stream.rcmp.me/stream",
   "duration": "8h",
-  "retryDelay": "5s",
   "ripIntervals": [
     "Fr 14:30-19:00 America/Toronto: 10s",
     "Sa 05:30-08:30 America/Toronto: 30s"

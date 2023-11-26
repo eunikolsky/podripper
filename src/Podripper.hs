@@ -12,7 +12,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
-import RIO (whenM, IsString, threadDelay)
+import RIO (whenM, IsString)
 import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
@@ -54,7 +54,7 @@ rip RipConfigExt{config, rawRipDir} =
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
   -- throws an exception, so `catchExceptions` is required
-  in runFor (retryDelay config) (duration config) $ do
+  in runFor (duration config) $ do
     putStrLn "starting the ripper"
     catchExceptions $ Ripper.run options
 
@@ -88,11 +88,11 @@ instance ProcessReadinessType () where
   showReadiness = const Nothing
 
 -- | Runs the given IO action repeatedly for the provided `duration` until it
--- returns the `Ready` state, with the `retryDelay` between each invocation.
+-- returns the `Ready` state.
 -- If it isn't `Ready` until the `duration` expires, the final state is what
 -- the action returns (that is, `NotReady`).
-runFor :: ProcessReadinessType r => RetryDelay -> Duration -> IO r -> IO r
-runFor retryDelay duration io = do
+runFor :: ProcessReadinessType r => Duration -> IO r -> IO r
+runFor duration io = do
   now <- getCurrentTime
   let endTime = addUTCTime (toNominalDiffTime duration) now
   putStrLn $ mconcat ["now ", show now, " + ", show duration, " = end time ", show endTime]
@@ -107,11 +107,10 @@ runFor retryDelay duration io = do
       if canRun then do
         processReadiness <- io
 
-        afterIO <- getCurrentTime
-        let nextNow = addUTCTime (toNominalDiffTime $ toDuration retryDelay) afterIO
+        nextNow <- getCurrentTime
         let haveEnoughTimeForNextIteration = nextNow < endTime
         putStrLn . mconcat $
-          [ "now ", show afterIO
+          [ "now ", show nextNow
           , "; have enough time for next iteration: ", show haveEnoughTimeForNextIteration
           ]
           <> maybe [] (\s -> ["; process readiness: ", s]) (showReadiness processReadiness)
@@ -119,10 +118,7 @@ runFor retryDelay duration io = do
         -- TODO how to split these two different concerns: wait until time and
         -- wait until ready?
         if readinessIsReady processReadiness then pure processReadiness
-        else if haveEnoughTimeForNextIteration then do
-          -- FIXME the same implementation as in `MonadTime`
-          threadDelay . toMicroseconds . toDuration $ retryDelay
-          go endTime
+        else if haveEnoughTimeForNextIteration then go endTime
         -- TODO is it possible to simplify the implementation? there are too
         -- many return points here
         else pure processReadiness
