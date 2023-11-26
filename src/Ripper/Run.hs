@@ -33,12 +33,14 @@ run = do
   let maybeOutputDir = optionsOutputDirectory options
   for_ maybeOutputDir ensureDirectory
 
-  let ripTimeout = toMicroseconds $ optionsRipLength options
-
   userAgent <- asks appUserAgent
 
-  void . timeout ripTimeout
+  maybeTimeout (optionsRipLength options)
     $ ripper userAgent maybeOutputDir ripIntervals (optionsStreamConfig options)
+
+maybeTimeout :: MonadUnliftIO m => Maybe Duration -> m () -> m ()
+maybeTimeout (Just d) = void . timeout (toMicroseconds d)
+maybeTimeout Nothing = id
 
 -- | Returns parsed `RipperInterval`s from the `Options`. Terminates the program
 -- with an error message if an interval can't be parsed.

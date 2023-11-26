@@ -13,7 +13,6 @@ import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
 import RIO (whenM, IsString)
-import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
 import qualified Ripper.Main as Ripper (run)
@@ -47,84 +46,16 @@ rip RipConfigExt{config, rawRipDir} =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir
-        , Ripper.optionsRipLength = duration config
+        , Ripper.optionsRipLength = Nothing
         , Ripper.optionsRipIntervalRefs = ripIntervalRefs config
         , Ripper.optionsStreamConfig = Ripper.StreamConfig (ripDirName config) (streamURL config)
         }
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
   -- throws an exception, so `catchExceptions` is required
-  in runFor (duration config) $ do
+  in forever $ do
     putStrLn "starting the ripper"
     catchExceptions $ Ripper.run options
-
--- | Defines whether a step in the workflow is done and ready with some data `r`.
-data ProcessReadiness r = NotReady | Ready r
-  deriving (Eq, Show)
-
-toProcessReady :: ProcessReadiness r -> Maybe r
-toProcessReady (Ready r) = Just r
-toProcessReady NotReady = Nothing
-
--- | Defines the types that can represent process readiness flag, basically
--- `ProcessReadiness`, or `()` for cases when process readiness is meaningless.
--- The whole point of this typeclass is `showReadiness`, which returns `Nothing`
--- for `()` so that it's not logged! This is probably an overkill for
--- such a small use case and should be removed when/if process readiness logging
--- is removed, and there is no observable difference between the two instances.
-class ProcessReadinessType a where
-  mkNotReady :: a
-  readinessIsReady :: a -> Bool
-  showReadiness :: a -> Maybe String
-
-instance Show r => ProcessReadinessType (ProcessReadiness r) where
-  mkNotReady = NotReady
-  readinessIsReady = isJust . toProcessReady
-  showReadiness = Just . show
-
-instance ProcessReadinessType () where
-  mkNotReady = ()
-  readinessIsReady = const False
-  showReadiness = const Nothing
-
--- | Runs the given IO action repeatedly for the provided `duration` until it
--- returns the `Ready` state.
--- If it isn't `Ready` until the `duration` expires, the final state is what
--- the action returns (that is, `NotReady`).
-runFor :: ProcessReadinessType r => Duration -> IO r -> IO r
-runFor duration io = do
-  now <- getCurrentTime
-  let endTime = addUTCTime (toNominalDiffTime duration) now
-  putStrLn $ mconcat ["now ", show now, " + ", show duration, " = end time ", show endTime]
-  go endTime
-
-  where
-    go endTime = do
-      now <- getCurrentTime
-      let canRun = now < endTime
-      putStrLn $ mconcat ["now ", show now, "; can run: ", show canRun]
-
-      if canRun then do
-        processReadiness <- io
-
-        nextNow <- getCurrentTime
-        let haveEnoughTimeForNextIteration = nextNow < endTime
-        putStrLn . mconcat $
-          [ "now ", show nextNow
-          , "; have enough time for next iteration: ", show haveEnoughTimeForNextIteration
-          ]
-          <> maybe [] (\s -> ["; process readiness: ", s]) (showReadiness processReadiness)
-
-        -- TODO how to split these two different concerns: wait until time and
-        -- wait until ready?
-        if readinessIsReady processReadiness then pure processReadiness
-        else if haveEnoughTimeForNextIteration then go endTime
-        -- TODO is it possible to simplify the implementation? there are too
-        -- many return points here
-        else pure processReadiness
-
-      -- didn't manage to get the ready status before out-of-time => not ready
-      else pure mkNotReady
 
 -- | Catches synchronous exceptions (most importantly, IO exceptions) from the
 -- given IO action so that they don't crash the program (this should emulate the

@@ -38,10 +38,11 @@ ripperParser = Options
                 <> metavar "DIR"
                 )
       )
-  <*> option duration
-      ( short 'l'
-      <> help (mconcat ["How long to rip (e.g. ", show (durationHours 2), ")"])
-      <> metavar "rip_duration"
+  <*> (Just <$> option duration
+        ( short 'l'
+        <> help (mconcat ["How long to rip (e.g. ", show (durationHours 2), ")"])
+        <> metavar "rip_duration"
+        )
       )
   <*> many (
         option ripIntervalRef

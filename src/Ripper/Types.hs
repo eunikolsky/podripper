@@ -25,8 +25,8 @@ data Options = Options
   { optionsVerbose :: !Bool
   -- | The output directory for rips if set by the user.
   , optionsOutputDirectory :: !(Maybe FilePath)
-  -- | Record the stream for this duration.
-  , optionsRipLength :: !Duration
+  -- | Record the stream for this duration; it's used only by the `ripper` CLI.
+  , optionsRipLength :: !(Maybe Duration)
   , optionsRipIntervalRefs :: ![RipperIntervalRef]
   , optionsStreamConfig :: !StreamConfig
   }
