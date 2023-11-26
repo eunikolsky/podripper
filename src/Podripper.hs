@@ -4,7 +4,7 @@ module Podripper
   ( run
   ) where
 
-import Control.Exception
+import Control.Exception (AsyncException, throw)
 import Control.Monad
 import Data.Maybe
 import Data.List (isSuffixOf)
@@ -12,7 +12,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
-import RIO (whenM, IsString)
+import RIO hiding (stdin)
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
 import qualified Ripper.Main as Ripper (run)
@@ -30,10 +30,21 @@ run ripName = do
   config <- loadConfig ripName
   let configExt = extendConfig config
   ensureDirs configExt
-  unless skipRipping $ rip configExt
-  reencodePreviousRips configExt
-  reencodeRips configExt
-  updateRSS configExt
+
+  ripsQueue <- atomically newTQueue
+
+  race_
+    (logSuccessfulRips ripsQueue)
+    $ do
+      unless skipRipping $ rip ripsQueue configExt
+      reencodePreviousRips configExt
+      reencodeRips configExt
+      updateRSS configExt
+
+logSuccessfulRips :: Ripper.RipsQueue -> IO ()
+logSuccessfulRips queue = forever $ do
+  newRip <- atomically $ readTQueue queue
+  putStrLn $ "Successful rip: " <> show newRip
 
 ensureDirs :: RipConfigExt -> IO ()
 ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
@@ -41,8 +52,8 @@ ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
       ensureDir = createDirectoryIfMissing createParents
   forM_ [rawRipDir, doneRipDir] ensureDir
 
-rip :: RipConfigExt -> IO ()
-rip RipConfigExt{config, rawRipDir} =
+rip :: Ripper.RipsQueue -> RipConfigExt -> IO ()
+rip ripsQueue RipConfigExt{config, rawRipDir} =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir
@@ -55,7 +66,7 @@ rip RipConfigExt{config, rawRipDir} =
   -- throws an exception, so `catchExceptions` is required
   in forever $ do
     putStrLn "starting the ripper"
-    catchExceptions $ Ripper.run options
+    catchExceptions $ Ripper.run options ripsQueue
 
 -- | Catches synchronous exceptions (most importantly, IO exceptions) from the
 -- given IO action so that they don't crash the program (this should emulate the

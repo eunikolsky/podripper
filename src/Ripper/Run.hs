@@ -59,9 +59,9 @@ getRipIntervals = do
 data RipResult = RipRecorded SuccessfulRip | RipNothing
   deriving (Eq, Show)
 
-ripEndTimeFromResult :: RipResult -> Maybe RipEndTime
-ripEndTimeFromResult (RipRecorded (SuccessfulRip t)) = Just t
-ripEndTimeFromResult RipNothing = Nothing
+withRecordedRip :: (SuccessfulRip -> a) -> RipResult -> Maybe a
+withRecordedRip f (RipRecorded r) = Just $ f r
+withRecordedRip _ RipNothing = Nothing
 
 class Monad m => MonadRipper m where
   rip :: Request -> Maybe FilePath -> m RipResult
@@ -71,8 +71,9 @@ class Monad m => MonadRipper m where
   getTime :: m Now
   delayReconnect :: RetryDelay -> m ()
   shouldRepeat :: m Bool
+  notifyRip :: SuccessfulRip -> m ()
 
-instance HasLogFunc env => MonadRipper (RIO env) where
+instance (HasLogFunc env, HasAppRipsQueue env) => MonadRipper (RIO env) where
   rip = ripOneStream
   checkLiveStream ripName url = if ripName == "atp"
     then liftIO (checkATPLiveStream url)
@@ -81,6 +82,9 @@ instance HasLogFunc env => MonadRipper (RIO env) where
   getTime = liftIO getCurrentTZTime
   delayReconnect = delayWithLog
   shouldRepeat = pure True
+  notifyRip r = do
+    ripsQueue <- view appRipsQueueL
+    atomically $ writeTQueue ripsQueue r
 
 -- | The endless ripping loop.
 ripper :: (MonadRipper m) => Text -> Maybe FilePath -> [RipperInterval] -> StreamConfig -> m ()
@@ -102,7 +106,9 @@ ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mem
         Just (StreamURL url) -> do
           let request = mkRipperRequest userAgent url
           result <- lift $ rip request maybeOutputDir
-          modify' (<> Last (ripEndTimeFromResult result))
+          modify' (<> Last (withRecordedRip ripEndTime result))
+
+          maybe (pure ()) (lift . notifyRip) $ withRecordedRip id result
 
         Nothing -> pure ()
 

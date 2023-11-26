@@ -143,6 +143,8 @@ instance MonadRipper TestM where
 
     pure $ iteration > 0
 
+  notifyRip = const $ pure ()
+
 tellRetryDelay :: RetryDelay -> TestM ()
 tellRetryDelay = tell . (, []) . singleton
 

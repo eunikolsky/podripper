@@ -2,8 +2,10 @@
 module Ripper.Types
   ( App (..)
   , HasAppOptions(..)
+  , HasAppRipsQueue(..)
   , Options (..)
   , RipName
+  , RipsQueue
   , StreamConfig(..)
   , StreamURL(..)
   , SuccessfulRip(..)
@@ -49,20 +51,26 @@ newtype URL = URL { urlToText :: Text }
 -- | Stores information about a successful rip. Values of this type are passed
 -- from the ripper back to the parent `Podripper` (and ultimately to the
 -- reencoding step).
-newtype SuccessfulRip = SuccessfulRip RipEndTime
+newtype SuccessfulRip = SuccessfulRip { ripEndTime :: RipEndTime }
   deriving newtype Eq
   deriving Show
+
+type RipsQueue = TQueue SuccessfulRip
 
 data App = App
   { appLogFunc :: !LogFunc
   , appProcessContext :: !ProcessContext
   , appOptions :: !Options
   , appUserAgent :: !Text
+  , appRipsQueue :: !RipsQueue
   -- Add other app-specific configuration information here
   }
 
 class HasAppOptions env where
   appOptionsL :: Lens' env Options
+
+class HasAppRipsQueue env where
+  appRipsQueueL :: Lens' env RipsQueue
 
 instance HasLogFunc App where
   logFuncL = lens appLogFunc (\x y -> x { appLogFunc = y })
@@ -70,3 +78,5 @@ instance HasProcessContext App where
   processContextL = lens appProcessContext (\x y -> x { appProcessContext = y })
 instance HasAppOptions App where
   appOptionsL = lens appOptions (\x y -> x { appOptions = y })
+instance HasAppRipsQueue App where
+  appRipsQueueL = lens appRipsQueue (\x y -> x { appRipsQueue = y })
