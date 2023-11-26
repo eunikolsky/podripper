@@ -32,6 +32,7 @@ run ripName = do
   ensureDirs configExt
 
   ripsQueue <- atomically newTQueue
+  reencodedQueue <- atomically newTQueue
 
   -- FIXME when to reencode rips?
   --reencodePreviousRips configExt
@@ -40,16 +41,29 @@ run ripName = do
     -- FIXME what should `skipRipping` do?
     --unless skipRipping $
     (rip ripsQueue configExt)
-    -- $ race_
-      (processSuccessfulRips configExt ripsQueue)
-      -- FIXME reencoded queue
-      --(updateRSS configExt)
+    $ race_
+      (processSuccessfulRips configExt ripsQueue reencodedQueue)
+      (processReencodedRips configExt reencodedQueue)
 
-processSuccessfulRips :: RipConfigExt -> Ripper.RipsQueue -> IO ()
-processSuccessfulRips config queue = forever $ do
+processSuccessfulRips :: RipConfigExt -> Ripper.RipsQueue -> ReencodedQueue -> IO ()
+processSuccessfulRips config queue reencodedQueue = forever $ do
   newRip <- atomically $ readTQueue queue
   putStrLn $ "Successful rip: " <> show newRip
   reencodeRip config newRip
+  atomically $ writeTQueue reencodedQueue ()
+
+-- | A queue of reencoded rips sends only empty tuples because the RSS updater
+-- lists and uses all the available files in the complete directory anyway. A
+-- reason to send the reencoded filename could be to point the updater to the
+-- newest file, but I'm not sure how to do that with `shake`, which needs only
+-- the target filename to produce.
+type ReencodedQueue = TQueue ()
+
+processReencodedRips :: RipConfigExt -> ReencodedQueue -> IO ()
+processReencodedRips config queue = forever $ do
+  void . atomically $ readTQueue queue
+  putStrLn "New reencoded rip"
+  updateRSS config
 
 ensureDirs :: RipConfigExt -> IO ()
 ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
@@ -185,8 +199,8 @@ ffmpeg args ripName = do
   unless (null err) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stderr: ", err]
   pure code
 
-_updateRSS :: RipConfigExt -> IO ()
-_updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
+updateRSS :: RipConfigExt -> IO ()
+updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
   -- FIXME replace `ripDirName` with the requested rip name and remove the field
   where rssName = NE.singleton $ doneBaseDir </> T.unpack (ripDirName config) <.> "rss"
 
