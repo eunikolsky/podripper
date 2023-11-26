@@ -26,7 +26,7 @@ import System.Process
 
 run :: Ripper.RipName -> IO ()
 run ripName = do
-  skipRipping <- getSkipRipping
+  _skipRipping <- getSkipRipping
   config <- loadConfig ripName
   let configExt = extendConfig config
   ensureDirs configExt
@@ -36,8 +36,11 @@ run ripName = do
   race_
     (logSuccessfulRips ripsQueue)
     $ do
-      unless skipRipping $ rip ripsQueue configExt
-      reencodePreviousRips configExt
+      -- FIXME what should `skipRipping` do?
+      --unless skipRipping $
+      rip ripsQueue configExt
+      -- FIXME when to reencode rips?
+      --reencodePreviousRips configExt
       reencodeRips configExt
       updateRSS configExt
 
@@ -137,8 +140,8 @@ podTitleFromFilename name = fromMaybe "" <$> readCommand
  - this needs to happen before reencoding fresh rips because if those fail, they
  - would be attempted to be reencoded again in this run, which isn't very useful
  -}
-reencodePreviousRips :: RipConfigExt -> IO ()
-reencodePreviousRips RipConfigExt{config, doneRipDir} = do
+_reencodePreviousRips :: RipConfigExt -> IO ()
+_reencodePreviousRips RipConfigExt{config, doneRipDir} = do
   rips <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
   forM_ rips (reencodeRip year)
