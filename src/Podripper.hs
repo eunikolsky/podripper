@@ -37,13 +37,15 @@ run ripName = do
   -- FIXME when to reencode rips?
   --reencodePreviousRips configExt
 
-  race_
+  race3
     -- FIXME what should `skipRipping` do?
     --unless skipRipping $
     (rip ripsQueue configExt)
-    $ race_
-      (processSuccessfulRips configExt ripsQueue reencodedQueue)
-      (processReencodedRips configExt reencodedQueue)
+    (processSuccessfulRips configExt ripsQueue reencodedQueue)
+    (processReencodedRips configExt reencodedQueue)
+
+race3 :: IO a -> IO b -> IO c -> IO ()
+race3 x y = race_ x . race_ y
 
 processSuccessfulRips :: RipConfigExt -> Ripper.RipsQueue -> ReencodedQueue -> IO ()
 processSuccessfulRips config queue reencodedQueue = forever $ do
