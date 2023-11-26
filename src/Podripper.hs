@@ -33,21 +33,23 @@ run ripName = do
 
   ripsQueue <- atomically newTQueue
 
-  race_
-    (logSuccessfulRips ripsQueue)
-    $ do
-      -- FIXME what should `skipRipping` do?
-      --unless skipRipping $
-      rip ripsQueue configExt
-      -- FIXME when to reencode rips?
-      --reencodePreviousRips configExt
-      reencodeRips configExt
-      updateRSS configExt
+  -- FIXME when to reencode rips?
+  --reencodePreviousRips configExt
 
-logSuccessfulRips :: Ripper.RipsQueue -> IO ()
-logSuccessfulRips queue = forever $ do
+  race_
+    -- FIXME what should `skipRipping` do?
+    --unless skipRipping $
+    (rip ripsQueue configExt)
+    -- $ race_
+      (processSuccessfulRips configExt ripsQueue)
+      -- FIXME reencoded queue
+      --(updateRSS configExt)
+
+processSuccessfulRips :: RipConfigExt -> Ripper.RipsQueue -> IO ()
+processSuccessfulRips config queue = forever $ do
   newRip <- atomically $ readTQueue queue
   putStrLn $ "Successful rip: " <> show newRip
+  reencodeRip config newRip
 
 ensureDirs :: RipConfigExt -> IO ()
 ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
@@ -90,16 +92,13 @@ sourceRipSuffix, reencodedRipSuffix :: IsString s => s
 sourceRipSuffix = "_src"
 reencodedRipSuffix = "_enc"
 
-reencodeRips :: RipConfigExt -> IO ()
-reencodeRips RipConfigExt{config, rawRipDir, doneRipDir} = do
-  rips <- fmap (rawRipDir </>) . filter ((== ".mp3") . takeExtension) <$> listDirectory rawRipDir
+reencodeRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
+reencodeRip RipConfigExt{config, doneRipDir} newRip = do
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  if not (null rips)
-  then forM_ rips (reencodeRip year)
-  else putStrLn $ "no files in " <> rawRipDir
+  reencodeRip' year $ Ripper.ripFilename newRip
 
   where
-    reencodeRip year ripName = do
+    reencodeRip' year ripName = do
       podTitle <- podTitleFromFilename ripName
       let reencodedRip = doneRipDir </> takeBaseName ripName <> reencodedRipSuffix <.> "mp3"
           ffmpegArgs =
@@ -144,7 +143,7 @@ _reencodePreviousRips :: RipConfigExt -> IO ()
 _reencodePreviousRips RipConfigExt{config, doneRipDir} = do
   rips <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  forM_ rips (reencodeRip year)
+  forM_ rips (reencodeRip' year)
 
   where
     previouslyFailedRip f = all ($ f)
@@ -152,7 +151,7 @@ _reencodePreviousRips RipConfigExt{config, doneRipDir} = do
       , (sourceRipSuffix `isSuffixOf`) . takeBaseName
       ]
 
-    reencodeRip year ripName = do
+    reencodeRip' year ripName = do
       podTitle <- podTitleFromFilename ripName
       let reencodedRip = T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName
           ffmpegArgs =
@@ -186,8 +185,8 @@ ffmpeg args ripName = do
   unless (null err) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stderr: ", err]
   pure code
 
-updateRSS :: RipConfigExt -> IO ()
-updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
+_updateRSS :: RipConfigExt -> IO ()
+_updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
   -- FIXME replace `ripDirName` with the requested rip name and remove the field
   where rssName = NE.singleton $ doneBaseDir </> T.unpack (ripDirName config) <.> "rss"
 

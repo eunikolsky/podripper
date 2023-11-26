@@ -143,7 +143,7 @@ ripOneStream request maybeOutputDir = do
         from the context: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)`
    - As the doc says, `MonadUnliftIO` doesn't work with stateful monads :(
    -}
-  recordedAnythingVar <- newIORef False
+  maybeFilenameVar <- newIORef Nothing
 
   ripResult <- runResourceT
     . handleResourceVanished
@@ -151,33 +151,35 @@ ripOneStream request maybeOutputDir = do
     . httpSink request $ \response -> do
       logInfo . displayShow . getResponseStatus $ response
 
-      writeIORef recordedAnythingVar True
-
       {-
       - I want to include the time at which we start receiving the response body
       - (ideally, the body's first byte, not the header) in the filename;
       - in this block, we have the `response` and are ready to stream the body,
       - so this time should be good enough
       -}
+      basename <- liftIO getFilename
+      let filename = maybe basename (</> basename) maybeOutputDir
+      writeIORef maybeFilenameVar $ Just filename
 
-      filename <- liftIO getFilename
-      sinkFile $ maybe filename (</> filename) maybeOutputDir
+      sinkFile filename
       -- we're not inside `MonadRipper` here, so we're using the original IO func
       now <- liftIO getCurrentTZTime
-      pure . RipRecorded $ SuccessfulRip now
+      pure . RipRecorded $ SuccessfulRip now filename
 
   {-
    - after a possible http exception is handled, we need to figure out if
    - anything was recorded (i.e. we got a successful response): because an
    - exception can be thrown in the middle of the connection, we also need to
-   - consider the value of `recordedAnythingVar`
+   - consider the value of `maybeFilenameVar`
    -}
   case ripResult of
     r@(RipRecorded _) -> pure r
     RipNothing -> do
-      recordedAnything <- readIORef recordedAnythingVar
+      maybeFilename <- readIORef maybeFilenameVar
       now <- liftIO getCurrentTZTime
-      pure $ if recordedAnything then RipRecorded (SuccessfulRip now) else RipNothing
+      pure $ case maybeFilename of
+        Just filename -> RipRecorded (SuccessfulRip now filename)
+        Nothing -> RipNothing
 
 httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m RipResult
 httpExceptionHandler e = do
