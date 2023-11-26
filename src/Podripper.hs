@@ -34,15 +34,18 @@ run ripName = do
   ripsQueue <- atomically newTQueue
   reencodedQueue <- atomically newTQueue
 
-  -- FIXME when to reencode rips?
-  --reencodePreviousRips configExt
-
-  race3
-    -- FIXME what should `skipRipping` do?
-    --unless skipRipping $
-    (rip ripsQueue configExt)
-    (processSuccessfulRips configExt ripsQueue reencodedQueue)
-    (processReencodedRips configExt reencodedQueue)
+  concurrently_
+    -- reencode previously reencoding-failed rips (`*_src.mp3`) if any in
+    -- parallel with ripping at the startup
+    -- TODO also discover and reencode rips in the source dir, which may be
+    -- there as a result of a crash
+    (reencodePreviousRips configExt reencodedQueue)
+    $ race3
+      -- FIXME what should `skipRipping` do?
+      --unless skipRipping $
+      (rip ripsQueue configExt)
+      (processSuccessfulRips configExt ripsQueue reencodedQueue)
+      (processReencodedRips configExt reencodedQueue)
 
 race3 :: IO a -> IO b -> IO c -> IO ()
 race3 x y = race_ x . race_ y
@@ -155,8 +158,8 @@ podTitleFromFilename name = fromMaybe "" <$> readCommand
  - this needs to happen before reencoding fresh rips because if those fail, they
  - would be attempted to be reencoded again in this run, which isn't very useful
  -}
-_reencodePreviousRips :: RipConfigExt -> IO ()
-_reencodePreviousRips RipConfigExt{config, doneRipDir} = do
+reencodePreviousRips :: RipConfigExt -> ReencodedQueue -> IO ()
+reencodePreviousRips RipConfigExt{config, doneRipDir} queue = do
   rips <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
   forM_ rips (reencodeRip' year)
@@ -188,7 +191,9 @@ _reencodePreviousRips RipConfigExt{config, doneRipDir} = do
             ]
       code <- ffmpeg ffmpegArgs ripName
       if code == ExitSuccess
-        then removeFile ripName
+        then do
+          removeFile ripName
+          atomically $ writeTQueue queue ()
         else do
           putStrLn $ mconcat ["reencoding ", ripName, " failed again; leaving as is for now"]
           whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
