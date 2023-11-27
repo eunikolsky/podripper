@@ -19,10 +19,11 @@ import Development.Shake.Classes
 import GHC.Generics
 import System.Directory
 import System.FilePath
+import Text.Show.Unicode
 import Text.XML.Light
 
 import RSSGen.Duration
-import RSSGen.RSSItem
+import RSSGen.RSSItem (RSSItem, renderItem)
 
 -- | Defines the config for the upstream RSS feed. This section may be missing
 -- from the json config if there is no upstream feed.
@@ -49,7 +50,20 @@ data RSSFeedConfig = RSSFeedConfig
   , selfLink :: T.Text
   , upstreamFeedConfig :: !(Maybe UpstreamFeedConfig)
   }
-  deriving (Eq, Show, Generic, Hashable, Binary, NFData)
+  deriving (Eq, Generic, Hashable, Binary, NFData)
+
+instance Show RSSFeedConfig where
+  show RSSFeedConfig{title,description,language,podcastLink,imageLink,selfLink,upstreamFeedConfig} = mconcat
+    [ "RSSFeedConfig{"
+    , "title = ", ushow title
+    , ", description = ", ushow description
+    , ", language = ", ushow language
+    , ", podcastLink = ", ushow podcastLink
+    , ", imageLink = ", ushow imageLink
+    , ", selfLink = ", ushow selfLink
+    , ", upstreamFeedConfig = ", ushow upstreamFeedConfig
+    , "}"
+    ]
 
 instance FromJSON RSSFeedConfig
 

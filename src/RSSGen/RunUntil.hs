@@ -11,10 +11,15 @@ import Data.Text qualified as T
 import Data.Time.Clock
 import RSSGen.Duration
 import RSSGen.MonadTime
+import Text.Show.Unicode
 
 -- | The result of a step: either no usable result, or a result of type `a`.
 data StepResult a = NoResult | Result !a
-  deriving (Show, Eq)
+  deriving (Eq)
+
+instance Show a => Show (StepResult a) where
+  show NoResult = "NoResult"
+  show (Result a) = "Result " <> ushow a
 
 -- TODO is it possible to use `Maybe` directly as a `StepResult` (make the
 -- latter a typeclass?)  so that we don't need to wrap and unwrap a `Maybe` in

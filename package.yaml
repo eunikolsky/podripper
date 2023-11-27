@@ -77,6 +77,7 @@ library:
     - time-compat
     - transformers
     - tztime
+    - unicode-show
     - unliftio
     - unliftio-core
     - xml
