@@ -15,6 +15,7 @@ import Database.SQLite.Simple (FromRow(fromRow), ToRow(toRow), field)
 import Development.Shake.Classes
 import GHC.Generics
 import RSSGen.BinaryUTCTime ()
+import Text.Show.Unicode
 import Text.XML.Light
 
 -- |The podcast name to which the RSS item belongs.
@@ -28,7 +29,18 @@ data UpstreamRSSItem = UpstreamRSSItem
   , guid :: T.Text
   , podcast :: PodcastId
   }
-  deriving (Eq, Show, Generic, Hashable, Binary, NFData)
+  deriving (Eq, Generic, Hashable, Binary, NFData)
+
+instance Show UpstreamRSSItem where
+  show UpstreamRSSItem{title,pubDate,description,guid,podcast} = mconcat
+    [ "UpstreamRSSItem{"
+    , "title = ", ushow title
+    , ", pubDate = ", ushow pubDate
+    , ", description = ", ushow description
+    , ", guid = ", ushow guid
+    , ", podcast = ", ushow podcast
+    , "}"
+    ]
 
 instance FromRow UpstreamRSSItem where
   fromRow = do

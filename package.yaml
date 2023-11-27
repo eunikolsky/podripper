@@ -1,5 +1,5 @@
 name:                ripper
-version:             1.3.3
+version:             1.3.4
 github:              githubuser/ripper
 license:             MIT
 author:              Author name here
@@ -76,6 +76,7 @@ library:
     - time
     - time-compat
     - transformers
+    - unicode-show
     - unliftio
     - unliftio-core
     - xml
