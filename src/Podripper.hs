@@ -26,7 +26,7 @@ import System.Process
 
 run :: Ripper.RipName -> IO ()
 run ripName = do
-  _skipRipping <- getSkipRipping
+  skipRipping <- getSkipRipping
   config <- loadConfig ripName
   let configExt = extendConfig config
   ensureDirs configExt
@@ -34,18 +34,30 @@ run ripName = do
   ripsQueue <- atomically newTQueue
   reencodedQueue <- atomically newTQueue
 
-  concurrently_
-    -- reencode previously reencoding-failed rips (`*_src.mp3`) if any in
-    -- parallel with ripping at the startup
-    -- TODO also discover and reencode rips in the source dir, which may be
-    -- there as a result of a crash
-    (reencodePreviousRips configExt reencodedQueue)
-    $ race3
-      -- FIXME what should `skipRipping` do?
-      --unless skipRipping $
-      (rip ripsQueue configExt)
-      (processSuccessfulRips configExt ripsQueue reencodedQueue)
-      (processReencodedRips configExt reencodedQueue)
+  let doRip = rip ripsQueue configExt
+      doProcessSuccessfulRips = processSuccessfulRips configExt ripsQueue reencodedQueue
+      doProcessReencodedRips = processReencodedRips configExt reencodedQueue
+      -- reencode previously reencoding-failed rips (`*_src.mp3`) if any in
+      -- parallel with ripping at the startup
+      -- TODO also discover and reencode rips in the source dir, which may be
+      -- there as a result of a crash
+      doReencodePreviousRips = reencodePreviousRips configExt reencodedQueue
+      terminateReencodedQueue = atomically $ writeTQueue reencodedQueue QFinish
+
+  if skipRipping
+    -- when `skipRipping`, there is no endless ripping loop, so we need to
+    -- process whatever unprocesses rips are found and quit cleanly; that's why
+    -- `concurrently_` is used: to wait until all is done
+    then concurrently_
+      (doReencodePreviousRips >> terminateReencodedQueue)
+      doProcessReencodedRips
+    -- `concurrently_` is used here because the fast `doReencodePreviousRips`
+    -- shouldn't terminate the other concurrent processes
+    else concurrently_
+      doReencodePreviousRips
+      -- `race` waits until any process finishes (which they don't here), and
+      -- also terminates everything if any one throws an exception
+      $ race3 doRip doProcessSuccessfulRips doProcessReencodedRips
 
 race3 :: IO a -> IO b -> IO c -> IO ()
 race3 x y = race_ x . race_ y
@@ -55,20 +67,33 @@ processSuccessfulRips config queue reencodedQueue = forever $ do
   newRip <- atomically $ readTQueue queue
   putStrLn $ "Successful rip: " <> show newRip
   reencodeRip config newRip
-  atomically $ writeTQueue reencodedQueue ()
+  atomically $ writeTQueue reencodedQueue $ QValue ()
+
+-- | An event in a `TerminatableQueue`: either a value or a termination signal.
+data QEvent a = QValue a | QFinish
+
+-- | A `TQueue` that sends data and can also send a termination signal.
+type TerminatableQueue a = TQueue (QEvent a)
 
 -- | A queue of reencoded rips sends only empty tuples because the RSS updater
 -- lists and uses all the available files in the complete directory anyway. A
 -- reason to send the reencoded filename could be to point the updater to the
 -- newest file, but I'm not sure how to do that with `shake`, which needs only
 -- the target filename to produce.
-type ReencodedQueue = TQueue ()
+type ReencodedQueue = TerminatableQueue ()
 
 processReencodedRips :: RipConfigExt -> ReencodedQueue -> IO ()
-processReencodedRips config queue = forever $ do
-  void . atomically $ readTQueue queue
-  putStrLn "New reencoded rip"
-  updateRSS config
+processReencodedRips config queue = go
+  where
+    go = do
+      event <- atomically $ readTQueue queue
+      case event of
+        QValue () -> do
+          putStrLn "New reencoded rip"
+          updateRSS config
+          go
+
+        QFinish -> pure ()
 
 ensureDirs :: RipConfigExt -> IO ()
 ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
@@ -193,7 +218,7 @@ reencodePreviousRips RipConfigExt{config, doneRipDir} queue = do
       if code == ExitSuccess
         then do
           removeFile ripName
-          atomically $ writeTQueue queue ()
+          atomically $ writeTQueue queue $ QValue ()
         else do
           putStrLn $ mconcat ["reencoding ", ripName, " failed again; leaving as is for now"]
           whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
