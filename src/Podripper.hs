@@ -37,10 +37,8 @@ run ripName = do
   let doRip = rip ripsQueue configExt
       doProcessSuccessfulRips = processSuccessfulRips configExt ripsQueue reencodedQueue
       doProcessReencodedRips = processReencodedRips configExt reencodedQueue
-      -- reencode previously reencoding-failed rips (`*_src.mp3`) if any in
-      -- parallel with ripping at the startup
-      -- TODO also discover and reencode rips in the source dir, which may be
-      -- there as a result of a crash
+      -- reencode discovered leftover rips, if any, in parallel with ripping at
+      -- the startup
       doReencodePreviousRips = reencodePreviousRips configExt reencodedQueue
       terminateReencodedQueue = atomically $ writeTQueue reencodedQueue QFinish
 
@@ -144,7 +142,7 @@ reencodeRip RipConfigExt{config, doneRipDir} newRip = do
   where
     reencodeRip' year ripName = do
       podTitle <- podTitleFromFilename ripName
-      let reencodedRip = doneRipDir </> takeBaseName ripName <> reencodedRipSuffix <.> "mp3"
+      let reencodedRip = reencodedRipNameFromOriginal doneRipDir ripName
           ffmpegArgs =
             [ "-nostdin"
             , "-hide_banner"
@@ -175,30 +173,36 @@ podTitleFromFilename name = fromMaybe "" <$> readCommand
   ["-nE", "s/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\\1-\\2-\\3 \\4:\\5:\\6/p"]
   name
 
+reencodedRipNameFromOriginal :: FilePath -> FilePath -> FilePath
+reencodedRipNameFromOriginal doneRipDir ripName = doneRipDir </> takeBaseName ripName <> reencodedRipSuffix <.> "mp3"
+
 {- |
- - discover previously failed to convert rips and try to reencode them again
- - (for example, this helps with the case when `ffmpeg` after an update fails
+ - discover previously failed to convert rips and try to reencode them again [0]
+ - and also discover and reencode original rips in the source dir, which may be
+ - there as a result of a crash
+ -
+ - [0] for example, this helps with the case when `ffmpeg` after an update fails
  - to run (`GLIBC` ld error) and reencode the fresh rips, then a fix comes and
- - we can try reencoding those older ones again)
- - this needs to happen before reencoding fresh rips because if those fail, they
- - would be attempted to be reencoded again in this run, which isn't very useful
+ - we can try reencoding those older ones again
  -}
 reencodePreviousRips :: RipConfigExt -> ReencodedQueue -> IO ()
-reencodePreviousRips RipConfigExt{config, doneRipDir} queue = do
-  rips <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
+reencodePreviousRips RipConfigExt{config, doneRipDir, rawRipDir} queue = do
+  ripSources <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
+  ripOriginals <- fmap (rawRipDir </>) . filter isMP3 <$> listDirectory rawRipDir
+  let ripsSources' = (\ripName -> (ripName, T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName)) <$> ripSources
+      ripOriginals' = (\ripName -> (ripName, reencodedRipNameFromOriginal doneRipDir ripName)) <$> ripOriginals
+      rips = ripsSources' <> ripOriginals'
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
   forM_ rips (reencodeRip' year)
 
   where
+    isMP3 = (== ".mp3") . takeExtension
     previouslyFailedRip f = all ($ f)
-      [ (== ".mp3") . takeExtension
-      , (sourceRipSuffix `isSuffixOf`) . takeBaseName
-      ]
+      [isMP3, (sourceRipSuffix `isSuffixOf`) . takeBaseName]
 
-    reencodeRip' year ripName = do
+    reencodeRip' year (ripName, reencodedRip) = do
       podTitle <- podTitleFromFilename ripName
-      let reencodedRip = T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName
-          ffmpegArgs =
+      let ffmpegArgs =
             [ "-nostdin"
             , "-hide_banner"
             , "-y"
