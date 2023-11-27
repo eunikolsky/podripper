@@ -42,7 +42,7 @@ spec = do
 
       it "uses an after-recording delay" $ do
         let numActions = 1
-            testState = TestState (repeat $ RipRecorded ripEndTime) numActions delay now
+            testState = TestState (repeat . RipRecorded $ SuccessfulRip ripEndTime "") numActions delay now
 
             expectedArgs = ([delay], [Just ripEndTime])
 
@@ -52,7 +52,7 @@ spec = do
 
       it "uses an after-recording delay since the first successful recording" $ do
         let numActions = 3
-            testState = TestState (RipRecorded ripEndTime : repeat RipNothing) numActions delay now
+            testState = TestState (RipRecorded (SuccessfulRip ripEndTime "") : repeat RipNothing) numActions delay now
 
             expectedArgs = (replicate numActions delay, replicate numActions $ Just ripEndTime)
 
@@ -69,7 +69,7 @@ spec = do
         actual `shouldBe` RipNothing
 
     it "doesn't do anything on no exception" $ do
-      let result = RipRecorded now
+      let result = RipRecorded $ SuccessfulRip now ""
           io = pure result
       (_, logOpts) <- logOptionsMemory
       withLogFunc logOpts $ \logFunc -> do
@@ -142,6 +142,8 @@ instance MonadRipper TestM where
     put $ s { tsNumAction = iteration }
 
     pure $ iteration > 0
+
+  notifyRip = const $ pure ()
 
 tellRetryDelay :: RetryDelay -> TestM ()
 tellRetryDelay = tell . (, []) . singleton

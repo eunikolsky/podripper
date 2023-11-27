@@ -1,0 +1,8 @@
+{
+    "description": "a test podcast stream",
+    "imageLink": "",
+    "language": "en",
+    "podcastLink": "https://podcast.example.org/",
+    "selfLink": "https://podcast.example.org/test.rss",
+    "title": "Test stream"
+}

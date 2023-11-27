@@ -28,7 +28,7 @@ main = do
 
   case progOptions of
     RunOptions ripName -> Podripper.run ripName
-    RipperOptions options -> Ripper.run options
+    RipperOptions options -> atomically newTQueue >>= Ripper.run options
     RSSGenOptions files -> RSSGen.run files
 
 programOptions :: Parser ProgramOptions

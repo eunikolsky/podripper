@@ -33,12 +33,14 @@ run = do
   let maybeOutputDir = optionsOutputDirectory options
   for_ maybeOutputDir ensureDirectory
 
-  let ripTimeout = toMicroseconds $ optionsRipLength options
-
   userAgent <- asks appUserAgent
 
-  void . timeout ripTimeout
+  maybeTimeout (optionsRipLength options)
     $ ripper userAgent maybeOutputDir ripIntervals (optionsStreamConfig options)
+
+maybeTimeout :: MonadUnliftIO m => Maybe Duration -> m () -> m ()
+maybeTimeout (Just d) = void . timeout (toMicroseconds d)
+maybeTimeout Nothing = id
 
 -- | Returns parsed `RipperInterval`s from the `Options`. Terminates the program
 -- with an error message if an interval can't be parsed.
@@ -54,12 +56,12 @@ getRipIntervals = do
 
 -- | The result of a single rip call. The information conveyed by this type
 -- is whether the call has received and saved any data.
-data RipResult = RipRecorded RipEndTime | RipNothing
+data RipResult = RipRecorded SuccessfulRip | RipNothing
   deriving (Eq, Show)
 
-ripEndTimeFromResult :: RipResult -> Maybe RipEndTime
-ripEndTimeFromResult (RipRecorded t) = Just t
-ripEndTimeFromResult RipNothing = Nothing
+withRecordedRip :: (SuccessfulRip -> a) -> RipResult -> Maybe a
+withRecordedRip f (RipRecorded r) = Just $ f r
+withRecordedRip _ RipNothing = Nothing
 
 class Monad m => MonadRipper m where
   rip :: Request -> Maybe FilePath -> m RipResult
@@ -69,8 +71,9 @@ class Monad m => MonadRipper m where
   getTime :: m Now
   delayReconnect :: RetryDelay -> m ()
   shouldRepeat :: m Bool
+  notifyRip :: SuccessfulRip -> m ()
 
-instance HasLogFunc env => MonadRipper (RIO env) where
+instance (HasLogFunc env, HasAppRipsQueue env) => MonadRipper (RIO env) where
   rip = ripOneStream
   checkLiveStream ripName url = if ripName == "atp"
     then liftIO (checkATPLiveStream url)
@@ -79,6 +82,9 @@ instance HasLogFunc env => MonadRipper (RIO env) where
   getTime = liftIO getCurrentTZTime
   delayReconnect = delayWithLog
   shouldRepeat = pure True
+  notifyRip r = do
+    ripsQueue <- view appRipsQueueL
+    atomically $ writeTQueue ripsQueue r
 
 -- | The endless ripping loop.
 ripper :: (MonadRipper m) => Text -> Maybe FilePath -> [RipperInterval] -> StreamConfig -> m ()
@@ -100,7 +106,9 @@ ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mem
         Just (StreamURL url) -> do
           let request = mkRipperRequest userAgent url
           result <- lift $ rip request maybeOutputDir
-          modify' (<> Last (ripEndTimeFromResult result))
+          modify' (<> Last (withRecordedRip ripEndTime result))
+
+          maybe (pure ()) (lift . notifyRip) $ withRecordedRip id result
 
         Nothing -> pure ()
 
@@ -135,7 +143,7 @@ ripOneStream request maybeOutputDir = do
         from the context: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)`
    - As the doc says, `MonadUnliftIO` doesn't work with stateful monads :(
    -}
-  recordedAnythingVar <- newIORef False
+  maybeFilenameVar <- newIORef Nothing
 
   ripResult <- runResourceT
     . handleResourceVanished
@@ -143,33 +151,35 @@ ripOneStream request maybeOutputDir = do
     . httpSink request $ \response -> do
       logInfo . displayShow . getResponseStatus $ response
 
-      writeIORef recordedAnythingVar True
-
       {-
       - I want to include the time at which we start receiving the response body
       - (ideally, the body's first byte, not the header) in the filename;
       - in this block, we have the `response` and are ready to stream the body,
       - so this time should be good enough
       -}
+      basename <- liftIO getFilename
+      let filename = maybe basename (</> basename) maybeOutputDir
+      writeIORef maybeFilenameVar $ Just filename
 
-      filename <- liftIO getFilename
-      sinkFile $ maybe filename (</> filename) maybeOutputDir
+      sinkFile filename
       -- we're not inside `MonadRipper` here, so we're using the original IO func
       now <- liftIO getCurrentTZTime
-      pure $ RipRecorded now
+      pure . RipRecorded $ SuccessfulRip now filename
 
   {-
    - after a possible http exception is handled, we need to figure out if
    - anything was recorded (i.e. we got a successful response): because an
    - exception can be thrown in the middle of the connection, we also need to
-   - consider the value of `recordedAnythingVar`
+   - consider the value of `maybeFilenameVar`
    -}
   case ripResult of
     r@(RipRecorded _) -> pure r
     RipNothing -> do
-      recordedAnything <- readIORef recordedAnythingVar
+      maybeFilename <- readIORef maybeFilenameVar
       now <- liftIO getCurrentTZTime
-      pure $ if recordedAnything then RipRecorded now else RipNothing
+      pure $ case maybeFilename of
+        Just filename -> RipRecorded (SuccessfulRip now filename)
+        Nothing -> RipNothing
 
 httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m RipResult
 httpExceptionHandler e = do

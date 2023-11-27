@@ -82,7 +82,7 @@ run filenames = do
   let shakeOpts = shakeOptions
         { shakeFiles = shakeDir
         , shakeColor = True
-        , shakeVerbosity = Diagnostic
+        , shakeVerbosity = Verbose
         , shakeLint = Just LintBasic
         }
 

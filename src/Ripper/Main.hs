@@ -13,8 +13,8 @@ import qualified RIO.Text as T
 import qualified Ripper.Run
 import Ripper.RipperDelay
 
-run :: Options -> IO ()
-run options = do
+run :: Options -> RipsQueue -> IO ()
+run options ripsQueue = do
   lo <- setLogUseLoc False <$> logOptionsHandle stderr (optionsVerbose options)
   pc <- mkDefaultProcessContext
   withLogFunc lo $ \lf ->
@@ -23,6 +23,7 @@ run options = do
           , appProcessContext = pc
           , appOptions = options
           , appUserAgent = "ripper/" <> T.pack (showVersion Paths_ripper.version)
+          , appRipsQueue = ripsQueue
           }
      in runRIO app Ripper.Run.run
 
@@ -38,10 +39,11 @@ ripperParser = Options
                 <> metavar "DIR"
                 )
       )
-  <*> option duration
-      ( short 'l'
-      <> help (mconcat ["How long to rip (e.g. ", show (durationHours 2), ")"])
-      <> metavar "rip_duration"
+  <*> (Just <$> option duration
+        ( short 'l'
+        <> help (mconcat ["How long to rip (e.g. ", show (durationHours 2), ")"])
+        <> metavar "rip_duration"
+        )
       )
   <*> many (
         option ripIntervalRef
