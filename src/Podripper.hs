@@ -13,6 +13,7 @@ import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
 import RIO hiding (stdin)
+import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
 import qualified Ripper.Main as Ripper (run)
@@ -114,6 +115,8 @@ rip ripsQueue RipConfigExt{config, rawRipDir} =
   in forever $ do
     putStrLn "starting the ripper"
     catchExceptions $ Ripper.run options ripsQueue
+    -- TODO handle most HTTP exceptions inside the ripper?
+    threadDelay . toMicroseconds $ durationSeconds 1
 
 -- | Catches synchronous exceptions (most importantly, IO exceptions) from the
 -- given IO action so that they don't crash the program (this should emulate the
