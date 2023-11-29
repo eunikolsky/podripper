@@ -8,6 +8,7 @@ module Ripper.Run
   ) where
 
 import Conduit
+import Control.Concurrent.STM.TBMQueue
 import Data.Monoid (Last(..))
 import Data.Time.TZTime
 import Network.HTTP.Conduit (HttpExceptionContent(..))
@@ -19,7 +20,6 @@ import qualified RIO.Text as T
 import RIO.Time
 import System.IO.Error (isResourceVanishedError)
 
-import RipConfig
 import Ripper.ATPLiveStreamCheck
 import Ripper.Import
 import Ripper.RipperDelay
@@ -146,9 +146,11 @@ ripOneStream request maybeOutputDir = do
   maybeFilenameVar <- newIORef Nothing
 
   ripResult <- runResourceT
+    . handleStalledException
     . handleResourceVanished
     . handle httpExceptionHandler
-    . httpSink request $ \response -> do
+    -- `httpSink`'s and `httpSource`'s` types don't match with `doesn'tStall`'s type
+    . withResponse request $ \response -> do
       logInfo . displayShow . getResponseStatus $ response
 
       {-
@@ -161,7 +163,15 @@ ripOneStream request maybeOutputDir = do
       let filename = maybe basename (</> basename) maybeOutputDir
       writeIORef maybeFilenameVar $ Just filename
 
-      sinkFile filename
+      -- there was a strange issue with ATP when the recording started, but then
+      -- halted about an hour later (the file modtime confirms this) in the
+      -- middle of the stream, whereas the TCP connection itself was left open
+      -- for many hours, even when a new connection returned `404`! this conduit
+      -- wrapper ensures that if there is no data for 4 seconds, we'll
+      -- disconnect and reconnect
+      doesn'tStall (durationSeconds 4) (getResponseBody response) $ \body ->
+        runConduit $ body .| sinkFile filename
+
       -- we're not inside `MonadRipper` here, so we're using the original IO func
       now <- liftIO getCurrentTZTime
       pure . RipRecorded $ SuccessfulRip now filename
@@ -209,6 +219,10 @@ handleResourceVanished = handleJust
   -- would require manual rethrowing of all other types of exceptions
   (\e -> logError (displayShow e) >> pure RipNothing)
 
+handleStalledException :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env) => m RipResult -> m RipResult
+handleStalledException = handle $ \(e :: StalledException) ->
+  logError (displayShow e) >> pure RipNothing
+
 ensureDirectory :: MonadIO m => FilePath -> m ()
 ensureDirectory = liftIO . createDirectoryIfMissing createParents
   where createParents = True
@@ -233,3 +247,50 @@ mkRipperRequest userAgent = setUserAgent userAgent . parseRequestThrow_ . T.unpa
 
 setUserAgent :: Text -> Request -> Request
 setUserAgent = addRequestHeader "User-Agent" . encodeUtf8
+
+data StalledException = StalledException
+  deriving Show
+
+instance Exception StalledException
+
+-- | Ensures that a conduit produces output periodically, not slower than once
+-- every time `duration`. If there is no output for longer than that,
+-- `StalledException` is thrown.
+--
+-- "The basic idea is to have two sibling threads: one running the original
+-- source and writing its values to a queue, and another running the full
+-- conduit pipeline with a modified source that will time out on reads from
+-- that queue."
+-- — https://mail.haskell.org/pipermail/haskell-cafe/2018-June/129314.html
+--
+-- Source: https://gist.github.com/snoyberg/7e5dd52109b03c8bf1aa8fe1a7e522b9
+doesn'tStall
+  :: MonadUnliftIO m
+  => Duration
+  -> ConduitT () o m () -- ^ original source
+  -> (ConduitT () o m () -> m a) -- ^ what to do with modified source
+  -> m a
+doesn'tStall duration src inner = do
+  queue <- liftIO $ newTBMQueueIO 2
+  runConcurrently $
+    Concurrently (filler queue) *>
+    Concurrently (inner $ consumer queue)
+  where
+    filler queue =
+      runConduit (src .| mapM_C (atomically . writeTBMQueue queue))
+      `finally` atomically (closeTBMQueue queue)
+
+    consumer queue =
+        loop
+      where
+        loop = do
+          res <- lift $ timeout (toMicroseconds duration) $ atomically $ readTBMQueue queue
+          case res of
+            -- timeout occurred
+            Nothing -> throwIO StalledException
+
+            -- queue is closed
+            Just Nothing -> pure ()
+
+            -- more data available
+            Just (Just o) -> yield o >> loop

@@ -72,6 +72,7 @@ library:
     - process
     - shake
     - sqlite-simple
+    - stm-chans
     - text
     - time
     - time-compat
