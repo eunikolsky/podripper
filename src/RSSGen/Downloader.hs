@@ -18,6 +18,7 @@ import Data.List (find)
 import Data.Maybe
 import Data.Text qualified as T
 import Network.HTTP.Client (Request(..), Response(..), parseRequest)
+import Network.HTTP.Simple (addRequestHeader)
 import Network.HTTP.Types
 import Network.HTTP.Types.Header
 import RSSGen.Database
@@ -36,7 +37,10 @@ getFile :: (MonadIO m, MonadThrow m, MonadLogger m)
   -> URL
   -> m (Maybe Bytes)
 getFile httpBS conn url = do
-  request <- parseRequest url >>= liftIO . applyCachedResponse
+  request <- do
+    r <- parseRequest url
+    let r' = fixCloudflareETags r
+    liftIO $ applyCachedResponse r'
   logD ["Requesting ", show request]
   response <- httpBS request
   logD
@@ -91,3 +95,13 @@ findHeaderValue name = fmap snd . find ((== name) . fst)
 
 logD :: MonadLogger m => [String] -> m ()
 logD = logDebugN . T.pack . mconcat
+
+{-| Works around the unusual cloudflare's behavior with ETags. It would return
+ - weak ETags (with the `W/` prefix) to the program and then fail to return
+ - `304 Not Modified` with those, even though `curl` would receive strong
+ - ETags. The reason turns out to be the `Accept-Encoding: gzip` header,
+ - automatically inserted by `http-client`. So one of the possible workarounds
+ - for this is to remove that header.
+ -}
+fixCloudflareETags :: Request -> Request
+fixCloudflareETags = addRequestHeader "Accept-Encoding" ""

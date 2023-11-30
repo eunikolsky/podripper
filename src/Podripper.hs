@@ -13,6 +13,7 @@ import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
 import RIO hiding (stdin)
+import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
 import qualified Ripper.Main as Ripper (run)
@@ -70,6 +71,7 @@ processSuccessfulRips config queue reencodedQueue = forever $ do
 -- | An event in a `TerminatableQueue`: either a value or a termination signal.
 data QEvent a = QValue a | QFinish
 
+-- TODO use `Control.Concurrent.STM.TMQueue` instead?
 -- | A `TQueue` that sends data and can also send a termination signal.
 type TerminatableQueue a = TQueue (QEvent a)
 
@@ -114,6 +116,8 @@ rip ripsQueue RipConfigExt{config, rawRipDir} =
   in forever $ do
     putStrLn "starting the ripper"
     catchExceptions $ Ripper.run options ripsQueue
+    -- TODO handle most HTTP exceptions inside the ripper?
+    threadDelay . toMicroseconds $ durationSeconds 1
 
 -- | Catches synchronous exceptions (most importantly, IO exceptions) from the
 -- given IO action so that they don't crash the program (this should emulate the

@@ -106,13 +106,17 @@ saveUpstreamRSSItems conn
 
 -- | Returns an upstream RSS item closest to @time@ if it's within the specified
 -- `duration`.
+-- When the RSS updates an item (e.g. its `description`), that version will be
+-- stored in addition to the previous version(s); their publication times will
+-- be the same and the difference will be in the addition time. This function
+-- returns the newest version.
 closestUpstreamItemToTime :: Duration -> UpstreamRSSFeed.PodcastId -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
 closestUpstreamItemToTime duration podcast conn time = do
   r <- queryNamed conn
     "SELECT podcast,title,description,guid,publishedAt FROM episode\
     \ WHERE podcast = :podcast AND\
       \ (publishedAt BETWEEN strftime('%s', :date, '-' || :seconds || ' seconds') AND strftime('%s', :date, '+' || :seconds || ' seconds'))\
-    \ ORDER BY abs(publishedAt - strftime('%s', :date)) DESC, publishedAt DESC\
+    \ ORDER BY abs(publishedAt - strftime('%s', :date)) DESC, publishedAt DESC, addedAt DESC\
     \ LIMIT 1"
     [ ":podcast" := podcast
     , ":date" := formatTime defaultTimeLocale "%F %T" time
