@@ -42,6 +42,7 @@ run ripName = do
       -- the startup
       doReencodePreviousRips = reencodePreviousRips configExt reencodedQueue
       terminateReencodedQueue = atomically $ writeTQueue reencodedQueue QFinish
+      doInitialRSSUpdate = atomically $ writeTQueue reencodedQueue $ QValue ()
 
   if skipRipping
     -- when `skipRipping`, there is no endless ripping loop, so we need to
@@ -56,7 +57,15 @@ run ripName = do
       doReencodePreviousRips
       -- `race` waits until any process finishes (which they don't here), and
       -- also terminates everything if any one throws an exception
-      $ race3 doRip doProcessSuccessfulRips doProcessReencodedRips
+      $ race3
+          doRip
+          doProcessSuccessfulRips
+          -- do an initial RSS update in case any new rip comes up: this may
+          -- happen in the scenario when the ripper has recorded a rip, it was
+          -- reencoded and the `rssgen` was waiting for upstream feed updates
+          -- when the process was killed; if there are no changes, the RSS won't
+          -- be regenerated
+          (doInitialRSSUpdate >> doProcessReencodedRips)
 
 race3 :: IO a -> IO b -> IO c -> IO ()
 race3 x y = race_ x . race_ y
