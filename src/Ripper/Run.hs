@@ -191,6 +191,14 @@ ripOneStream request maybeOutputDir = do
         Just filename -> RipRecorded (SuccessfulRip now filename)
         Nothing -> RipNothing
 
+-- TODO for some reason, this handler doesn't catch an `InternalException` about
+-- an unknown CA (when using `mitmproxy`):
+-- ```
+-- operation failed: HttpExceptionRequest Request {
+--   …
+-- }
+--  (InternalException (HandshakeFailed (Error_Protocol ("certificate has unknown CA",True,UnknownCa))))
+-- ```
 httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m RipResult
 httpExceptionHandler e = do
   logError $ case e of
