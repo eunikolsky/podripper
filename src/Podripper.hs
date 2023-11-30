@@ -42,7 +42,7 @@ run ripName = do
       -- the startup
       doReencodePreviousRips = reencodePreviousRips configExt reencodedQueue
       terminateReencodedQueue = atomically $ writeTQueue reencodedQueue QFinish
-      doInitialRSSUpdate = atomically $ writeTQueue reencodedQueue $ QValue ()
+      doInitialRSSUpdate = atomically $ writeTQueue reencodedQueue $ QValue InitialRSSUpdate
 
   if skipRipping
     -- when `skipRipping`, there is no endless ripping loop, so we need to
@@ -75,7 +75,7 @@ processSuccessfulRips config queue reencodedQueue = forever $ do
   newRip <- atomically $ readTQueue queue
   putStrLn $ "Successful rip: " <> show newRip
   reencodeRip config newRip
-  atomically $ writeTQueue reencodedQueue $ QValue ()
+  atomically $ writeTQueue reencodedQueue $ QValue NewReencodedRip
 
 -- | An event in a `TerminatableQueue`: either a value or a termination signal.
 data QEvent a = QValue a | QFinish
@@ -84,12 +84,17 @@ data QEvent a = QValue a | QFinish
 -- | A `TQueue` that sends data and can also send a termination signal.
 type TerminatableQueue a = TQueue (QEvent a)
 
--- | A queue of reencoded rips sends only empty tuples because the RSS updater
+-- | Events in the `ReencodedQueue`. This type exists only for the logging, so
+-- that the initial RSS update doesn't print "New reencoded rip", which is
+-- incorrect.
+data ReencodedEvent = NewReencodedRip | InitialRSSUpdate
+
+-- | A queue of reencoded rips sends only empty values because the RSS updater
 -- lists and uses all the available files in the complete directory anyway. A
 -- reason to send the reencoded filename could be to point the updater to the
 -- newest file, but I'm not sure how to do that with `shake`, which needs only
 -- the target filename to produce.
-type ReencodedQueue = TerminatableQueue ()
+type ReencodedQueue = TerminatableQueue ReencodedEvent
 
 processReencodedRips :: RipConfigExt -> ReencodedQueue -> IO ()
 processReencodedRips config queue = go
@@ -97,12 +102,16 @@ processReencodedRips config queue = go
     go = do
       event <- atomically $ readTQueue queue
       case event of
-        QValue () -> do
-          putStrLn "New reencoded rip"
+        QValue reencodedEvent -> do
+          putStrLn $ reencodedEventDescription reencodedEvent
           updateRSS config
           go
 
         QFinish -> pure ()
+
+    reencodedEventDescription :: ReencodedEvent -> String
+    reencodedEventDescription NewReencodedRip = "New reencoded rip"
+    reencodedEventDescription InitialRSSUpdate = "Initial RSS update"
 
 ensureDirs :: RipConfigExt -> IO ()
 ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
@@ -235,7 +244,7 @@ reencodePreviousRips RipConfigExt{config, doneRipDir, rawRipDir} queue = do
       if code == ExitSuccess
         then do
           removeFile ripName
-          atomically $ writeTQueue queue $ QValue ()
+          atomically $ writeTQueue queue $ QValue NewReencodedRip
         else do
           putStrLn $ mconcat ["reencoding ", ripName, " failed again; leaving as is for now"]
           whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
