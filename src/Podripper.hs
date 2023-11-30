@@ -71,6 +71,7 @@ processSuccessfulRips config queue reencodedQueue = forever $ do
 -- | An event in a `TerminatableQueue`: either a value or a termination signal.
 data QEvent a = QValue a | QFinish
 
+-- TODO use `Control.Concurrent.STM.TMQueue` instead?
 -- | A `TQueue` that sends data and can also send a termination signal.
 type TerminatableQueue a = TQueue (QEvent a)
 
