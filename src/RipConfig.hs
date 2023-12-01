@@ -15,11 +15,14 @@ import Ripper.Types
 import System.FilePath
 import System.Environment
 import System.Exit (die)
+import RSSGen.Duration (RetryDelay)
 
 -- | Configuration necessary to rip a stream.
 data RipConfig = RipConfig
   { streamURL :: !StreamURL
   , ripIntervalRefs :: ![RipperIntervalRef]
+  , postRipEndDelays :: ![PostRipEndDelay]
+  , defaultRipperDelay :: !RetryDelay
   , ripDirName :: !Text
   , podArtist :: !Text
   , podAlbum :: !Text
@@ -33,6 +36,8 @@ instance FromJSON RipConfig where
     -- `RipperIntervalRef` is an internal workaround for pure parsers and
     -- doesn't need to leak outside
     <*> o .: "ripIntervals"
+    <*> o .: "postRipEndDelays"
+    <*> o .: "defaultRipperDelay"
     <*> o .: "ripDirName"
     <*> o .: "podArtist"
     <*> o .: "podAlbum"

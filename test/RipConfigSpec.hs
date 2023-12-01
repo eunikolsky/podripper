@@ -22,6 +22,11 @@ spec = do
           "ripIntervals": [
             "Mo 13:00-15:00 America/Toronto: 2m"
           ],
+          "defaultRipperDelay": "2m",
+          "postRipEndDelays": [
+            "[< 5m]: 1s",
+            "[< 15m]: 3s"
+          ],
           "ripDirName": "test",
           "podArtist": "Хакер",
           "podAlbum": "Hackers"
@@ -31,6 +36,11 @@ spec = do
               { streamURL = StreamURL $ URL "http://example.org"
               , ripIntervalRefs =
                 [ RipperIntervalRef Monday (read "13:00:00", read "15:00:00") "America/Toronto" (RetryDelay $ durationMinutes 2)
+                ]
+              , defaultRipperDelay = RetryDelay $ durationMinutes 2
+              , postRipEndDelays =
+                [ PostRipEndDelay (durationMinutes 5) (RetryDelay $ durationSeconds 1)
+                , PostRipEndDelay (durationMinutes 15) (RetryDelay $ durationSeconds 3)
                 ]
               , ripDirName = "test"
               , podArtist = "Хакер"
@@ -45,6 +55,8 @@ spec = do
           "_comment_duration": "just 4",
           "ripDirName": "test",
           "ripIntervals": [],
+          "defaultRipperDelay": "1h",
+          "postRipEndDelays": [],
           "podArtist": "Хакер",
           "podAlbum": "Hackers",
           "?": "?"
@@ -53,6 +65,8 @@ spec = do
         let expected = RipConfig
               { streamURL = StreamURL $ URL "http://example.org"
               , ripIntervalRefs = []
+              , defaultRipperDelay = RetryDelay $ durationHours 1
+              , postRipEndDelays = []
               , ripDirName = "test"
               , podArtist = "Хакер"
               , podAlbum = "Hackers"

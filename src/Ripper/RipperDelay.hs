@@ -216,6 +216,9 @@ skipChar = void . char
 parsePostRipEndDelay :: Text -> Either String PostRipEndDelay
 parsePostRipEndDelay = parseOnly $ pPostRipEndDelay <* endOfInput
 
+instance FromJSON PostRipEndDelay where
+  parseJSON = withText "PostRipEndDelay" $ either fail pure . parsePostRipEndDelay
+
 pPostRipEndDelay :: Parser PostRipEndDelay
 pPostRipEndDelay = do
   void $ string "[< "
