@@ -1,5 +1,6 @@
 module Ripper.RipperDelay
   ( Now
+  , PostRipEndDelay(..)
   , RipEndTime
   , RipperInterval
   , RipperIntervalRef(..)
@@ -16,6 +17,7 @@ import Data.Aeson hiding ((<?>))
 import Data.Attoparsec.Text
 import Data.Foldable
 import Data.Functor
+import Data.Maybe
 import Data.Text (Text)
 import Data.Time
 import Data.Time.TZInfo
@@ -64,14 +66,25 @@ data RipperInterval = RipperInterval
 mkRipperInterval :: DayOfWeek -> (TimeOfDay, TimeOfDay) -> TZInfo -> RetryDelay -> Maybe RipperInterval
 mkRipperInterval d ti@(from, to) tz delay = if from < to then Just (RipperInterval d ti (TZ tz) delay) else Nothing
 
+data PostRipEndDelay = PostRipEndDelay
+  { prdSinceRipEndLimit :: !Duration
+  -- ^ when less time than this value has passed since the latest rip ended…
+  , prdDelay :: !RetryDelay
+  -- ^ …use this delay
+  }
+
 type RipEndTime = TZTime
 type Now = TZTime
 
 -- | Determines the delay before the next ripping attempt. The rules are:
 --
--- * within 5 minutes after latest rip ended => 1 second;
--- * within 15 minutes after latest rip ended => 3 seconds;
+-- * if `now` is within some specific duration since latest rip ended => use the
+-- corresponding delay; the list of `PostRipEndDelay`s is used for these checks;
+-- the list should be ordered by the increasing `prdSinceRipEndLimit` for the
+-- checks to work correctly;
+--
 -- * if `now` is inside a ripper interval => use its specific delay;
+--
 -- * otherwise => `defaultDelay`, but so that it's not longer than the time to
 -- the next ripper interval [0].
 --
@@ -82,19 +95,22 @@ type Now = TZTime
 -- returning a delay only big enough to wake up after the interval start.
 -- Why is only the default delay limited? Because the assumption is that
 -- it's big and all other delays are much smaller.
-getRipperDelay :: RetryDelay -> [RipperInterval] -> Maybe RipEndTime -> Now -> RetryDelay
-getRipperDelay defaultDelay intervals (Just ripEndTime) now
-  | timeSinceRipEnd <= minutes 5 = shortAfterRipDelay
-  | timeSinceRipEnd <= minutes 15 = longerAfterRipDelay
-  -- not immediately after a rip => check for intervals
-  | otherwise = getRipperDelay defaultDelay intervals Nothing now
+getRipperDelay :: (RetryDelay, [PostRipEndDelay]) -> [RipperInterval] -> Maybe RipEndTime -> Now -> RetryDelay
+getRipperDelay defaults@(_, postRipEndDelays) intervals (Just ripEndTime) now =
+  fromMaybe getIntervalsDelay getPostRipEndDelay
 
-  where timeSinceRipEnd = now `diffTZTime` ripEndTime
+  where
+    getPostRipEndDelay = prdDelay <$> find
+      (\PostRipEndDelay{prdSinceRipEndLimit} -> timeSinceRipEnd <= toNominalDiffTime prdSinceRipEndLimit)
+      postRipEndDelays
+    timeSinceRipEnd = now `diffTZTime` ripEndTime
+    -- not immediately after a rip => check for intervals
+    getIntervalsDelay = getRipperDelay defaults intervals Nothing now
 
 -- this avoids the crash of partial `minimum` below
-getRipperDelay defaultDelay [] _ _ = defaultDelay
+getRipperDelay (defaultDelay, _) [] _ _ = defaultDelay
 
-getRipperDelay defaultDelay intervals Nothing localNow = maybe limitedDefaultDelay riDelay $ find nowWithinInterval intervals
+getRipperDelay (defaultDelay, _) intervals Nothing localNow = maybe limitedDefaultDelay riDelay $ find nowWithinInterval intervals
   where
     nowWithinInterval interval = nextWeekdayIsToday interval && nowWithinTimeInterval interval
     nextWeekdayIsToday interval = let today = todayInIntervalTZ interval in
@@ -130,16 +146,6 @@ x `between` (from, to) = x >= from && x <= to
 
 noBiggerThan :: Ord a => a -> a -> a
 noBiggerThan = min
-
--- A very short ripper delay soon after a rip has ended because we don't know
--- whether the stream has ended or there was an error and it will be back soon.
-shortAfterRipDelay :: RetryDelay
-shortAfterRipDelay = RetryDelay $ durationSeconds 1
-
--- A longer ripper delay after a rip has ended that may still catch some live
--- stream.
-longerAfterRipDelay :: RetryDelay
-longerAfterRipDelay = RetryDelay $ durationSeconds 3
 
 -- | Parses a `RipperIntervalRef` with the following format:
 -- `dw h0:m0-h1:m1 timezone: delay`, for example
