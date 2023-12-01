@@ -52,6 +52,8 @@ ripperParser = Options
         <> metavar "rip_intervals"
         )
       )
+  <*> pure defaultPostRipEndDelays
+  <*> pure defaultRipperDelay
   <*> argument (SimpleURL . StreamURL . URL <$> str)
       ( metavar "URL"
       <> help "Stream URL"
@@ -62,3 +64,12 @@ duration = eitherReader $ parseDuration . T.pack
 
 ripIntervalRef :: ReadM RipperIntervalRef
 ripIntervalRef = eitherReader $ parseRipperIntervalRef . T.pack
+
+defaultRipperDelay :: RetryDelay
+defaultRipperDelay = RetryDelay $ durationMinutes 10
+
+defaultPostRipEndDelays :: [PostRipEndDelay]
+defaultPostRipEndDelays =
+  [ PostRipEndDelay (durationMinutes 5) (RetryDelay $ durationSeconds 1)
+  , PostRipEndDelay (durationMinutes 15) (RetryDelay $ durationSeconds 3)
+  ]

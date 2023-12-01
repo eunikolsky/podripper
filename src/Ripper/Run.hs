@@ -73,18 +73,16 @@ class Monad m => MonadRipper m where
   shouldRepeat :: m Bool
   notifyRip :: SuccessfulRip -> m ()
 
-instance (HasLogFunc env, HasAppRipsQueue env) => MonadRipper (RIO env) where
+instance (HasLogFunc env, HasAppRipsQueue env, HasAppOptions env) => MonadRipper (RIO env) where
   rip = ripOneStream
   checkLiveStream ripName url = if ripName == "atp"
     then liftIO (checkATPLiveStream url)
     else pure $ Just url
-  getRipDelay is ripEnd now = pure $ getRipperDelay (defaultDelay, defaultPostRipEndDelays) is ripEnd now
-    where
-      defaultDelay = RetryDelay $ durationMinutes 10
-      defaultPostRipEndDelays =
-        [ PostRipEndDelay (durationMinutes 5) (RetryDelay $ durationSeconds 1)
-        , PostRipEndDelay (durationMinutes 15) (RetryDelay $ durationSeconds 3)
-        ]
+  getRipDelay is ripEnd now = do
+    options <- view appOptionsL
+    let defaultDelay = optionsDefaultRipDelay options
+        postRipEndDelays = optionsPostRipEndDelays options
+    pure $ getRipperDelay (defaultDelay, postRipEndDelays) is ripEnd now
   getTime = liftIO getCurrentTZTime
   delayReconnect = delayWithLog
   shouldRepeat = pure True
