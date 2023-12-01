@@ -4,8 +4,8 @@
     "We 19:30-22:30 America/New_York: 30s"
   ],
   "postRipEndDelays": [
-    "[< 5m]: 1s",
-    "[< 15m]: 3s"
+    "[< 5m]: 2s",
+    "[< 15m]: 6s"
   ],
   "defaultRipperDelay": "10m",
   "noDataTimeout": "4s",

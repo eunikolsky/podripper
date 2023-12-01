@@ -4,8 +4,8 @@
     "Sa 19:50-21:50 UTC: 15s"
   ],
   "postRipEndDelays": [
-    "[< 5m]: 1s",
-    "[< 15m]: 3s"
+    "[< 5m]: 2s",
+    "[< 15m]: 6s"
   ],
   "defaultRipperDelay": "10m",
   "noDataTimeout": "4s",

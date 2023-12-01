@@ -6,7 +6,7 @@
   ],
   "postRipEndDelays": [
     "[< 5m]: 1s",
-    "[< 15m]: 3s"
+    "[< 15m]: 5s"
   ],
   "defaultRipperDelay": "10m",
   "noDataTimeout": "4s",
