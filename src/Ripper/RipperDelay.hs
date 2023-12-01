@@ -73,7 +73,13 @@ data PostRipEndDelay = PostRipEndDelay
   , prdDelay :: !RetryDelay
   -- ^ …use this delay
   }
-  deriving (Show, Eq)
+  deriving (Eq)
+
+instance Show PostRipEndDelay where
+  show PostRipEndDelay{prdSinceRipEndLimit,prdDelay} = mconcat
+    [ "[< ", show prdSinceRipEndLimit
+    , "]: ", show prdDelay
+    ]
 
 type RipEndTime = TZTime
 type Now = TZTime

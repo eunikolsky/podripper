@@ -3,6 +3,7 @@ module Ripper.Main
   , run
   ) where
 
+import Data.List (singleton)
 import Data.Version (showVersion)
 import RSSGen.Duration
 import Ripper.Import
@@ -52,8 +53,20 @@ ripperParser = Options
         <> metavar "rip_intervals"
         )
       )
-  <*> pure defaultPostRipEndDelays
-  <*> pure defaultRipperDelay
+  <*> (singleton <$> option postRipEndDelay
+        ( long "postripdelay"
+        <> help "Delays to be used after a rip has ended"
+        -- TODO how to provide a list of default values?
+        <> value (PostRipEndDelay (durationMinutes 5) (RetryDelay $ durationSeconds 1))
+        <> showDefault
+        )
+      )
+  <*> option retryDelay
+      ( long "defdelay"
+      <> help "The default ripper delay when no other rules match"
+      <> value (RetryDelay $ durationMinutes 10)
+      <> showDefault
+      )
   <*> argument (SimpleURL . StreamURL . URL <$> str)
       ( metavar "URL"
       <> help "Stream URL"
@@ -62,14 +75,11 @@ ripperParser = Options
 duration :: ReadM Duration
 duration = eitherReader $ parseDuration . T.pack
 
+retryDelay :: ReadM RetryDelay
+retryDelay = RetryDelay <$> duration
+
 ripIntervalRef :: ReadM RipperIntervalRef
 ripIntervalRef = eitherReader $ parseRipperIntervalRef . T.pack
 
-defaultRipperDelay :: RetryDelay
-defaultRipperDelay = RetryDelay $ durationMinutes 10
-
-defaultPostRipEndDelays :: [PostRipEndDelay]
-defaultPostRipEndDelays =
-  [ PostRipEndDelay (durationMinutes 5) (RetryDelay $ durationSeconds 1)
-  , PostRipEndDelay (durationMinutes 15) (RetryDelay $ durationSeconds 3)
-  ]
+postRipEndDelay :: ReadM PostRipEndDelay
+postRipEndDelay = eitherReader $ parsePostRipEndDelay . T.pack
