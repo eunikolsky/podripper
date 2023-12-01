@@ -78,7 +78,8 @@ instance (HasLogFunc env, HasAppRipsQueue env) => MonadRipper (RIO env) where
   checkLiveStream ripName url = if ripName == "atp"
     then liftIO (checkATPLiveStream url)
     else pure $ Just url
-  getRipDelay is ripEnd now = pure $ getRipperDelay is ripEnd now
+  getRipDelay is ripEnd now = pure $ getRipperDelay defaultDelay is ripEnd now
+    where defaultDelay = RetryDelay $ durationMinutes 10
   getTime = liftIO getCurrentTZTime
   delayReconnect = delayWithLog
   shouldRepeat = pure True
