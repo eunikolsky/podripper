@@ -75,6 +75,12 @@ ripperParser = Options
       <> value (RetryDelay $ durationMinutes 10)
       <> showDefault
       )
+  <*> option duration
+      ( long "nodatatimeout"
+      <> help "Timeout to reconnect if there is no socket data for this long"
+      <> value (durationSeconds 4)
+      <> showDefault
+      )
   <*> argument (SimpleURL . StreamURL . URL <$> str)
       ( metavar "URL"
       <> help "Stream URL"

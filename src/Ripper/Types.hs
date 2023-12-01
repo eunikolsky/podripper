@@ -32,6 +32,7 @@ data Options = Options
   , optionsRipIntervalRefs :: ![RipperIntervalRef]
   , optionsPostRipEndDelays :: ![PostRipEndDelay]
   , optionsDefaultRipDelay :: !RetryDelay
+  , optionsNoDataTimeout :: !Duration
   , optionsStreamConfig :: !StreamConfig
   }
 
