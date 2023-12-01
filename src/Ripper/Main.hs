@@ -48,7 +48,7 @@ ripperParser = Options
         <> metavar "rip_duration"
         )
       )
-  <*> option ripIntervalRefs
+  <*> option (listParserOpt parseRipperIntervalRef)
       ( short 'i'
       <> help (mconcat
           [ "Comma-separated time intervals with delays to override the default delays (e.g. "
@@ -58,16 +58,16 @@ ripperParser = Options
          )
       <> metavar "rip_intervals"
       <> value []
-      <> showDefaultWith (const "<empty>")
+      <> showDefaultWith asList
       )
-  <*> option postRipEndDelays
+  <*> option (listParserOpt parsePostRipEndDelay)
       ( long "postripdelay"
       <> help "Comma-separated delays to be used after a rip has ended"
       <> value
           [ PostRipEndDelay (durationMinutes 5) (RetryDelay $ durationSeconds 1)
           , PostRipEndDelay (durationMinutes 15) (RetryDelay $ durationSeconds 3)
           ]
-      <> showDefaultWith (intercalate "," . fmap show)
+      <> showDefaultWith asList
       )
   <*> option retryDelay
       ( long "defdelay"
@@ -86,8 +86,9 @@ duration = eitherReader $ parseDuration . T.pack
 retryDelay :: ReadM RetryDelay
 retryDelay = RetryDelay <$> duration
 
-ripIntervalRefs :: ReadM [RipperIntervalRef]
-ripIntervalRefs = eitherReader $ traverse parseRipperIntervalRef . T.splitOn "," . T.pack
+listParserOpt :: (Text -> Either String a) -> ReadM [a]
+listParserOpt a = eitherReader $ traverse a . T.splitOn "," . T.pack
 
-postRipEndDelays :: ReadM [PostRipEndDelay]
-postRipEndDelays = eitherReader $ traverse parsePostRipEndDelay . T.splitOn "," . T.pack
+asList :: Show a => [a] -> String
+asList [] = "<empty>"
+asList xs = intercalate "," $ show <$> xs
