@@ -10,6 +10,7 @@ import Data.Aeson
 import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as T
+import RSSGen.Duration
 import Ripper.RipperDelay
 import Ripper.Types
 import System.FilePath
@@ -20,6 +21,9 @@ import System.Exit (die)
 data RipConfig = RipConfig
   { streamURL :: !StreamURL
   , ripIntervalRefs :: ![RipperIntervalRef]
+  , postRipEndDelays :: ![PostRipEndDelay]
+  , defaultRipperDelay :: !RetryDelay
+  , noDataTimeout :: !Duration
   , ripDirName :: !Text
   , podArtist :: !Text
   , podAlbum :: !Text
@@ -33,6 +37,9 @@ instance FromJSON RipConfig where
     -- `RipperIntervalRef` is an internal workaround for pure parsers and
     -- doesn't need to leak outside
     <*> o .: "ripIntervals"
+    <*> o .: "postRipEndDelays"
+    <*> o .: "defaultRipperDelay"
+    <*> o .: "noDataTimeout"
     <*> o .: "ripDirName"
     <*> o .: "podArtist"
     <*> o .: "podAlbum"

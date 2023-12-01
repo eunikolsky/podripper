@@ -3,6 +3,12 @@
   "ripIntervals": [
     "Sa 19:50-21:50 UTC: 15s"
   ],
+  "postRipEndDelays": [
+    "[< 5m]: 2s",
+    "[< 15m]: 6s"
+  ],
+  "defaultRipperDelay": "10m",
+  "noDataTimeout": "4s",
   "ripDirName": "radiot",
   "podArtist": "Umputun, Bobuk, Gray, Ksenks, Alek.sys",
   "podAlbum": "Радио-Т Поток"

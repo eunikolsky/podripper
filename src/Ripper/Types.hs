@@ -30,6 +30,9 @@ data Options = Options
   -- | Record the stream for this duration; it's used only by the `ripper` CLI.
   , optionsRipLength :: !(Maybe Duration)
   , optionsRipIntervalRefs :: ![RipperIntervalRef]
+  , optionsPostRipEndDelays :: ![PostRipEndDelay]
+  , optionsDefaultRipDelay :: !RetryDelay
+  , optionsNoDataTimeout :: !Duration
   , optionsStreamConfig :: !StreamConfig
   }
 

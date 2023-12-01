@@ -3,6 +3,8 @@ module Ripper.Main
   , run
   ) where
 
+import Data.List (intercalate)
+import Data.Time
 import Data.Version (showVersion)
 import RSSGen.Duration
 import Ripper.Import
@@ -10,6 +12,7 @@ import Options.Applicative
 import qualified Paths_ripper
 import RIO.Process
 import qualified RIO.Text as T
+import qualified RIO.Text.Partial as T (splitOn)
 import qualified Ripper.Run
 import Ripper.RipperDelay
 
@@ -45,12 +48,38 @@ ripperParser = Options
         <> metavar "rip_duration"
         )
       )
-  <*> many (
-        option ripIntervalRef
-        ( short 'i'
-        <> help "Time intervals with delays to extend the default delays"
-        <> metavar "rip_intervals"
-        )
+  <*> option (listParserOpt parseRipperIntervalRef)
+      ( short 'i'
+      <> help (mconcat
+          [ "Comma-separated time intervals with delays to override the default delays (e.g. "
+          , show (RipperIntervalRef Sunday (read "12:59:00", read "23:48:00") "America/New_York" (RetryDelay $ durationMinutes 9))
+          , ")"
+          ]
+         )
+      <> metavar "rip_intervals"
+      <> value []
+      <> showDefaultWith asList
+      )
+  <*> option (listParserOpt parsePostRipEndDelay)
+      ( long "postripdelay"
+      <> help "Comma-separated delays to be used after a rip has ended"
+      <> value
+          [ PostRipEndDelay (durationMinutes 5) (RetryDelay $ durationSeconds 1)
+          , PostRipEndDelay (durationMinutes 15) (RetryDelay $ durationSeconds 3)
+          ]
+      <> showDefaultWith asList
+      )
+  <*> option retryDelay
+      ( long "defdelay"
+      <> help "The default ripper delay when no other rules match"
+      <> value (RetryDelay $ durationMinutes 10)
+      <> showDefault
+      )
+  <*> option duration
+      ( long "nodatatimeout"
+      <> help "Timeout to reconnect if there is no socket data for this long"
+      <> value (durationSeconds 4)
+      <> showDefault
       )
   <*> argument (SimpleURL . StreamURL . URL <$> str)
       ( metavar "URL"
@@ -60,5 +89,12 @@ ripperParser = Options
 duration :: ReadM Duration
 duration = eitherReader $ parseDuration . T.pack
 
-ripIntervalRef :: ReadM RipperIntervalRef
-ripIntervalRef = eitherReader $ parseRipperIntervalRef . T.pack
+retryDelay :: ReadM RetryDelay
+retryDelay = RetryDelay <$> duration
+
+listParserOpt :: (Text -> Either String a) -> ReadM [a]
+listParserOpt a = eitherReader $ traverse a . T.splitOn "," . T.pack
+
+asList :: Show a => [a] -> String
+asList [] = "<empty>"
+asList xs = intercalate "," $ show <$> xs

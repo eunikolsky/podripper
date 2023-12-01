@@ -73,12 +73,16 @@ class Monad m => MonadRipper m where
   shouldRepeat :: m Bool
   notifyRip :: SuccessfulRip -> m ()
 
-instance (HasLogFunc env, HasAppRipsQueue env) => MonadRipper (RIO env) where
+instance (HasLogFunc env, HasAppRipsQueue env, HasAppOptions env) => MonadRipper (RIO env) where
   rip = ripOneStream
   checkLiveStream ripName url = if ripName == "atp"
     then liftIO (checkATPLiveStream url)
     else pure $ Just url
-  getRipDelay is ripEnd now = pure $ getRipperDelay is ripEnd now
+  getRipDelay is ripEnd now = do
+    options <- view appOptionsL
+    let defaultDelay = optionsDefaultRipDelay options
+        postRipEndDelays = optionsPostRipEndDelays options
+    pure $ getRipperDelay (defaultDelay, postRipEndDelays) is ripEnd now
   getTime = liftIO getCurrentTZTime
   delayReconnect = delayWithLog
   shouldRepeat = pure True
@@ -132,8 +136,12 @@ delayWithLog reconnectDelay = do
   logDebug "Reconnecting"
 
 -- | Rips a stream for as long as the connection is open.
-ripOneStream :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env) => Request -> Maybe FilePath -> m RipResult
+ripOneStream
+  :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env, HasAppOptions env)
+  => Request -> Maybe FilePath -> m RipResult
 ripOneStream request maybeOutputDir = do
+  noDataTimeout <- optionsNoDataTimeout <$> view appOptionsL
+
   {-
    - I need to know if `httpSink` receives a successful response and records
    - anything even in the case an exception is then thrown; I couldn't find a
@@ -167,9 +175,9 @@ ripOneStream request maybeOutputDir = do
       -- halted about an hour later (the file modtime confirms this) in the
       -- middle of the stream, whereas the TCP connection itself was left open
       -- for many hours, even when a new connection returned `404`! this conduit
-      -- wrapper ensures that if there is no data for 4 seconds, we'll
+      -- wrapper ensures that if there is no data for the given duration, we'll
       -- disconnect and reconnect
-      doesn'tStall (durationSeconds 4) (getResponseBody response) $ \body ->
+      doesn'tStall noDataTimeout (getResponseBody response) $ \body ->
         runConduit $ body .| sinkFile filename
 
       -- we're not inside `MonadRipper` here, so we're using the original IO func

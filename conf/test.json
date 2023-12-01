@@ -5,6 +5,12 @@
     "Sa 06:00-20:00 Europe/Kyiv: 4s",
     "Su 06:00-20:00 Europe/Kyiv: 5s"
   ],
+  "postRipEndDelays": [
+    "[< 5m]: 1s",
+    "[< 15m]: 3s"
+  ],
+  "defaultRipperDelay": "10m",
+  "noDataTimeout": "4s",
   "ripDirName": "test",
   "podArtist": "Various",
   "podAlbum": "Test stream"

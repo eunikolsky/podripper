@@ -4,6 +4,12 @@
     "Fr 14:30-19:00 America/Toronto: 10s",
     "Sa 05:30-08:30 America/Toronto: 30s"
   ],
+  "postRipEndDelays": [
+    "[< 5m]: 1s",
+    "[< 15m]: 5s"
+  ],
+  "defaultRipperDelay": "10m",
+  "noDataTimeout": "4s",
   "ripDirName": "rcmp",
   "podArtist": "Канадский Лось и компания",
   "podAlbum": "Пиратский Канадский Лось и компания"
