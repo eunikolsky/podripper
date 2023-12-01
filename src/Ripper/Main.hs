@@ -4,6 +4,7 @@ module Ripper.Main
   ) where
 
 import Data.List (singleton)
+import Data.Time
 import Data.Version (showVersion)
 import RSSGen.Duration
 import Ripper.Import
@@ -11,6 +12,7 @@ import Options.Applicative
 import qualified Paths_ripper
 import RIO.Process
 import qualified RIO.Text as T
+import qualified RIO.Text.Partial as T (splitOn)
 import qualified Ripper.Run
 import Ripper.RipperDelay
 
@@ -46,12 +48,17 @@ ripperParser = Options
         <> metavar "rip_duration"
         )
       )
-  <*> many (
-        option ripIntervalRef
-        ( short 'i'
-        <> help "Time intervals with delays to extend the default delays"
-        <> metavar "rip_intervals"
-        )
+  <*> option ripIntervalRefs
+      ( short 'i'
+      <> help (mconcat
+          [ "Comma-separated time intervals with delays to override the default delays (e.g. "
+          , show (RipperIntervalRef Sunday (read "12:59:00", read "23:48:00") "America/New_York" (RetryDelay $ durationMinutes 9))
+          , ")"
+          ]
+         )
+      <> metavar "rip_intervals"
+      <> value []
+      <> showDefaultWith (const "<empty>")
       )
   <*> (singleton <$> option postRipEndDelay
         ( long "postripdelay"
@@ -78,8 +85,8 @@ duration = eitherReader $ parseDuration . T.pack
 retryDelay :: ReadM RetryDelay
 retryDelay = RetryDelay <$> duration
 
-ripIntervalRef :: ReadM RipperIntervalRef
-ripIntervalRef = eitherReader $ parseRipperIntervalRef . T.pack
+ripIntervalRefs :: ReadM [RipperIntervalRef]
+ripIntervalRefs = eitherReader $ traverse parseRipperIntervalRef . T.splitOn "," . T.pack
 
 postRipEndDelay :: ReadM PostRipEndDelay
 postRipEndDelay = eitherReader $ parsePostRipEndDelay . T.pack

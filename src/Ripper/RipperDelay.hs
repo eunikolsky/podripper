@@ -20,6 +20,7 @@ import Data.Foldable
 import Data.Functor
 import Data.Maybe
 import Data.Text (Text)
+import Data.Text qualified as T
 import Data.Time
 import Data.Time.TZInfo
 import Data.Time.TZTime
@@ -43,7 +44,27 @@ data RipperIntervalRef = RipperIntervalRef
   , rirTZ :: !TZIdentifier
   , rirDelay :: !RetryDelay
   }
-  deriving (Show, Eq)
+  deriving (Eq)
+
+instance Show RipperIntervalRef where
+  show RipperIntervalRef{rirWeekday,rirTimeInterval,rirTZ,rirDelay} = mconcat
+    [ abbreviatedWeekday rirWeekday, " "
+    , hoursMinutes $ fst rirTimeInterval, "-"
+    , hoursMinutes $ snd rirTimeInterval, " "
+    , T.unpack rirTZ, ": "
+    , show rirDelay
+    ]
+
+    where
+      abbreviatedWeekday Monday = "Mo"
+      abbreviatedWeekday Tuesday = "Tu"
+      abbreviatedWeekday Wednesday = "We"
+      abbreviatedWeekday Thursday = "Th"
+      abbreviatedWeekday Friday = "Fr"
+      abbreviatedWeekday Saturday = "Sa"
+      abbreviatedWeekday Sunday = "Su"
+
+      hoursMinutes = formatTime defaultTimeLocale "%R"
 
 -- | Time interval that provides a specific ripper delay, overriding the default
 -- delay. It's used for podcasts that have known live recording times and we
