@@ -3,7 +3,7 @@ module Ripper.Main
   , run
   ) where
 
-import Data.List (singleton)
+import Data.List (intercalate)
 import Data.Time
 import Data.Version (showVersion)
 import RSSGen.Duration
@@ -60,13 +60,14 @@ ripperParser = Options
       <> value []
       <> showDefaultWith (const "<empty>")
       )
-  <*> (singleton <$> option postRipEndDelay
-        ( long "postripdelay"
-        <> help "Delays to be used after a rip has ended"
-        -- TODO how to provide a list of default values?
-        <> value (PostRipEndDelay (durationMinutes 5) (RetryDelay $ durationSeconds 1))
-        <> showDefault
-        )
+  <*> option postRipEndDelays
+      ( long "postripdelay"
+      <> help "Comma-separated delays to be used after a rip has ended"
+      <> value
+          [ PostRipEndDelay (durationMinutes 5) (RetryDelay $ durationSeconds 1)
+          , PostRipEndDelay (durationMinutes 15) (RetryDelay $ durationSeconds 3)
+          ]
+      <> showDefaultWith (intercalate "," . fmap show)
       )
   <*> option retryDelay
       ( long "defdelay"
@@ -88,5 +89,5 @@ retryDelay = RetryDelay <$> duration
 ripIntervalRefs :: ReadM [RipperIntervalRef]
 ripIntervalRefs = eitherReader $ traverse parseRipperIntervalRef . T.splitOn "," . T.pack
 
-postRipEndDelay :: ReadM PostRipEndDelay
-postRipEndDelay = eitherReader $ parsePostRipEndDelay . T.pack
+postRipEndDelays :: ReadM [PostRipEndDelay]
+postRipEndDelays = eitherReader $ traverse parsePostRipEndDelay . T.splitOn "," . T.pack
