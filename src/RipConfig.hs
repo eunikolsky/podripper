@@ -10,12 +10,12 @@ import Data.Aeson
 import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as T
+import RSSGen.Duration
 import Ripper.RipperDelay
 import Ripper.Types
 import System.FilePath
 import System.Environment
 import System.Exit (die)
-import RSSGen.Duration (RetryDelay)
 
 -- | Configuration necessary to rip a stream.
 data RipConfig = RipConfig
@@ -23,6 +23,7 @@ data RipConfig = RipConfig
   , ripIntervalRefs :: ![RipperIntervalRef]
   , postRipEndDelays :: ![PostRipEndDelay]
   , defaultRipperDelay :: !RetryDelay
+  , noDataTimeout :: !Duration
   , ripDirName :: !Text
   , podArtist :: !Text
   , podAlbum :: !Text
@@ -38,6 +39,7 @@ instance FromJSON RipConfig where
     <*> o .: "ripIntervals"
     <*> o .: "postRipEndDelays"
     <*> o .: "defaultRipperDelay"
+    <*> o .: "noDataTimeout"
     <*> o .: "ripDirName"
     <*> o .: "podArtist"
     <*> o .: "podAlbum"

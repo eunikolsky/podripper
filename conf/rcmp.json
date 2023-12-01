@@ -9,6 +9,7 @@
     "[< 15m]: 3s"
   ],
   "defaultRipperDelay": "10m",
+  "noDataTimeout": "4s",
   "ripDirName": "rcmp",
   "podArtist": "Канадский Лось и компания",
   "podAlbum": "Пиратский Канадский Лось и компания"

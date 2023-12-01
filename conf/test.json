@@ -10,6 +10,7 @@
     "[< 15m]: 3s"
   ],
   "defaultRipperDelay": "10m",
+  "noDataTimeout": "4s",
   "ripDirName": "test",
   "podArtist": "Various",
   "podAlbum": "Test stream"

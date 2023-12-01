@@ -27,6 +27,7 @@ spec = do
             "[< 5m]: 1s",
             "[< 15m]: 3s"
           ],
+          "noDataTimeout": "8s",
           "ripDirName": "test",
           "podArtist": "Хакер",
           "podAlbum": "Hackers"
@@ -42,6 +43,7 @@ spec = do
                 [ PostRipEndDelay (durationMinutes 5) (RetryDelay $ durationSeconds 1)
                 , PostRipEndDelay (durationMinutes 15) (RetryDelay $ durationSeconds 3)
                 ]
+              , noDataTimeout = durationSeconds 8
               , ripDirName = "test"
               , podArtist = "Хакер"
               , podAlbum = "Hackers"
@@ -57,6 +59,7 @@ spec = do
           "ripIntervals": [],
           "defaultRipperDelay": "1h",
           "postRipEndDelays": [],
+          "noDataTimeout": "1h",
           "podArtist": "Хакер",
           "podAlbum": "Hackers",
           "?": "?"
@@ -67,6 +70,7 @@ spec = do
               , ripIntervalRefs = []
               , defaultRipperDelay = RetryDelay $ durationHours 1
               , postRipEndDelays = []
+              , noDataTimeout = durationHours 1
               , ripDirName = "test"
               , podArtist = "Хакер"
               , podAlbum = "Hackers"

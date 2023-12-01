@@ -128,7 +128,7 @@ rip ripsQueue RipConfigExt{config, rawRipDir} =
         , Ripper.optionsRipIntervalRefs = ripIntervalRefs config
         , Ripper.optionsPostRipEndDelays = postRipEndDelays config
         , Ripper.optionsDefaultRipDelay = defaultRipperDelay config
-        , Ripper.optionsNoDataTimeout = durationSeconds 4
+        , Ripper.optionsNoDataTimeout = noDataTimeout config
         , Ripper.optionsStreamConfig = Ripper.StreamConfig (ripDirName config) (streamURL config)
         }
   -- note: this loop is not needed on its own because the ripper should already

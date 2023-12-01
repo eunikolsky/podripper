@@ -8,6 +8,7 @@
     "[< 15m]: 3s"
   ],
   "defaultRipperDelay": "10m",
+  "noDataTimeout": "4s",
   "ripDirName": "atp",
   "podArtist": "Marco Arment, Casey Liss, and John Siracusa",
   "podAlbum": "ATP Live"
