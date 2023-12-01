@@ -3,6 +3,7 @@ module RSSGen.Duration
   , RetryDelay(..)
   , durationHours
   , durationMinutes
+  , durationParser
   , durationSeconds
   , parseDuration
   , retryDurationParser
@@ -56,13 +57,12 @@ microsecondsInSecond = 1_000_000
 -- | Parses a time duration from a format that includes a number and a time
 -- unit, e.g. `42s`, `30m`, `12h`.
 parseDuration :: Text -> Either String Duration
-parseDuration = parseOnly durationParser
+parseDuration = parseOnly $ durationParser <* endOfInput
 
 durationParser :: Parser Duration
 durationParser = do
   n <- decimal <?> "duration amount"
   unit <- satisfy (inClass "smh") <?> "duration unit"
-  endOfInput
 
   pure $ case unit of
     's' -> durationSeconds n

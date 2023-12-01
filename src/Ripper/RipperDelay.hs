@@ -6,6 +6,7 @@ module Ripper.RipperDelay
   , RipperIntervalRef(..)
   , getRipperDelay
   , mkRipperInterval
+  , parsePostRipEndDelay
   , parseRipperIntervalRef
   , riDelay
   , ripperIntervalFromRef
@@ -72,6 +73,7 @@ data PostRipEndDelay = PostRipEndDelay
   , prdDelay :: !RetryDelay
   -- ^ …use this delay
   }
+  deriving (Show, Eq)
 
 type RipEndTime = TZTime
 type Now = TZTime
@@ -151,7 +153,7 @@ noBiggerThan = min
 -- `dw h0:m0-h1:m1 timezone: delay`, for example
 -- `Su 12:59-23:48 America/New_York: 9m`.
 parseRipperIntervalRef :: Text -> Either String RipperIntervalRef
-parseRipperIntervalRef = parseOnly pRipperIntervalRef
+parseRipperIntervalRef = parseOnly $ pRipperIntervalRef <* endOfInput
 
 instance FromJSON RipperIntervalRef where
   parseJSON = withText "RipperIntervalRef" $ either fail pure . parseRipperIntervalRef
@@ -208,3 +210,16 @@ pTwoDigitNumber = read <$> count 2 digit
 
 skipChar :: Char -> Parser ()
 skipChar = void . char
+
+-- | Parses a `PostRipEndDelay` with the following format:
+-- `[< dur]: dur`, for example `[< 5m]: 1s`.
+parsePostRipEndDelay :: Text -> Either String PostRipEndDelay
+parsePostRipEndDelay = parseOnly $ pPostRipEndDelay <* endOfInput
+
+pPostRipEndDelay :: Parser PostRipEndDelay
+pPostRipEndDelay = do
+  void $ string "[< "
+  limit <- durationParser
+  void $ string "]: "
+  delay <- retryDurationParser
+  pure $ PostRipEndDelay {prdSinceRipEndLimit = limit, prdDelay = delay}

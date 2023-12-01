@@ -107,6 +107,9 @@ spec = do
           expected = RipperIntervalRef Sunday (read "14:00:00", read "12:00:00") "UTC" (RetryDelay $ durationMinutes 9)
       actual `shouldParse` expected
 
+    it "doesn't accept anything extra" $
+      parseRipperIntervalRef "Su 14:00-12:00 UTC: 9m." `shouldSatisfy` isLeft
+
   describe "ripperIntervalFromRef" $ do
     it "converts a valid ref" $ do
       let interval = (read "12:59:00", read "23:48:00")
@@ -121,6 +124,13 @@ spec = do
     it "fails on an unordered interval" $ do
       actual <- ripperIntervalFromRef $ RipperIntervalRef Sunday (read "14:00:00", read "12:00:00") "UTC" testDelay
       actual `shouldSatisfy` isLeft
+
+  describe "parsePostRipEndDelay" $ do
+    it "parses a post rip end delay" $
+      parsePostRipEndDelay "[< 5m]: 1s" `shouldParse` PostRipEndDelay (durationMinutes 5) (RetryDelay $ durationSeconds 1)
+
+    it "doesn't accept anything extra" $
+      parsePostRipEndDelay "[< 5m]: 1sec" `shouldSatisfy` isLeft
 
 mkRipperInterval' :: DayOfWeek -> (TimeOfDay, TimeOfDay) -> TZInfo -> RetryDelay -> Either a RipperInterval
 mkRipperInterval' d ti tz' = Right . fromJust . mkRipperInterval d ti tz'
