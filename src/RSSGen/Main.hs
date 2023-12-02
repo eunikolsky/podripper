@@ -25,6 +25,7 @@ import Development.Shake.FilePath
 import GHC.Generics
 import Network.HTTP.Simple
 import Options.Applicative
+import UnliftIO.Directory qualified as D
 import UnliftIO.Exception
 
 import qualified Paths_ripper as Paths (version)
@@ -99,15 +100,18 @@ run filename = do
     -- generate the RSS from the podripper's root data directory (parent of
     -- `complete/`); however generating the same RSS from `complete/` and from
     -- its parent seems to rebuild it every time
-    versioned 29 $ "//*.rss" %> \out -> do
+    versioned 30 $ "//*.rss" %> \out -> do
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
       let podcastTitle = takeBaseName out
           relPath = takeDirectory out
+          ripDir = dropExtension out
       (feedConfig, feedConfigFiles) <- liftIO $ parseFeedConfig configDir podcastTitle
       need feedConfigFiles
       case feedConfig of
-        Just config ->
-          actionWithDatabase (DefaultFile relPath) $ \conn -> do
+        Just config -> do
+          copyDatabaseToRipDirIfNecessary relPath ripDir
+
+          actionWithDatabase (DefaultFile ripDir) $ \conn -> do
             let podcastId = T.pack podcastTitle
             ripFiles <- getRipFilesNewestFirst relPath podcastId
             -- generate the feed with what we have immediately without possibly
@@ -119,7 +123,7 @@ run filename = do
             -- main effect is to update the database because we'll need all
             -- items for all found rips; the result value is used by `shake` to
             -- determine whether to generate the feed
-            void . pollRSSItem $ UpstreamItem (podcastId, relPath, config, maybeNewestRipTime)
+            void . pollRSSItem $ UpstreamItem (podcastId, ripDir, config, maybeNewestRipTime)
             -- generate the feed again after possibly getting some upstream feed
             -- updates
             generateFeed config conn out podcastId ripFiles
@@ -127,6 +131,21 @@ run filename = do
         Nothing -> fail
           $ "Couldn't parse feed config files "
           <> intercalate ", " feedConfigFiles
+
+-- | Copies the episodes database from the shared directory (`complete/`) into
+-- the rip's directory (`complete/foo/`) if it doesn't have one yet. Note that
+-- the database is copied as is, without cleaning up the data for other rips.
+-- We also can't remove the shared database here because it may still be needed
+-- by other rips.
+copyDatabaseToRipDirIfNecessary :: MonadIO m => FilePath -> FilePath -> m ()
+copyDatabaseToRipDirIfNecessary completeDir ripDir = do
+  let completeDB = dbFileName $ DefaultFile completeDir
+      ripDB = dbFileName $ DefaultFile ripDir
+  completeDBExists <- D.doesFileExist completeDB
+  ripDBExists <- D.doesFileExist ripDB
+  when (not ripDBExists && completeDBExists) $ do
+    liftIO . putStrLn $ mconcat ["Copying the database ", completeDB, " into ", ripDB]
+    D.copyFile completeDB ripDB
 
 -- | Allows to define an `Action` that has an exception-safe access to the
 -- database.
