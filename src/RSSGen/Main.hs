@@ -25,7 +25,6 @@ import Development.Shake.FilePath
 import GHC.Generics
 import Network.HTTP.Simple
 import Options.Applicative
-import qualified System.Environment as Env
 import UnliftIO.Exception
 
 import qualified Paths_ripper as Paths (version)
@@ -74,8 +73,10 @@ rssGenParser = strArgument
 
 run :: FilePath -> IO ()
 run filename = do
-  shakeDir <- fromMaybe "/var/lib/podripper/shake" <$> Env.lookupEnv "SHAKE_DIR"
-  let shakeOpts = shakeOptions
+  -- the expected `filename` is `complete/foo.rss`, thus the directory for shake
+  -- files is `complete/foo`, the same dir where the final rips are stored
+  let shakeDir = dropExtension filename
+      shakeOpts = shakeOptions
         { shakeFiles = shakeDir
         , shakeColor = True
         , shakeVerbosity = Verbose
