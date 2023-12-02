@@ -13,8 +13,6 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import Data.Functor
 import Data.List (intercalate, sortOn)
-import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NE
 import Data.Maybe
 import Data.Ord (Down(..))
 import qualified Data.Text as T
@@ -64,20 +62,18 @@ newtype RSSGenVersion = RSSGenVersion ()
   deriving (Generic)
 type instance RuleResult RSSGenVersion = Version
 
--- | CLI options parser to get the RSS filenames (if any) that should be built.
+-- | CLI options parser to get the RSS filename that should be built.
 -- This replaces `shake`'s built-in parser as it can't be used now since this
 -- RSS generator is one of the commands in the executable. This parser only
--- parses target filenames, so all `shake` options are hardcoded.
-rssGenParser :: Parser (NonEmpty FilePath)
-rssGenParser = fmap (fromMaybe handleNothing . NE.nonEmpty) . some $ strArgument
-  ( help "RSS filenames to build"
-  <> metavar "RSS_FILE..."
+-- parses target filename, so all the `shake` options are hardcoded.
+rssGenParser :: Parser FilePath
+rssGenParser = strArgument
+  ( help "RSS filename to build"
+  <> metavar "RSS_FILE"
   )
 
-  where handleNothing = error "Impossible: empty list from `some`"
-
-run :: NonEmpty FilePath -> IO ()
-run filenames = do
+run :: FilePath -> IO ()
+run filename = do
   shakeDir <- fromMaybe "/var/lib/podripper/shake" <$> Env.lookupEnv "SHAKE_DIR"
   let shakeOpts = shakeOptions
         { shakeFiles = shakeDir
@@ -91,7 +87,7 @@ run filenames = do
   -- TODO this function doesn't print the final status message "Build completed in Xs"
   -- even though `shakeArgs` did that by default
   shake shakeOpts $ do
-    want $ NE.toList filenames
+    want [filename]
 
     void . addOracle $ \RSSGenVersion{} -> return Paths.version
 
