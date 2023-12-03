@@ -1,5 +1,5 @@
 name:                ripper
-version:             1.3.4
+version:             2.0.3
 github:              githubuser/ripper
 license:             MIT
 author:              Author name here
@@ -72,10 +72,12 @@ library:
     - process
     - shake
     - sqlite-simple
+    - stm-chans
     - text
     - time
     - time-compat
     - transformers
+    - tztime
     - unicode-show
     - unliftio
     - unliftio-core
@@ -125,6 +127,7 @@ tests:
     - text
     - time
     - transformers
+    - tztime
 
     ghc-options:
     - -threaded

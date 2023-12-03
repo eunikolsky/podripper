@@ -16,6 +16,9 @@ module RSSGen.Database
   -- * persisting download cache items
   , getCacheItem
   , setCacheItem
+
+  -- * implementation details
+  , dbFileName
   ) where
 
 import Control.Exception
@@ -24,6 +27,7 @@ import Data.List (sortOn)
 import Data.Maybe (listToMaybe)
 import Data.Time.Clock
 import Data.Time.Format
+import System.FilePath
 
 import RSSGen.DownloaderTypes
 import RSSGen.Duration
@@ -33,13 +37,13 @@ import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 type DBConnection = Connection
 
 data FileSpec
-  = DefaultFile -- ^ The default @episodes.sqlite@ file
-  | InMemory    -- ^ An in-memory database
+  = DefaultFile FilePath -- ^ The default @episodes.sqlite@ file in the directory
+  | InMemory             -- ^ An in-memory database
 
 -- | Returns the SQLite database string for the given file spec.
 dbFileName :: FileSpec -> String
-dbFileName DefaultFile = "episodes.sqlite"
-dbFileName InMemory    = ""
+dbFileName (DefaultFile dir) = dir </> "episodes.sqlite"
+dbFileName InMemory          = ""
 
 -- | Executes the given `IO` action with an exception-safe access to the
 -- database.
@@ -105,13 +109,17 @@ saveUpstreamRSSItems conn
 
 -- | Returns an upstream RSS item closest to @time@ if it's within the specified
 -- `duration`.
+-- When the RSS updates an item (e.g. its `description`), that version will be
+-- stored in addition to the previous version(s); their publication times will
+-- be the same and the difference will be in the addition time. This function
+-- returns the newest version.
 closestUpstreamItemToTime :: Duration -> UpstreamRSSFeed.PodcastId -> Connection -> UTCTime -> IO (Maybe UpstreamRSSFeed.UpstreamRSSItem)
 closestUpstreamItemToTime duration podcast conn time = do
   r <- queryNamed conn
     "SELECT podcast,title,description,guid,publishedAt FROM episode\
     \ WHERE podcast = :podcast AND\
       \ (publishedAt BETWEEN strftime('%s', :date, '-' || :seconds || ' seconds') AND strftime('%s', :date, '+' || :seconds || ' seconds'))\
-    \ ORDER BY abs(publishedAt - strftime('%s', :date)) DESC, publishedAt DESC\
+    \ ORDER BY abs(publishedAt - strftime('%s', :date)) DESC, publishedAt DESC, addedAt DESC\
     \ LIMIT 1"
     [ ":podcast" := podcast
     , ":date" := formatTime defaultTimeLocale "%F %T" time

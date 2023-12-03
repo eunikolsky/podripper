@@ -11,6 +11,7 @@ import RSSGen.Duration
 import RSSGen.UpstreamRSSFeed
 
 import Test.Hspec
+import Control.Concurrent (threadDelay)
 
 podcastId :: PodcastId
 podcastId = "radiot"
@@ -75,6 +76,23 @@ spec = do
         saveUpstreamRSSItems conn [item0, item1]
         closestUpstreamItemToTime (durationHours 12) podcastId conn time
       actual `shouldBe` Just item1
+
+    it "returns most recently added item when there are multiple items at the same published time" $ do
+      let older = UpstreamRSSItem "newer" (utcTime 2021 08 14 01 14 30) "" "" podcastId
+          newer = UpstreamRSSItem "older" (utcTime 2021 08 14 01 14 30) "" "" podcastId
+          time = utcTime 2021 08 13 22 47 09
+
+      actual <- withDB $ \conn -> do
+        saveUpstreamRSSItems conn [older]
+        -- note: this 1 second delay is important to make sure the `newer`'s
+        -- `addedAt` time is indeed newer (up to a second-precision); otherwise
+        -- the test continues to fail
+        -- TODO allow to set `addedAt` for an `UpstreamRSSItem`?
+        threadDelay 1_000_000
+        saveUpstreamRSSItems conn [newer]
+        closestUpstreamItemToTime (durationHours 24) podcastId conn time
+
+      actual `shouldBe` Just newer
 
   describe "CacheItem" $ do
     let verifyPersistence item = do

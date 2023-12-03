@@ -3,8 +3,10 @@ module RSSGen.Duration
   , RetryDelay(..)
   , durationHours
   , durationMinutes
+  , durationParser
   , durationSeconds
   , parseDuration
+  , retryDurationParser
   , toMicroseconds
   , toNominalDiffTime
   , toSeconds
@@ -12,6 +14,7 @@ module RSSGen.Duration
 
 import Data.Aeson hiding ((<?>))
 import Data.Attoparsec.Text
+import Data.Function
 import Data.Time.Clock
 import Data.Text (Text)
 import Development.Shake.Classes
@@ -25,6 +28,9 @@ instance Show Duration where
   show (Seconds s) = show s <> "s"
   show (Minutes m) = show m <> "m"
   show (Hours h) = show h <> "h"
+
+instance Ord Duration where
+  compare = compare `on` toSeconds
 
 instance FromJSON Duration where
   parseJSON = withText "Duration" $ either fail pure . parseDuration
@@ -51,13 +57,12 @@ microsecondsInSecond = 1_000_000
 -- | Parses a time duration from a format that includes a number and a time
 -- unit, e.g. `42s`, `30m`, `12h`.
 parseDuration :: Text -> Either String Duration
-parseDuration = parseOnly durationParser
+parseDuration = parseOnly $ durationParser <* endOfInput
 
 durationParser :: Parser Duration
 durationParser = do
   n <- decimal <?> "duration amount"
   unit <- satisfy (inClass "smh") <?> "duration unit"
-  endOfInput
 
   pure $ case unit of
     's' -> durationSeconds n
@@ -82,4 +87,7 @@ durationHours = Hours
 --
 -- (Is this separate type really necessary?)
 newtype RetryDelay = RetryDelay { toDuration :: Duration }
-  deriving newtype (Show, Eq, FromJSON, Hashable, Binary, NFData)
+  deriving newtype (Show, Eq, Ord, FromJSON, Hashable, Binary, NFData)
+
+retryDurationParser :: Parser RetryDelay
+retryDurationParser = RetryDelay <$> durationParser

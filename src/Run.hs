@@ -4,7 +4,7 @@ module Run
   ) where
 
 import Options.Applicative
-import Podripper (RipName)
+import Ripper.Types (RipName)
 
 runParser :: Parser RipName
 runParser = strArgument

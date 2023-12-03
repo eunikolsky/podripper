@@ -8,7 +8,9 @@ module Ripper.Run
   ) where
 
 import Conduit
-import Data.Monoid (Any(..))
+import Control.Concurrent.STM.TBMQueue
+import Data.Monoid (Last(..))
+import Data.Time.TZTime
 import Network.HTTP.Conduit (HttpExceptionContent(..))
 import Network.HTTP.Simple
 import RIO.Directory (createDirectoryIfMissing)
@@ -18,46 +20,79 @@ import qualified RIO.Text as T
 import RIO.Time
 import System.IO.Error (isResourceVanishedError)
 
+import Ripper.ATPLiveStreamCheck
 import Ripper.Import
+import Ripper.RipperDelay
 import RSSGen.Duration
 
 run :: RIO App ()
 run = do
+  ripIntervals <- getRipIntervals
+
   options <- asks appOptions
   let maybeOutputDir = optionsOutputDirectory options
   for_ maybeOutputDir ensureDirectory
 
-  let ripTimeout = toMicroseconds $ optionsRipLength options
-      reconnectDelay = optionsReconnectDelay options
-      smallReconnectDelay = optionsSmallReconnectDelay options
-
   userAgent <- asks appUserAgent
 
-  request <- fmap (setUserAgent userAgent) . parseRequestThrow . T.unpack . optionsStreamURL $ options
-  void . timeout ripTimeout
-    $ ripper request maybeOutputDir reconnectDelay smallReconnectDelay
+  maybeTimeout (optionsRipLength options)
+    $ ripper userAgent maybeOutputDir ripIntervals (optionsStreamConfig options)
 
-setUserAgent :: Text -> Request -> Request
-setUserAgent = addRequestHeader "User-Agent" . encodeUtf8
+maybeTimeout :: MonadUnliftIO m => Maybe Duration -> m () -> m ()
+maybeTimeout (Just d) = void . timeout (toMicroseconds d)
+maybeTimeout Nothing = id
+
+-- | Returns parsed `RipperInterval`s from the `Options`. Terminates the program
+-- with an error message if an interval can't be parsed.
+getRipIntervals :: (MonadIO m, MonadReader env m, HasAppOptions env) => m [RipperInterval]
+getRipIntervals = do
+  options <- view appOptionsL
+  let ripIntervalRefs = optionsRipIntervalRefs options
+  eitherIntervals <- liftIO $ traverse ripperIntervalFromRef ripIntervalRefs
+  let (errors, intervals) = partitionEithers eitherIntervals
+  if not (null errors)
+    then error $ "Couldn't parse rip intervals: " <> show errors
+    else pure intervals
 
 -- | The result of a single rip call. The information conveyed by this type
 -- is whether the call has received and saved any data.
-data RipResult = RipRecorded | RipNothing
+data RipResult = RipRecorded SuccessfulRip | RipNothing
   deriving (Eq, Show)
+
+withRecordedRip :: (SuccessfulRip -> a) -> RipResult -> Maybe a
+withRecordedRip f (RipRecorded r) = Just $ f r
+withRecordedRip _ RipNothing = Nothing
 
 class Monad m => MonadRipper m where
   rip :: Request -> Maybe FilePath -> m RipResult
-  delayReconnect :: Int -> m ()
+  checkLiveStream :: RipName -> StreamURL -> m (Maybe StreamURL)
+  getRipDelay :: [RipperInterval] -> Maybe RipEndTime -> Now -> m RetryDelay
+  -- TODO can `MonadTime` be composed here to replace these two functions?
+  getTime :: m Now
+  delayReconnect :: RetryDelay -> m ()
   shouldRepeat :: m Bool
+  notifyRip :: SuccessfulRip -> m ()
 
-instance HasLogFunc env => MonadRipper (RIO env) where
+instance (HasLogFunc env, HasAppRipsQueue env, HasAppOptions env) => MonadRipper (RIO env) where
   rip = ripOneStream
+  checkLiveStream ripName url = if ripName == "atp"
+    then liftIO (checkATPLiveStream url)
+    else pure $ Just url
+  getRipDelay is ripEnd now = do
+    options <- view appOptionsL
+    let defaultDelay = optionsDefaultRipDelay options
+        postRipEndDelays = optionsPostRipEndDelays options
+    pure $ getRipperDelay (defaultDelay, postRipEndDelays) is ripEnd now
+  getTime = liftIO getCurrentTZTime
   delayReconnect = delayWithLog
   shouldRepeat = pure True
+  notifyRip r = do
+    ripsQueue <- view appRipsQueueL
+    atomically $ writeTQueue ripsQueue r
 
 -- | The endless ripping loop.
-ripper :: (MonadRipper m) => Request -> Maybe FilePath -> RetryDelay -> RetryDelay -> m ()
-ripper request maybeOutputDir reconnectDelay smallReconnectDelay = evalStateT go mempty
+ripper :: (MonadRipper m) => Text -> Maybe FilePath -> [RipperInterval] -> StreamConfig -> m ()
+ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
    - which is the same as the output monad, and the inside monad can't be the
@@ -68,27 +103,45 @@ ripper request maybeOutputDir reconnectDelay smallReconnectDelay = evalStateT go
    - the result value in `runTestM`)
    -}
   where
-    go :: MonadRipper m => StateT Any m ()
+    go :: MonadRipper m => StateT (Last RipEndTime) m ()
     go = do
-      result <- lift $ rip request maybeOutputDir
+      maybeStreamURL <- lift $ urlFromStreamConfig streamConfig
+      case maybeStreamURL of
+        Just (StreamURL url) -> do
+          let request = mkRipperRequest userAgent url
+          result <- lift $ rip request maybeOutputDir
+          modify' (<> Last (withRecordedRip ripEndTime result))
 
-      let isSuccessfulRip = result == RipRecorded
-      modify' (<> Any isSuccessfulRip)
-      wasEverSuccessfulRip <- get
+          maybe (pure ()) (lift . notifyRip) $ withRecordedRip id result
 
-      lift . delayReconnect . toMicroseconds . toDuration $
-        if getAny wasEverSuccessfulRip then smallReconnectDelay else reconnectDelay
+        Nothing -> pure ()
+
+      maybeLatestRipEndTime <- gets getLast
+
+      -- TODO how to get rid of `lift`s?
+      lift $ do
+        now <- getTime
+        delay <- getRipDelay ripperIntervals maybeLatestRipEndTime now
+        delayReconnect delay
       whenM (lift shouldRepeat) go
 
-delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => Int -> m ()
+urlFromStreamConfig :: MonadRipper m => StreamConfig -> m (Maybe StreamURL)
+urlFromStreamConfig (StreamConfig ripName url) = checkLiveStream ripName url
+urlFromStreamConfig (SimpleURL url) = pure . Just $ url
+
+delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => RetryDelay -> m ()
 delayWithLog reconnectDelay = do
-  logDebug "Disconnected"
-  threadDelay reconnectDelay
+  logDebug $ "Disconnected; waiting for " <> displayShow reconnectDelay
+  threadDelay . toMicroseconds . toDuration $ reconnectDelay
   logDebug "Reconnecting"
 
 -- | Rips a stream for as long as the connection is open.
-ripOneStream :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env) => Request -> Maybe FilePath -> m RipResult
+ripOneStream
+  :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env, HasAppOptions env)
+  => Request -> Maybe FilePath -> m RipResult
 ripOneStream request maybeOutputDir = do
+  noDataTimeout <- optionsNoDataTimeout <$> view appOptionsL
+
   {-
    - I need to know if `httpSink` receives a successful response and records
    - anything even in the case an exception is then thrown; I couldn't find a
@@ -98,15 +151,15 @@ ripOneStream request maybeOutputDir = do
         from the context: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)`
    - As the doc says, `MonadUnliftIO` doesn't work with stateful monads :(
    -}
-  recordedAnythingVar <- newIORef False
+  maybeFilenameVar <- newIORef Nothing
 
   ripResult <- runResourceT
+    . handleStalledException
     . handleResourceVanished
     . handle httpExceptionHandler
-    . httpSink request $ \response -> do
+    -- `httpSink`'s and `httpSource`'s` types don't match with `doesn'tStall`'s type
+    . withResponse request $ \response -> do
       logInfo . displayShow . getResponseStatus $ response
-
-      writeIORef recordedAnythingVar True
 
       {-
       - I want to include the time at which we start receiving the response body
@@ -114,23 +167,46 @@ ripOneStream request maybeOutputDir = do
       - in this block, we have the `response` and are ready to stream the body,
       - so this time should be good enough
       -}
+      basename <- liftIO getFilename
+      let filename = maybe basename (</> basename) maybeOutputDir
+      writeIORef maybeFilenameVar $ Just filename
 
-      filename <- liftIO getFilename
-      sinkFile $ maybe filename (</> filename) maybeOutputDir
-      pure RipRecorded
+      -- there was a strange issue with ATP when the recording started, but then
+      -- halted about an hour later (the file modtime confirms this) in the
+      -- middle of the stream, whereas the TCP connection itself was left open
+      -- for many hours, even when a new connection returned `404`! this conduit
+      -- wrapper ensures that if there is no data for the given duration, we'll
+      -- disconnect and reconnect
+      doesn'tStall noDataTimeout (getResponseBody response) $ \body ->
+        runConduit $ body .| sinkFile filename
+
+      -- we're not inside `MonadRipper` here, so we're using the original IO func
+      now <- liftIO getCurrentTZTime
+      pure . RipRecorded $ SuccessfulRip now filename
 
   {-
    - after a possible http exception is handled, we need to figure out if
    - anything was recorded (i.e. we got a successful response): because an
    - exception can be thrown in the middle of the connection, we also need to
-   - consider the value of `recordedAnythingVar`
+   - consider the value of `maybeFilenameVar`
    -}
   case ripResult of
-    RipRecorded -> pure RipRecorded
+    r@(RipRecorded _) -> pure r
     RipNothing -> do
-      recordedAnything <- readIORef recordedAnythingVar
-      pure $ if recordedAnything then RipRecorded else RipNothing
+      maybeFilename <- readIORef maybeFilenameVar
+      now <- liftIO getCurrentTZTime
+      pure $ case maybeFilename of
+        Just filename -> RipRecorded (SuccessfulRip now filename)
+        Nothing -> RipNothing
 
+-- TODO for some reason, this handler doesn't catch an `InternalException` about
+-- an unknown CA (when using `mitmproxy`):
+-- ```
+-- operation failed: HttpExceptionRequest Request {
+--   …
+-- }
+--  (InternalException (HandshakeFailed (Error_Protocol ("certificate has unknown CA",True,UnknownCa))))
+-- ```
 httpExceptionHandler :: (MonadIO m, MonadReader env m, HasLogFunc env) => HttpException -> m RipResult
 httpExceptionHandler e = do
   logError $ case e of
@@ -159,6 +235,10 @@ handleResourceVanished = handleJust
   -- would require manual rethrowing of all other types of exceptions
   (\e -> logError (displayShow e) >> pure RipNothing)
 
+handleStalledException :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env) => m RipResult -> m RipResult
+handleStalledException = handle $ \(e :: StalledException) ->
+  logError (displayShow e) >> pure RipNothing
+
 ensureDirectory :: MonadIO m => FilePath -> m ()
 ensureDirectory = liftIO . createDirectoryIfMissing createParents
   where createParents = True
@@ -176,3 +256,57 @@ getFilename = do
   where
     getCurrentLocalTime :: MonadIO m => m LocalTime
     getCurrentLocalTime = zonedTimeToLocalTime <$> getZonedTime
+
+mkRipperRequest :: Text -> URL -> Request
+-- note: this causes impure exceptions for invalid URLs
+mkRipperRequest userAgent = setUserAgent userAgent . parseRequestThrow_ . T.unpack . urlToText
+
+setUserAgent :: Text -> Request -> Request
+setUserAgent = addRequestHeader "User-Agent" . encodeUtf8
+
+data StalledException = StalledException
+  deriving Show
+
+instance Exception StalledException
+
+-- | Ensures that a conduit produces output periodically, not slower than once
+-- every time `duration`. If there is no output for longer than that,
+-- `StalledException` is thrown.
+--
+-- "The basic idea is to have two sibling threads: one running the original
+-- source and writing its values to a queue, and another running the full
+-- conduit pipeline with a modified source that will time out on reads from
+-- that queue."
+-- — https://mail.haskell.org/pipermail/haskell-cafe/2018-June/129314.html
+--
+-- Source: https://gist.github.com/snoyberg/7e5dd52109b03c8bf1aa8fe1a7e522b9
+doesn'tStall
+  :: MonadUnliftIO m
+  => Duration
+  -> ConduitT () o m () -- ^ original source
+  -> (ConduitT () o m () -> m a) -- ^ what to do with modified source
+  -> m a
+doesn'tStall duration src inner = do
+  queue <- liftIO $ newTBMQueueIO 2
+  runConcurrently $
+    Concurrently (filler queue) *>
+    Concurrently (inner $ consumer queue)
+  where
+    filler queue =
+      runConduit (src .| mapM_C (atomically . writeTBMQueue queue))
+      `finally` atomically (closeTBMQueue queue)
+
+    consumer queue =
+        loop
+      where
+        loop = do
+          res <- lift $ timeout (toMicroseconds duration) $ atomically $ readTBMQueue queue
+          case res of
+            -- timeout occurred
+            Nothing -> throwIO StalledException
+
+            -- queue is closed
+            Just Nothing -> pure ()
+
+            -- more data available
+            Just (Just o) -> yield o >> loop

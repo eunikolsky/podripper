@@ -1,69 +1,116 @@
 {-# LANGUAGE DerivingStrategies, GeneralizedNewtypeDeriving #-}
 
 module Podripper
-  ( RipName
-  , run
+  ( run
   ) where
 
-import Control.Exception
+import Control.Exception (AsyncException, throw)
 import Control.Monad
-import Control.Monad.Except
-import Data.Aeson hiding ((<?>))
-import qualified Data.Aeson.KeyMap as A
-import Data.Char
-import Data.Functor
 import Data.Maybe
-import Data.Monoid
-import Data.List (dropWhileEnd, isSuffixOf)
-import qualified Data.List.NonEmpty as NE
-import Data.Text (Text)
+import Data.List (isSuffixOf)
 import qualified Data.Text as T
-import qualified Data.Text.Lazy.Encoding as TLE
-import qualified Data.Text.Lazy.IO as TL
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
-import Network.HTTP.Simple
-import RIO (whenM, IsString, threadDelay)
+import RIO hiding (stdin)
 import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
 import qualified Ripper.Main as Ripper (run)
-import qualified Ripper.Types as Ripper (Options(..))
+import qualified Ripper.Types as Ripper
+import Ripper.Util
 import System.Directory
 import System.Environment
 import System.Exit
 import System.FilePath
 import System.Process
 
-type RipName = Text
-
-data RipConfigExt = RipConfigExt
-  { config :: !RipConfig
-  , rawRipDir :: !FilePath
-  , doneRipDir :: !FilePath
-  , doneBaseDir :: !FilePath
-  }
-
-run :: RipName -> IO ()
+run :: Ripper.RipName -> IO ()
 run ripName = do
   skipRipping <- getSkipRipping
   config <- loadConfig ripName
   let configExt = extendConfig config
   ensureDirs configExt
-  -- | the flag shows whether the live stream check has returned success since
-  -- the start; we don't need to ask it anymore after that
-  maybeStreamURL <- waitForStream configExt
-  unless skipRipping $ maybe (pure ()) (rip configExt) maybeStreamURL
-  reencodePreviousRips configExt
-  reencodeRips configExt
-  updateRSS configExt
 
-loadConfig :: RipName -> IO RipConfig
-loadConfig ripName = do
-  confDir <- getConfDir
-  let confName = confDir </> T.unpack ripName <.> "json"
-  eitherConfig <- eitherDecodeFileStrict' @RipConfig confName
-  either die pure eitherConfig
+  ripsQueue <- atomically newTQueue
+  reencodedQueue <- atomically newTQueue
+
+  let doRip = rip ripsQueue configExt
+      doProcessSuccessfulRips = processSuccessfulRips configExt ripsQueue reencodedQueue
+      doProcessReencodedRips = processReencodedRips configExt reencodedQueue
+      -- reencode discovered leftover rips, if any, in parallel with ripping at
+      -- the startup
+      doReencodePreviousRips = reencodePreviousRips configExt reencodedQueue
+      terminateReencodedQueue = atomically $ writeTQueue reencodedQueue QFinish
+      doInitialRSSUpdate = atomically $ writeTQueue reencodedQueue $ QValue InitialRSSUpdate
+
+  if skipRipping
+    -- when `skipRipping`, there is no endless ripping loop, so we need to
+    -- process whatever unprocesses rips are found and quit cleanly; that's why
+    -- `concurrently_` is used: to wait until all is done
+    then concurrently_
+      (doReencodePreviousRips >> terminateReencodedQueue)
+      doProcessReencodedRips
+    -- `concurrently_` is used here because the fast `doReencodePreviousRips`
+    -- shouldn't terminate the other concurrent processes
+    else concurrently_
+      doReencodePreviousRips
+      -- `race` waits until any process finishes (which they don't here), and
+      -- also terminates everything if any one throws an exception
+      $ race3
+          doRip
+          doProcessSuccessfulRips
+          -- do an initial RSS update in case any new rip comes up: this may
+          -- happen in the scenario when the ripper has recorded a rip, it was
+          -- reencoded and the `rssgen` was waiting for upstream feed updates
+          -- when the process was killed; if there are no changes, the RSS won't
+          -- be regenerated
+          (doInitialRSSUpdate >> doProcessReencodedRips)
+
+race3 :: IO a -> IO b -> IO c -> IO ()
+race3 x y = race_ x . race_ y
+
+processSuccessfulRips :: RipConfigExt -> Ripper.RipsQueue -> ReencodedQueue -> IO ()
+processSuccessfulRips config queue reencodedQueue = forever $ do
+  newRip <- atomically $ readTQueue queue
+  putStrLn $ "Successful rip: " <> show newRip
+  reencodeRip config newRip
+  atomically $ writeTQueue reencodedQueue $ QValue NewReencodedRip
+
+-- | An event in a `TerminatableQueue`: either a value or a termination signal.
+data QEvent a = QValue a | QFinish
+
+-- TODO use `Control.Concurrent.STM.TMQueue` instead?
+-- | A `TQueue` that sends data and can also send a termination signal.
+type TerminatableQueue a = TQueue (QEvent a)
+
+-- | Events in the `ReencodedQueue`. This type exists only for the logging, so
+-- that the initial RSS update doesn't print "New reencoded rip", which is
+-- incorrect.
+data ReencodedEvent = NewReencodedRip | InitialRSSUpdate
+
+-- | A queue of reencoded rips sends only empty values because the RSS updater
+-- lists and uses all the available files in the complete directory anyway. A
+-- reason to send the reencoded filename could be to point the updater to the
+-- newest file, but I'm not sure how to do that with `shake`, which needs only
+-- the target filename to produce.
+type ReencodedQueue = TerminatableQueue ReencodedEvent
+
+processReencodedRips :: RipConfigExt -> ReencodedQueue -> IO ()
+processReencodedRips config queue = go
+  where
+    go = do
+      event <- atomically $ readTQueue queue
+      case event of
+        QValue reencodedEvent -> do
+          putStrLn $ reencodedEventDescription reencodedEvent
+          updateRSS config
+          go
+
+        QFinish -> pure ()
+
+    reencodedEventDescription :: ReencodedEvent -> String
+    reencodedEventDescription NewReencodedRip = "New reencoded rip"
+    reencodedEventDescription InitialRSSUpdate = "Initial RSS update"
 
 ensureDirs :: RipConfigExt -> IO ()
 ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
@@ -71,169 +118,26 @@ ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
       ensureDir = createDirectoryIfMissing createParents
   forM_ [rawRipDir, doneRipDir] ensureDir
 
-newtype StreamURL = StreamURL Text
-  deriving newtype Show
-
-waitForStream :: RipConfigExt -> IO (Maybe StreamURL)
-waitForStream RipConfigExt{config} =
-  let ripName = ripDirName config
-  -- the `atp` support is hardcoded in the program because its live stream check
-  -- is more complicated and the stream URL needs to be extracted from the
-  -- status endpoint
-  -- FIXME support this via the config file
-  in if ripName == "atp" then
-    toProcessReady <$> runFor
-      (retryDelay config)
-      (duration config)
-      (fromProcessReady <$> waitForATP)
-    else pure $ Just originalStreamURL
-
-  where
-    originalStreamURL = StreamURL $ streamURL config
-
-    waitForATP :: IO (Maybe StreamURL)
-    waitForATP = handleError <=< runExceptT $ do
-      statusResponse <- liftIO . fmap getResponseBody . httpLBS $ parseRequest_ "https://atp.fm/livestream_status"
-      liftIO . TL.putStrLn $ TLE.decodeUtf8 statusResponse
-      status <- liftEither . eitherDecode @Object $ statusResponse
-
-      isLiveValue <- liftEither $ A.lookup "live" status <?> "Can't find `live` key"
-      isLive <- liftEither $ extractBool isLiveValue
-
-      if isLive then liftIO (Just <$> getStreamURL status) else pure Nothing
-
-    extractBool :: Value -> Either String Bool
-    extractBool (Bool b) = Right b
-    extractBool x = Left $ "Expected a bool, got " <> show x
-
-    asString :: Value -> Maybe String
-    asString (String t) = Just $ T.unpack t
-    asString _ = Nothing
-
-    getStreamURL :: Object -> IO StreamURL
-    getStreamURL status = fromMaybe originalStreamURL <$>
-      case A.lookup "player" status >>= asString of
-        Just player -> do
-          -- FIXME replace with a native Haskell solution
-          maybeAudioSourceSrc <- readCommandNonEmpty "htmlq" ["-a", "src", "audio source"] player
-          maybeAudioSrc <- readCommandNonEmpty "htmlq" ["-a", "src", "audio"] player
-          maybeFirstLink <- readCommandNonEmpty "sed" ["-nE", "s/.*\"(http[^\"]+)\".*/\\1/p"] player
-          -- if I understand correctly, all three values are not lazy and are
-          -- evaluated regardless of whether the previous one was a `Just`; if so,
-          -- it's not a big deal as this function isn't called often
-          let firstMaybe = getFirst $ foldMap First [maybeAudioSourceSrc, maybeAudioSrc, maybeFirstLink]
-          pure $ StreamURL . T.pack <$> firstMaybe
-
-        Nothing -> pure Nothing
-
-    -- | Wrapper around `readCommand` that returns `Nothing` if the output is
-    -- whitespace only.
-    readCommandNonEmpty :: String -> [String] -> String -> IO (Maybe String)
-    readCommandNonEmpty prog args input = readCommand prog args input <&> (>>= skipEmpty)
-
-    skipEmpty :: String -> Maybe String
-    skipEmpty s = let trimmed = trimSpace s
-      in if null trimmed then Nothing else Just trimmed
-
-    trimSpace :: String -> String
-    trimSpace = dropWhile isSpace . dropWhileEnd isSpace
-
-    handleError :: Either String (Maybe a) -> IO (Maybe a)
-    handleError (Right b) = pure b
-    handleError (Left err) = putStrLn err $> Nothing
-
-rip :: RipConfigExt -> StreamURL -> IO ()
-rip RipConfigExt{config, rawRipDir} (StreamURL url) =
+rip :: Ripper.RipsQueue -> RipConfigExt -> IO ()
+rip ripsQueue RipConfigExt{config, rawRipDir} =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir
-        , Ripper.optionsRipLength = duration config
-        , Ripper.optionsReconnectDelay = retryDelay config
-        , Ripper.optionsSmallReconnectDelay = RetryDelay $ durationSeconds 1
-        , Ripper.optionsStreamURL = url
+        , Ripper.optionsRipLength = Nothing
+        , Ripper.optionsRipIntervalRefs = ripIntervalRefs config
+        , Ripper.optionsPostRipEndDelays = postRipEndDelays config
+        , Ripper.optionsDefaultRipDelay = defaultRipperDelay config
+        , Ripper.optionsNoDataTimeout = noDataTimeout config
+        , Ripper.optionsStreamConfig = Ripper.StreamConfig (ripDirName config) (streamURL config)
         }
   -- note: this loop is not needed on its own because the ripper should already
   -- run for `durationSec`; however, this is a guard to restart it in case it
   -- throws an exception, so `catchExceptions` is required
-  in runFor (retryDelay config) (duration config) $ do
+  in forever $ do
     putStrLn "starting the ripper"
-    catchExceptions $ Ripper.run options
-
--- | Defines whether a step in the workflow is done and ready with some data `r`.
-data ProcessReadiness r = NotReady | Ready r
-  deriving (Eq, Show)
-
-fromProcessReady :: Maybe r -> ProcessReadiness r
-fromProcessReady (Just r) = Ready r
-fromProcessReady Nothing = NotReady
-
-toProcessReady :: ProcessReadiness r -> Maybe r
-toProcessReady (Ready r) = Just r
-toProcessReady NotReady = Nothing
-
--- | Defines the types that can represent process readiness flag, basically
--- `ProcessReadiness`, or `()` for cases when process readiness is meaningless.
--- The whole point of this typeclass is `showReadiness`, which returns `Nothing`
--- for `()` so that it's not logged! This is probably an overkill for
--- such a small use case and should be removed when/if process readiness logging
--- is removed, and there is no observable difference between the two instances.
-class ProcessReadinessType a where
-  mkNotReady :: a
-  readinessIsReady :: a -> Bool
-  showReadiness :: a -> Maybe String
-
-instance Show r => ProcessReadinessType (ProcessReadiness r) where
-  mkNotReady = NotReady
-  readinessIsReady = isJust . toProcessReady
-  showReadiness = Just . show
-
-instance ProcessReadinessType () where
-  mkNotReady = ()
-  readinessIsReady = const False
-  showReadiness = const Nothing
-
--- | Runs the given IO action repeatedly for the provided `duration` until it
--- returns the `Ready` state, with the `retryDelay` between each invocation.
--- If it isn't `Ready` until the `duration` expires, the final state is what
--- the action returns (that is, `NotReady`).
-runFor :: ProcessReadinessType r => RetryDelay -> Duration -> IO r -> IO r
-runFor retryDelay duration io = do
-  now <- getCurrentTime
-  let endTime = addUTCTime (toNominalDiffTime duration) now
-  putStrLn $ mconcat ["now ", show now, " + ", show duration, " = end time ", show endTime]
-  go endTime
-
-  where
-    go endTime = do
-      now <- getCurrentTime
-      let canRun = now < endTime
-      putStrLn $ mconcat ["now ", show now, "; can run: ", show canRun]
-
-      if canRun then do
-        processReadiness <- io
-
-        afterIO <- getCurrentTime
-        let nextNow = addUTCTime (toNominalDiffTime $ toDuration retryDelay) afterIO
-        let haveEnoughTimeForNextIteration = nextNow < endTime
-        putStrLn . mconcat $
-          [ "now ", show afterIO
-          , "; have enough time for next iteration: ", show haveEnoughTimeForNextIteration
-          ]
-          <> maybe [] (\s -> ["; process readiness: ", s]) (showReadiness processReadiness)
-
-        -- TODO how to split these two different concerns: wait until time and
-        -- wait until ready?
-        if readinessIsReady processReadiness then pure processReadiness
-        else if haveEnoughTimeForNextIteration then do
-          -- FIXME the same implementation as in `MonadTime`
-          threadDelay . toMicroseconds . toDuration $ retryDelay
-          go endTime
-        -- TODO is it possible to simplify the implementation? there are too
-        -- many return points here
-        else pure processReadiness
-
-      -- didn't manage to get the ready status before out-of-time => not ready
-      else pure mkNotReady
+    catchExceptions $ Ripper.run options ripsQueue
+    -- TODO handle most HTTP exceptions inside the ripper?
+    threadDelay . toMicroseconds $ durationSeconds 1
 
 -- | Catches synchronous exceptions (most importantly, IO exceptions) from the
 -- given IO action so that they don't crash the program (this should emulate the
@@ -254,18 +158,15 @@ sourceRipSuffix, reencodedRipSuffix :: IsString s => s
 sourceRipSuffix = "_src"
 reencodedRipSuffix = "_enc"
 
-reencodeRips :: RipConfigExt -> IO ()
-reencodeRips RipConfigExt{config, rawRipDir, doneRipDir} = do
-  rips <- fmap (rawRipDir </>) . filter ((== ".mp3") . takeExtension) <$> listDirectory rawRipDir
+reencodeRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
+reencodeRip RipConfigExt{config, doneRipDir} newRip = do
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  if not (null rips)
-  then forM_ rips (reencodeRip year)
-  else putStrLn $ "no files in " <> rawRipDir
+  reencodeRip' year $ Ripper.ripFilename newRip
 
   where
-    reencodeRip year ripName = do
+    reencodeRip' year ripName = do
       podTitle <- podTitleFromFilename ripName
-      let reencodedRip = doneRipDir </> takeBaseName ripName <> reencodedRipSuffix <.> "mp3"
+      let reencodedRip = reencodedRipNameFromOriginal doneRipDir ripName
           ffmpegArgs =
             [ "-nostdin"
             , "-hide_banner"
@@ -289,20 +190,6 @@ reencodeRips RipConfigExt{config, rawRipDir, doneRipDir} = do
           whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
           renameFile ripName $ doneRipDir </> takeBaseName ripName <> sourceRipSuffix <.> "mp3"
 
-readCommand :: String -> [String] -> String -> IO (Maybe String)
-readCommand prog args input = do
-  (code, out, err) <- readProcessWithExitCode prog args input
-  if code == ExitSuccess
-    then pure $ Just out
-    else do
-      putStrLn $ mconcat
-        [ "readCommand ("
-        , prog, " ", show args, " <<< ", input
-        , "): exit code ", show code
-        , "; stderr: ", err
-        ]
-      pure Nothing
-
 podTitleFromFilename :: FilePath -> IO String
 podTitleFromFilename name = fromMaybe "" <$> readCommand
   -- FIXME replace with a native Haskell solution
@@ -310,30 +197,36 @@ podTitleFromFilename name = fromMaybe "" <$> readCommand
   ["-nE", "s/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\\1-\\2-\\3 \\4:\\5:\\6/p"]
   name
 
+reencodedRipNameFromOriginal :: FilePath -> FilePath -> FilePath
+reencodedRipNameFromOriginal doneRipDir ripName = doneRipDir </> takeBaseName ripName <> reencodedRipSuffix <.> "mp3"
+
 {- |
- - discover previously failed to convert rips and try to reencode them again
- - (for example, this helps with the case when `ffmpeg` after an update fails
+ - discover previously failed to convert rips and try to reencode them again [0]
+ - and also discover and reencode original rips in the source dir, which may be
+ - there as a result of a crash
+ -
+ - [0] for example, this helps with the case when `ffmpeg` after an update fails
  - to run (`GLIBC` ld error) and reencode the fresh rips, then a fix comes and
- - we can try reencoding those older ones again)
- - this needs to happen before reencoding fresh rips because if those fail, they
- - would be attempted to be reencoded again in this run, which isn't very useful
+ - we can try reencoding those older ones again
  -}
-reencodePreviousRips :: RipConfigExt -> IO ()
-reencodePreviousRips RipConfigExt{config, doneRipDir} = do
-  rips <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
+reencodePreviousRips :: RipConfigExt -> ReencodedQueue -> IO ()
+reencodePreviousRips RipConfigExt{config, doneRipDir, rawRipDir} queue = do
+  ripSources <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
+  ripOriginals <- fmap (rawRipDir </>) . filter isMP3 <$> listDirectory rawRipDir
+  let ripsSources' = (\ripName -> (ripName, T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName)) <$> ripSources
+      ripOriginals' = (\ripName -> (ripName, reencodedRipNameFromOriginal doneRipDir ripName)) <$> ripOriginals
+      rips = ripsSources' <> ripOriginals'
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  forM_ rips (reencodeRip year)
+  forM_ rips (reencodeRip' year)
 
   where
+    isMP3 = (== ".mp3") . takeExtension
     previouslyFailedRip f = all ($ f)
-      [ (== ".mp3") . takeExtension
-      , (sourceRipSuffix `isSuffixOf`) . takeBaseName
-      ]
+      [isMP3, (sourceRipSuffix `isSuffixOf`) . takeBaseName]
 
-    reencodeRip year ripName = do
+    reencodeRip' year (ripName, reencodedRip) = do
       podTitle <- podTitleFromFilename ripName
-      let reencodedRip = T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName
-          ffmpegArgs =
+      let ffmpegArgs =
             [ "-nostdin"
             , "-hide_banner"
             , "-y"
@@ -351,7 +244,9 @@ reencodePreviousRips RipConfigExt{config, doneRipDir} = do
             ]
       code <- ffmpeg ffmpegArgs ripName
       if code == ExitSuccess
-        then removeFile ripName
+        then do
+          removeFile ripName
+          atomically $ writeTQueue queue $ QValue NewReencodedRip
         else do
           putStrLn $ mconcat ["reencoding ", ripName, " failed again; leaving as is for now"]
           whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
@@ -365,10 +260,9 @@ ffmpeg args ripName = do
   pure code
 
 updateRSS :: RipConfigExt -> IO ()
-updateRSS RipConfigExt{config, doneBaseDir} =
-  withCurrentDirectory doneBaseDir $ RSSGen.run rssName
+updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
   -- FIXME replace `ripDirName` with the requested rip name and remove the field
-  where rssName = NE.singleton $ T.unpack (ripDirName config) <.> "rss"
+  where rssName = doneBaseDir </> T.unpack (ripDirName config) <.> "rss"
 
 -- | Checks for the (legacy) `END_TIMESTAMP` environment variable: the value of
 -- `0` means "skip the ripping part"; all other values aren't supported at the
@@ -381,23 +275,3 @@ getSkipRipping = do
     Just "0" -> pure True
     Just x -> do
       die $ mconcat ["END_TIMESTAMP envvar: only value `0` is supported, ", show x, " given; terminating"]
-
-extendConfig :: RipConfig -> RipConfigExt
-extendConfig config =
-  let
-      -- | The output directory for raw rips recorded by ripper.
-      rawRipDir = T.unpack $ ripDirName config
-      -- | The base directory for complete rips; this should be mounted from S3.
-      doneBaseDir = "complete"
-      doneRipDir = doneBaseDir </> rawRipDir
-  in RipConfigExt{config, rawRipDir, doneRipDir, doneBaseDir}
-
-getConfDir :: IO FilePath
-getConfDir = do
-  maybeConfDir <- lookupEnv "CONF_DIR"
-  pure $ fromMaybe "/usr/share/podripper" maybeConfDir
-
--- infix 7 <?>
-(<?>) :: Maybe a -> b -> Either b a
-Just x <?> _ = Right x
-Nothing <?> e = Left e

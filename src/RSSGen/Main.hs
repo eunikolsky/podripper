@@ -11,9 +11,8 @@ import Control.Monad.IO.Unlift
 import Control.Monad.Logger.CallStack
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
+import Data.Functor
 import Data.List (intercalate, sortOn)
-import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NE
 import Data.Maybe
 import Data.Ord (Down(..))
 import qualified Data.Text as T
@@ -24,8 +23,10 @@ import Development.Shake
 import Development.Shake.Classes
 import Development.Shake.FilePath
 import GHC.Generics
+import Network.HTTP.Simple
 import Options.Applicative
-import qualified System.Environment as Env
+import UnliftIO.Directory qualified as D
+import UnliftIO.Exception
 
 import qualified Paths_ripper as Paths (version)
 import RSSGen.Database
@@ -51,7 +52,7 @@ import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 -- the item doesn't change (there are two layers of caching here though: one is
 -- the database for all items and the other is `shake` for this particular
 -- item).
-newtype UpstreamItem = UpstreamItem (UpstreamRSSFeed.PodcastId, RSSFeedConfig, Maybe UTCRipTime)
+newtype UpstreamItem = UpstreamItem (UpstreamRSSFeed.PodcastId, FilePath, RSSFeedConfig, Maybe UTCRipTime)
   deriving newtype (Show, Typeable, Eq, Hashable, Binary, NFData)
   deriving (Generic)
 type instance RuleResult UpstreamItem = Maybe UpstreamRSSFeed.UpstreamRSSItem
@@ -61,25 +62,25 @@ newtype RSSGenVersion = RSSGenVersion ()
   deriving (Generic)
 type instance RuleResult RSSGenVersion = Version
 
--- | CLI options parser to get the RSS filenames (if any) that should be built.
+-- | CLI options parser to get the RSS filename that should be built.
 -- This replaces `shake`'s built-in parser as it can't be used now since this
 -- RSS generator is one of the commands in the executable. This parser only
--- parses target filenames, so all `shake` options are hardcoded.
-rssGenParser :: Parser (NonEmpty FilePath)
-rssGenParser = fmap (fromMaybe handleNothing . NE.nonEmpty) . some $ strArgument
-  ( help "RSS filenames to build"
-  <> metavar "RSS_FILE..."
+-- parses target filename, so all the `shake` options are hardcoded.
+rssGenParser :: Parser FilePath
+rssGenParser = strArgument
+  ( help "RSS filename to build"
+  <> metavar "RSS_FILE"
   )
 
-  where handleNothing = error "Impossible: empty list from `some`"
-
-run :: NonEmpty FilePath -> IO ()
-run filenames = do
-  shakeDir <- fromMaybe "/var/lib/podripper/shake" <$> Env.lookupEnv "SHAKE_DIR"
-  let shakeOpts = shakeOptions
+run :: FilePath -> IO ()
+run filename = do
+  -- the expected `filename` is `complete/foo.rss`, thus the directory for shake
+  -- files is `complete/foo`, the same dir where the final rips are stored
+  let shakeDir = dropExtension filename
+      shakeOpts = shakeOptions
         { shakeFiles = shakeDir
         , shakeColor = True
-        , shakeVerbosity = Diagnostic
+        , shakeVerbosity = Verbose
         , shakeLint = Just LintBasic
         }
 
@@ -88,23 +89,31 @@ run filenames = do
   -- TODO this function doesn't print the final status message "Build completed in Xs"
   -- even though `shakeArgs` did that by default
   shake shakeOpts $ do
-    want $ NE.toList filenames
+    want [filename]
 
     void . addOracle $ \RSSGenVersion{} -> return Paths.version
 
-    pollRSSItem <- addOracle $ \(UpstreamItem (podcastId, feedConfig, maybeRipTime)) ->
-      pollUpstreamRSSIfPossible podcastId feedConfig maybeRipTime
+    pollRSSItem <- addOracle $ \(UpstreamItem (podcastId, relPath, feedConfig, maybeRipTime)) ->
+      pollUpstreamRSSIfPossible podcastId relPath feedConfig maybeRipTime
 
-    versioned 24 $ "*.rss" %> \out -> do
+    -- note: this pattern supports relative paths to `.rss` now to be able to
+    -- generate the RSS from the podripper's root data directory (parent of
+    -- `complete/`); however generating the same RSS from `complete/` and from
+    -- its parent seems to rebuild it every time
+    versioned 30 $ "//*.rss" %> \out -> do
       configDir <- getEnvWithDefault "/usr/share/podripper" "CONF_DIR"
-      let podcastTitle = dropExtension out
+      let podcastTitle = takeBaseName out
+          relPath = takeDirectory out
+          ripDir = dropExtension out
       (feedConfig, feedConfigFiles) <- liftIO $ parseFeedConfig configDir podcastTitle
       need feedConfigFiles
       case feedConfig of
-        Just config ->
-          actionWithDatabase DefaultFile $ \conn -> do
+        Just config -> do
+          copyDatabaseToRipDirIfNecessary relPath ripDir
+
+          actionWithDatabase (DefaultFile ripDir) $ \conn -> do
             let podcastId = T.pack podcastTitle
-            ripFiles <- getRipFilesNewestFirst podcastId
+            ripFiles <- getRipFilesNewestFirst relPath podcastId
             -- generate the feed with what we have immediately without possibly
             -- waiting for the upstream feed updates
             generateFeed config conn out podcastId ripFiles
@@ -114,7 +123,7 @@ run filenames = do
             -- main effect is to update the database because we'll need all
             -- items for all found rips; the result value is used by `shake` to
             -- determine whether to generate the feed
-            void . pollRSSItem $ UpstreamItem (podcastId, config, maybeNewestRipTime)
+            void . pollRSSItem $ UpstreamItem (podcastId, ripDir, config, maybeNewestRipTime)
             -- generate the feed again after possibly getting some upstream feed
             -- updates
             generateFeed config conn out podcastId ripFiles
@@ -122,6 +131,21 @@ run filenames = do
         Nothing -> fail
           $ "Couldn't parse feed config files "
           <> intercalate ", " feedConfigFiles
+
+-- | Copies the episodes database from the shared directory (`complete/`) into
+-- the rip's directory (`complete/foo/`) if it doesn't have one yet. Note that
+-- the database is copied as is, without cleaning up the data for other rips.
+-- We also can't remove the shared database here because it may still be needed
+-- by other rips.
+copyDatabaseToRipDirIfNecessary :: MonadIO m => FilePath -> FilePath -> m ()
+copyDatabaseToRipDirIfNecessary completeDir ripDir = do
+  let completeDB = dbFileName $ DefaultFile completeDir
+      ripDB = dbFileName $ DefaultFile ripDir
+  completeDBExists <- D.doesFileExist completeDB
+  ripDBExists <- D.doesFileExist ripDB
+  when (not ripDBExists && completeDBExists) $ do
+    liftIO . putStrLn $ mconcat ["Copying the database ", completeDB, " into ", ripDB]
+    D.copyFile completeDB ripDB
 
 -- | Allows to define an `Action` that has an exception-safe access to the
 -- database.
@@ -134,13 +158,14 @@ actionWithDatabase :: FileSpec -> (DBConnection -> Action a) -> Action a
 actionWithDatabase f = actionBracket (openDatabase f) closeDatabase
 
 -- | Returns a list of `RipFile`s for the given podcast, sorted from newest to
--- oldest.
-getRipFilesNewestFirst :: UpstreamRSSFeed.PodcastId -> Action [RipFile]
-getRipFilesNewestFirst podcastTitle = do
+-- oldest. `relPath` is the path to the `complete/` directory relative to the
+-- current directory; it's expected to be `complete` or `.`.
+getRipFilesNewestFirst :: FilePath -> UpstreamRSSFeed.PodcastId -> Action [RipFile]
+getRipFilesNewestFirst relPath podcastTitle = do
   -- we need the audio files to generate the RSS, which are in the
   -- directory of the same name as the podcast title
-  mp3Files <- getDirectoryFiles "" [T.unpack podcastTitle </> "*.mp3"]
-  liftIO $ newestFirst . catMaybes <$> traverse ripFileFromFile mp3Files
+  mp3Files <- getDirectoryFiles relPath [T.unpack podcastTitle </> "*.mp3"]
+  liftIO $ newestFirst . catMaybes <$> traverse (ripFileFromFile relPath) mp3Files
 
 -- | Generates the feed at the requested path.
 generateFeed :: RSSFeedConfig -> DBConnection -> FilePattern -> UpstreamRSSFeed.PodcastId -> [RipFile] -> Action ()
@@ -170,8 +195,8 @@ eitherToMaybe (Right x) = Just x
 -- | Runs `pollUpstreamRSS` if the (newest) `UTCRipTime` is available, that is if
 -- there are any files for the given podcast and the upstream feed is set.
 pollUpstreamRSSIfPossible :: MonadIO m
-  => UpstreamRSSFeed.PodcastId -> RSSFeedConfig -> Maybe UTCRipTime -> m (Maybe UpstreamRSSFeed.UpstreamRSSItem)
-pollUpstreamRSSIfPossible podcastId RSSFeedConfig{upstreamFeedConfig} maybeNewestRipTime =
+  => UpstreamRSSFeed.PodcastId -> FilePath -> RSSFeedConfig -> Maybe UTCRipTime -> m (Maybe UpstreamRSSFeed.UpstreamRSSItem)
+pollUpstreamRSSIfPossible podcastId relPath RSSFeedConfig{upstreamFeedConfig} maybeNewestRipTime =
   case (maybeNewestRipTime, upstreamFeedConfig) of
     (Just ripTime, Just config) -> liftIO $ poll ripTime config
     _ -> pure Nothing
@@ -181,7 +206,7 @@ pollUpstreamRSSIfPossible podcastId RSSFeedConfig{upstreamFeedConfig} maybeNewes
       now <- getCurrentTime
       let pollingEndTime = addUTCTime (toNominalDiffTime pollingDuration) now
 
-      withDatabase DefaultFile $ \conn -> runStderrLoggingT $
+      withDatabase (DefaultFile relPath) $ \conn -> runStderrLoggingT $
         pollUpstreamRSS podcastId upstreamConfig pollingRetryDelay pollingEndTime conn ripTime
 
 -- | Waits until we have an upstream RSS item for the given (newest) rip. First,
@@ -192,15 +217,21 @@ pollUpstreamRSSIfPossible podcastId RSSFeedConfig{upstreamFeedConfig} maybeNewes
 pollUpstreamRSS :: (MonadTime m, MonadThrow m, MonadLogger m, MonadUnliftIO m)
   -- TODO too many parameters?
   => UpstreamRSSFeed.PodcastId -> UpstreamFeedConfig -> RetryDelay -> UTCTime -> DBConnection -> UTCRipTime -> m (Maybe UpstreamRSSFeed.UpstreamRSSItem)
-pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime =
+pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime = do
+  -- do a one-shot request for the RSS (no polling) in order to retrieve the
+  -- latest version in case anything has changed, even though we might
+  -- already have a matching upstream item
+  processUpstreamRSS $ \conn' url ->
+    handle (\e -> httpExceptionHandler e $> mempty) $ getFile httpBS conn' url
+
   fromStepResult <$> runUntil "pollRSS" retryDelay endTime iter
 
   where
     checkUpstreamItemForRipTime = liftIO $ findUpstreamItem podcastTitle upstreamFeedConfig conn (toUTCTime ripTime)
 
-    -- | Polls for upstream RSS changes, parses the RSS if any and saves the
-    -- items in the database.
-    processUpstreamRSS = void . runMaybeT $ do
+    -- | Gets the upstream RSS (whether it's polling, is dependent on `getRSS`),
+    -- parses the RSS if any and saves the items in the database.
+    processUpstreamRSS getRSS = void . runMaybeT $ do
       -- I had to remove the `MonadTrans` wrapper from `runUntil` (and
       -- thus pollHTTP`), which would allow the repeated action not to
       -- require unnecessary constraints (e.g. `MonadTime`), but
@@ -211,7 +242,7 @@ pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime 
       -- Expected: IO (Maybe Bytes)
       -- Actual: t0 m0 (Maybe Bytes)
       let url = T.unpack $ upstreamRSSURL upstreamFeedConfig
-      bytes <- MaybeT $ pollHTTP retryDelay endTime conn url
+      bytes <- MaybeT $ getRSS conn url
       let text = TE.decodeUtf8 bytes
       allItems <- MaybeT . pure . eitherToMaybe $ UpstreamRSSFeed.parse podcastTitle text
       let items = limitItems upstreamFeedConfig allItems
@@ -223,7 +254,7 @@ pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime 
       case maybeUpstreamItemForRipTime of
         Just item -> pure $ Result item
         Nothing -> do
-          processUpstreamRSS
+          processUpstreamRSS $ pollHTTP retryDelay endTime
 
           -- since the polling above may take a while, we want to check whether
           -- it has produced the upstream item that we need right after
