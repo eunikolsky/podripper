@@ -29,7 +29,7 @@ main = do
   case progOptions of
     RunOptions ripName -> Podripper.run ripName
     RipperOptions options -> atomically newTQueue >>= Ripper.run options
-    RSSGenOptions files -> RSSGen.run files
+    RSSGenOptions file -> RSSGen.run file
 
 programOptions :: Parser ProgramOptions
 programOptions = hsubparser $ mconcat
@@ -47,7 +47,7 @@ programOptions = hsubparser $ mconcat
 data ProgramOptions
   = RunOptions Run.RipName
   | RipperOptions Options
-  | RSSGenOptions (NonEmpty FilePath)
+  | RSSGenOptions FilePath
 
 -- | Sets the line buffering mode for `stdout` and `stderr` to make sure log
 -- lines are displayed promptly and in order.

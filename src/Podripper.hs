@@ -8,7 +8,6 @@ import Control.Exception (AsyncException, throw)
 import Control.Monad
 import Data.Maybe
 import Data.List (isSuffixOf)
-import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
@@ -263,7 +262,7 @@ ffmpeg args ripName = do
 updateRSS :: RipConfigExt -> IO ()
 updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
   -- FIXME replace `ripDirName` with the requested rip name and remove the field
-  where rssName = NE.singleton $ doneBaseDir </> T.unpack (ripDirName config) <.> "rss"
+  where rssName = doneBaseDir </> T.unpack (ripDirName config) <.> "rss"
 
 -- | Checks for the (legacy) `END_TIMESTAMP` environment variable: the value of
 -- `0` means "skip the ripping part"; all other values aren't supported at the

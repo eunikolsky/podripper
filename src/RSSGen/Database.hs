@@ -16,6 +16,9 @@ module RSSGen.Database
   -- * persisting download cache items
   , getCacheItem
   , setCacheItem
+
+  -- * implementation details
+  , dbFileName
   ) where
 
 import Control.Exception
