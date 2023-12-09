@@ -81,7 +81,18 @@ run filename = do
         { shakeFiles = shakeDir
         , shakeColor = True
         , shakeVerbosity = Verbose
-        , shakeLint = Just LintBasic
+        -- disable linting because it may produce unexpected crashes, for
+        -- example the recent one was like this:
+        -- ```
+        -- ripper-exe: Lint checking error - value has changed since being depended upon:
+        --    Key:  getDirectoryFiles complete [foo/*.mp3]
+        --    Old:  (foo/file0_enc.mp3,"")
+        --    New:  foo/file0_enc.mp3 foo/file1_enc.mp3 …
+        -- ```
+        -- which happened because the first file got recorded, reencoded and was
+        -- polling for the upstream RSS while other files got recorded too; it
+        -- works as designed, so no need to crash here
+        , shakeLint = Nothing
         }
 
   -- `shake` doesn't parse any CLI options itself, unlike `shakeArgs`
