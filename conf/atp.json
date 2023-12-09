@@ -1,13 +1,15 @@
 {
   "streamURL": "https://atp.fm:8443/listen",
   "ripIntervals": [
-    "We 19:30-22:30 America/New_York: 30s"
+    "We 19:50-21:30 America/New_York: 30s",
+    "Mo 19:50-21:20 America/New_York: 2m",
+    "Tu 19:50-21:20 America/New_York: 2m"
   ],
   "postRipEndDelays": [
-    "[< 5m]: 2s",
-    "[< 15m]: 6s"
+    "[< 3m]: 3s",
+    "[< 10m]: 10s"
   ],
-  "defaultRipperDelay": "10m",
+  "defaultRipperDelay": "12m",
   "noDataTimeout": "4s",
   "ripDirName": "atp",
   "podArtist": "Marco Arment, Casey Liss, and John Siracusa",

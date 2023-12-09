@@ -1,12 +1,13 @@
 {
   "streamURL": "https://stream.rcmp.me/stream",
   "ripIntervals": [
-    "Fr 14:30-19:00 America/Toronto: 10s",
-    "Sa 05:30-08:30 America/Toronto: 30s"
+    "Fr 14:30-18:30 America/Toronto: 25s",
+    "Sa 06:00-07:30 America/Toronto: 30s",
+    "Th 09:50-10:30 America/Toronto: 1m"
   ],
   "postRipEndDelays": [
-    "[< 5m]: 1s",
-    "[< 15m]: 5s"
+    "[< 3m]: 1s",
+    "[< 10m]: 5s"
   ],
   "defaultRipperDelay": "10m",
   "noDataTimeout": "4s",
