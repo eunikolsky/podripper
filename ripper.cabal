@@ -25,6 +25,10 @@ source-repository head
 
 library
   exposed-modules:
+      MP3.AttoparsecExtra
+      MP3.ID3
+      MP3.ID3V1
+      MP3.MP3
       Podripper
       RipConfig
       Ripper.ATPLiveStreamCheck
