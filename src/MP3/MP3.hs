@@ -2,26 +2,23 @@
 
 module MP3.MP3
   ( AudioDuration(..)
+  , frameDuration
   , frameParser
   , getFrameData
   , maybeFrameParser
-  , mp3Parser
   ) where
 
 import Control.Applicative
 import Control.Monad
 import Data.Attoparsec.ByteString ((<?>), Parser)
 import Data.Attoparsec.ByteString qualified as A
-import Data.Attoparsec.Combinator qualified as A (lookAhead)
 import Data.Bits
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
-import Data.ByteString.Builder qualified as BSB
 import Data.Word
-import MP3.AttoparsecExtra
 import Text.Printf
 
--- | Duration of an MP3 file, in seconds.
+-- | Audio duration of an MP3 frame/file, in seconds.
 newtype AudioDuration = AudioDuration { getAudioDuration :: Double }
   deriving newtype (Eq, Ord, Fractional, Num)
 
@@ -58,6 +55,13 @@ data MaybeFrame = Valid Frame | Junk
 -- | Parser for MP3 streams that either parses a valid frame, or some junk until
 -- something that looks like a valid frame start (so the next parse result may
 -- also be junk).
+--
+-- Junk is likely to appear at the start when you dump an internet MP3 stream
+-- connecting at an arbitrary point in time. I don't think ID3 tags are present
+-- in such streams (ICY metadata can be used instead). I suppose if a stream
+-- ends successfully, the server (such as `icecast`) should send the complete
+-- last frame. However in case of a disconnect, you're likely to receive a
+-- partial frame, which is also junk.
 maybeFrameParser :: Parser MaybeFrame
 maybeFrameParser = (Valid <$> frameParser)
   -- `anyWord8` before `skipWhile` is crucial here to avoid an infinite loop
@@ -66,85 +70,6 @@ maybeFrameParser = (Valid <$> frameParser)
   -- junk, so we skip it
   <|> (Junk <$ (A.anyWord8 *> A.skipWhile (/= 0xff)))
 
--- | Parses an MP3 (MPEG1/MPEG2 Layer III) file and returns the audio duration.
--- An accepted MP3 file:
---
--- - optionally starts with a leftover from a previous frame [0][1];
---
--- - consists of 1+ MP3 frames, where a frame may be followed by an optional
--- extra byte;
---
--- - optionally ends with a piece of the next frame [0][2].
---
--- [0] From parser's point of view, these pieces are junk. They appear when you
--- dump an internet MP3 stream connecting at an arbitrary point in time. In a
--- valid MP3 stream, the junk must be shorter than the longest frame's size
--- (1440 bytes). I don't think ID3 tags are present in such streams (ICY
--- metadata can be used instead).
---
--- [1] It can include bytes that look like a valid frame start (`fffb` + 2 bytes)
--- and not be one. It's better to require two sequential valid frames to
--- filter out junk correctly (by reading this possible frame and check whether
--- the next frame is located right after this one because it is very unlikely
--- that the stream will have random `fffb`s at the correct spacings), but to
--- simplify stream parsing, we accept a frame if it could be parsed; if it's
--- actually junk, the rest of the bytes until the next frame will be skipped, so
--- this should work fine overall.
---
--- [2] I suppose if a stream ends successfully, the server (such as `icecast`)
--- should send the complete last frame. However in case of a disconnect, you're
--- likely to receive a partial frame. The parser expects to read a valid frame
--- header and then any truncated data (if the frame isn't truncated, it was
--- already parsed by the frame parsing loop above); if the junk doesn't start
--- with a complete frame header (4 bytes), parsing fails; the parser could
--- accept any junk, but then it would be too generic, could fail somewhere in the
--- middle of a file and hide more specific errors.
-mp3Parser :: Parser AudioDuration
-mp3Parser = do
-  firstFrame <- parseFirstFrame
-  frames <- A.many' $ retryingAfterOneByte frameParser
-
-  -- if we're here, all the sequential valid MP3 frames have been parsed,
-  -- so try parsing the last, truncated frame if any;
-  -- it must start with a valid frame header, or the parser fails
-  void . optional $ frameHeaderParser >> A.takeLazyByteString
-  endOfInput
-  pure . sum $ frameDuration <$> firstFrame : frames
-
--- | Runs the parser `p` and if it fails, skips one byte and runs `p` again —
--- this retry is done only once. It's used to parse MP3 frames with a possible
--- extra byte after a frame; several older episodes of "Accidental Tech Podcast"
--- and "Under the Radar" have a single null byte in addition to the already
--- present padding; an "Under the Radar" episode has an `0xa8` byte, which is
--- probably an audio byte and could be anything.
-retryingAfterOneByte :: Parser a -> Parser a
-retryingAfterOneByte p = p <|> (A.anyWord8 >> p)
-
--- | Parses the first MP3 frame of a file skipping any leftovers from a previous
--- frame. If the parser has skipped more than 1440 bytes (the max MP3 frame
--- size) and hasn't found a valid frame header, this is an invalid MP3 stream.
-parseFirstFrame :: Parser Frame
-parseFirstFrame = frameParser <|> findFirstFrame (SkippedBytesCount 1)
-  where
-    maxFrameSize = 1440
-
-    findFirstFrame :: SkippedBytesCount -> Parser Frame
-    findFirstFrame skippedCount
-      | skippedCount >= maxFrameSize = fail "Couldn't find a valid MP3 frame after skipping leading junk"
-      | otherwise = do
-        -- this skips a single byte to retry frames parsing from the next position
-        -- one byte skipping isn't very efficient and may or may not be slow;
-        -- however for a valid MP3 file, this junk is limited in size; an
-        -- alternative is to skip until a `0xff` byte, which is only a part of a
-        -- valid frame header, but that leaks lower-level details (of
-        -- `frameParser`) into this higher-level parser
-        -- TODO benchmark this and skip to `0xff` if necessary
-        void A.anyWord8
-        frameParser <|> findFirstFrame (skippedCount + 1)
-
-newtype SkippedBytesCount = SkippedBytesCount Int
-  deriving newtype (Num, Eq, Ord)
-
 frameDuration :: Frame -> AudioDuration
 frameDuration Frame{fInfo=FrameInfo{fiMPEGVersion,fiSamplingRate}} =
   AudioDuration . (samplesPerFrame fiMPEGVersion /) $ samplingRateHz fiSamplingRate
@@ -152,20 +77,6 @@ frameDuration Frame{fInfo=FrameInfo{fiMPEGVersion,fiSamplingRate}} =
 samplesPerFrame :: Num a => MPEGVersion -> a
 samplesPerFrame MPEG1 = 1152
 samplesPerFrame MPEG2 = 576
-
--- | Expects an end-of-input. If it fails [1], there is a failure message
--- containing the current position and next 4 bytes — this helps with parser
--- debugging and improvement.
---
--- [1] which may happen when there is junk in between mp3 frames, so the parser
--- takes all the frames before the junk and then expects an EOF
-endOfInput :: Parser ()
-endOfInput = do
-  pos <- getPos
-  nextBytes <- A.lookAhead $ takeUpTo 4
-  let restDump = show . BSB.byteStringHex $ nextBytes
-  A.endOfInput <?>
-    printf "Expected end-of-file at byte %#x (%u), but got %s" pos pos restDump
 
 -- | Parses the header of an MP3 frame and returns its `FrameInfo`, header bytes
 -- and the number of extra bytes to read for this frame.
