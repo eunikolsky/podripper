@@ -16,8 +16,6 @@ import Data.ByteString.Builder qualified as BSB
 import Data.List (singleton)
 import Data.Word
 import MP3.AttoparsecExtra
-import MP3.ID3 qualified as ID3V2
-import MP3.ID3V1 qualified as ID3V1
 import Text.Printf
 
 -- | Duration of an MP3 file, in seconds.
@@ -72,20 +70,20 @@ data FrameInfo = FrameInfo
 -- middle of a file and hide more specific errors.
 mp3Parser :: Parser AudioDuration
 mp3Parser = do
-  _ <- optional $ do
+  {-_ <- optional $ do
     ID3V2.id3Parser
     -- even though this padding is only skipped if it's after ID3, it's
     -- technically not a part of it, that's why it's not defined in `id3Parser`
-    skipPostID3Padding
+    skipPostID3Padding-}
 
   firstSamplingRates <- parseFirstFrames
   samplingRates <- A.many' $ retryingAfterOneByte frameParser
 
-  ID3V1.id3Parser <|>
-    -- if we're here, all the sequential valid MP3 frames have been parsed and
-    -- there is no ID3 v1 tag, so try parsing the last, truncated frame if any;
-    -- it must start with a valid frame header, or the parser fails
-    (void . optional $ frameHeaderParser >> A.takeLazyByteString)
+  --ID3V1.id3Parser <|>
+  -- if we're here, all the sequential valid MP3 frames have been parsed and
+  -- there is no ID3 v1 tag, so try parsing the last, truncated frame if any;
+  -- it must start with a valid frame header, or the parser fails
+  void . optional $ frameHeaderParser >> A.takeLazyByteString
   endOfInput
   pure . sum $ frameDuration <$> firstSamplingRates <> samplingRates
 
@@ -157,8 +155,8 @@ endOfInput = do
 --
 -- These bytes are outside of the tag size (in the tag header); I couldn't find
 -- posts online explaining this issue. `mp3diags` shows them as an "unknown stream".
-skipPostID3Padding :: Parser ()
-skipPostID3Padding = A.skip (== 0x20) <|> A.skipWhile (== 0)
+--skipPostID3Padding :: Parser ()
+--skipPostID3Padding = A.skip (== 0x20) <|> A.skipWhile (== 0)
 
 -- | Parses the header of an MP3 frame and returns its `FrameInfo` and the
 -- number of bytes to read for this frame.
