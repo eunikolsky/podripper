@@ -35,17 +35,12 @@ data FrameInfo = FrameInfo
 -- | Parses an MP3 (MPEG1/MPEG2 Layer III) file and returns the audio duration.
 -- An accepted MP3 file:
 --
--- - optionally starts with:
---   - an ID3 v2.{2,3,4} tag, which may be followed by a single space or a
---   block of null bytes;
---   - or a leftover from a previous frame [0][1];
+-- - optionally starts with a leftover from a previous frame [0][1];
 --
 -- - consists of 1+ MP3 frames, where a frame may be followed by an optional
 -- extra byte;
 --
--- - optionally ends with:
---   - an ID3 v1 tag;
---   - or a piece of the next frame [0][2].
+-- - optionally ends with a piece of the next frame [0][2].
 --
 -- [0] From parser's point of view, these pieces are junk. They appear when you
 -- dump an internet MP3 stream connecting at an arbitrary point in time. In a
@@ -70,18 +65,11 @@ data FrameInfo = FrameInfo
 -- middle of a file and hide more specific errors.
 mp3Parser :: Parser AudioDuration
 mp3Parser = do
-  {-_ <- optional $ do
-    ID3V2.id3Parser
-    -- even though this padding is only skipped if it's after ID3, it's
-    -- technically not a part of it, that's why it's not defined in `id3Parser`
-    skipPostID3Padding-}
-
   firstFrameInfos <- parseFirstFrames
   frameInfos <- A.many' $ retryingAfterOneByte frameParser
 
-  --ID3V1.id3Parser <|>
-  -- if we're here, all the sequential valid MP3 frames have been parsed and
-  -- there is no ID3 v1 tag, so try parsing the last, truncated frame if any;
+  -- if we're here, all the sequential valid MP3 frames have been parsed,
+  -- so try parsing the last, truncated frame if any;
   -- it must start with a valid frame header, or the parser fails
   void . optional $ frameHeaderParser >> A.takeLazyByteString
   endOfInput
@@ -144,19 +132,6 @@ endOfInput = do
   let restDump = show . BSB.byteStringHex $ nextBytes
   A.endOfInput <?>
     printf "Expected end-of-file at byte %#x (%u), but got %s" pos pos restDump
-
--- | Skips stray bytes that may be present between the end of the ID3 tag and
--- the first frame:
--- * (at least) two episodes of "Cold War Conversations" have 10 null bytes, but
--- it should be safe to skip any number of them because an MP3 frame should
--- start with `0xff` anyway;
--- * multiple "Reply All" and "Darknet Diaries" episodes have a single space
--- character.
---
--- These bytes are outside of the tag size (in the tag header); I couldn't find
--- posts online explaining this issue. `mp3diags` shows them as an "unknown stream".
---skipPostID3Padding :: Parser ()
---skipPostID3Padding = A.skip (== 0x20) <|> A.skipWhile (== 0)
 
 -- | Parses the header of an MP3 frame and returns its `FrameInfo` and the
 -- number of bytes to read for this frame.
