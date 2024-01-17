@@ -38,8 +38,14 @@ ripperParser = Options
             )
   <*> optional (
       strOption ( short 'd'
-                <> help "Directory to put rips into"
-                <> metavar "DIR"
+                <> help "Directory to put raw rips into"
+                <> metavar "RAW_RIPS_DIR"
+                )
+      )
+  <*> optional (
+      strOption ( short 'c'
+                <> help "Directory to put clean rips into"
+                <> metavar "CLEAN_RIPS_DIR"
                 )
       )
   <*> (Just <$> option duration

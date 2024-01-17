@@ -48,6 +48,8 @@ data RipConfigExt = RipConfigExt
   { config :: !RipConfig
   , rawRipDir :: !FilePath
   -- ^ The output directory for raw rips recorded by ripper.
+  , cleanRipDir :: !FilePath
+  -- ^ The output directory for clean rips recorded by ripper.
   , trashRawRipDir :: !FilePath
   -- ^ The "trash" directory for raw rips for easier debugging.
   , doneRipDir :: !FilePath
@@ -71,7 +73,8 @@ extendConfig :: RipConfig -> RipConfigExt
 extendConfig config =
   let
       rawRipDir = T.unpack $ ripDirName config
+      cleanRipDir = rawRipDir </> "clean"
       trashRawRipDir = rawRipDir </> "trash"
       doneBaseDir = "complete"
       doneRipDir = doneBaseDir </> rawRipDir
-  in RipConfigExt{config, rawRipDir, trashRawRipDir, doneRipDir, doneBaseDir}
+  in RipConfigExt{config, rawRipDir, cleanRipDir, trashRawRipDir, doneRipDir, doneBaseDir}

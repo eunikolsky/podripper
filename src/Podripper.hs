@@ -119,10 +119,11 @@ ensureDirs RipConfigExt{rawRipDir, trashRawRipDir, doneRipDir} = do
   forM_ [rawRipDir, trashRawRipDir, doneRipDir] ensureDir
 
 rip :: Ripper.RipsQueue -> RipConfigExt -> IO ()
-rip ripsQueue RipConfigExt{config, rawRipDir} =
+rip ripsQueue RipConfigExt{config, rawRipDir, cleanRipDir} =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
         , Ripper.optionsOutputDirectory = Just rawRipDir
+        , Ripper.optionsCleanRipsDirectory = Just cleanRipDir
         , Ripper.optionsRipLength = Nothing
         , Ripper.optionsRipIntervalRefs = ripIntervalRefs config
         , Ripper.optionsPostRipEndDelays = postRipEndDelays config
