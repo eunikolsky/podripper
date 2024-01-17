@@ -2,6 +2,8 @@
 
 module MP3.MP3
   ( AudioDuration(..)
+  , Frame(..)
+  , MaybeFrame(..)
   , frameDuration
   , frameParser
   , getFrameData

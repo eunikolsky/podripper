@@ -9,17 +9,20 @@ module Ripper.Run
 
 import Conduit
 import Control.Concurrent.STM.TBMQueue
+import Data.Conduit.Attoparsec
+import Data.Conduit.List qualified as C
 import Data.Monoid (Last(..))
 import Data.Time.TZTime
 import Network.HTTP.Conduit (HttpExceptionContent(..))
 import Network.HTTP.Simple
 import RIO.Directory (createDirectoryIfMissing)
-import RIO.FilePath ((</>))
+import RIO.FilePath
 import RIO.State
 import qualified RIO.Text as T
 import RIO.Time
 import System.IO.Error (isResourceVanishedError)
 
+import MP3.MP3
 import Ripper.ATPLiveStreamCheck
 import Ripper.Import
 import Ripper.RipperDelay
@@ -31,12 +34,13 @@ run = do
 
   options <- asks appOptions
   let maybeOutputDir = optionsOutputDirectory options
-  for_ maybeOutputDir ensureDirectory
+      maybeCleanRipsDir = optionsCleanRipsDirectory options
+  mapM_ ensureDirectory $ catMaybes [maybeOutputDir, maybeCleanRipsDir]
 
   userAgent <- asks appUserAgent
 
   maybeTimeout (optionsRipLength options)
-    $ ripper userAgent maybeOutputDir ripIntervals (optionsStreamConfig options)
+    $ ripper userAgent maybeOutputDir maybeCleanRipsDir ripIntervals (optionsStreamConfig options)
 
 maybeTimeout :: MonadUnliftIO m => Maybe Duration -> m () -> m ()
 maybeTimeout (Just d) = void . timeout (toMicroseconds d)
@@ -64,7 +68,7 @@ withRecordedRip f (RipRecorded r) = Just $ f r
 withRecordedRip _ RipNothing = Nothing
 
 class Monad m => MonadRipper m where
-  rip :: Request -> Maybe FilePath -> m RipResult
+  rip :: Request -> Maybe FilePath -> Maybe FilePath -> m RipResult
   checkLiveStream :: RipName -> StreamURL -> m (Maybe StreamURL)
   getRipDelay :: [RipperInterval] -> Maybe RipEndTime -> Now -> m RetryDelay
   -- TODO can `MonadTime` be composed here to replace these two functions?
@@ -91,8 +95,8 @@ instance (HasLogFunc env, HasAppRipsQueue env, HasAppOptions env) => MonadRipper
     atomically $ writeTQueue ripsQueue r
 
 -- | The endless ripping loop.
-ripper :: (MonadRipper m) => Text -> Maybe FilePath -> [RipperInterval] -> StreamConfig -> m ()
-ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mempty
+ripper :: (MonadRipper m) => Text -> Maybe FilePath -> Maybe FilePath -> [RipperInterval] -> StreamConfig -> m ()
+ripper userAgent maybeOutputDir maybeCleanRipsDir ripperIntervals streamConfig = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
    - which is the same as the output monad, and the inside monad can't be the
@@ -109,7 +113,7 @@ ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mem
       case maybeStreamURL of
         Just (StreamURL url) -> do
           let request = mkRipperRequest userAgent url
-          result <- lift $ rip request maybeOutputDir
+          result <- lift $ rip request maybeOutputDir maybeCleanRipsDir
           modify' (<> Last (withRecordedRip ripEndTime result))
 
           maybe (pure ()) (lift . notifyRip) $ withRecordedRip id result
@@ -138,8 +142,8 @@ delayWithLog reconnectDelay = do
 -- | Rips a stream for as long as the connection is open.
 ripOneStream
   :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env, HasAppOptions env)
-  => Request -> Maybe FilePath -> m RipResult
-ripOneStream request maybeOutputDir = do
+  => Request -> Maybe FilePath ->  Maybe FilePath -> m RipResult
+ripOneStream request maybeOutputDir maybeCleanRipsDir = do
   noDataTimeout <- optionsNoDataTimeout <$> view appOptionsL
 
   {-
@@ -178,7 +182,15 @@ ripOneStream request maybeOutputDir = do
       -- wrapper ensures that if there is no data for the given duration, we'll
       -- disconnect and reconnect
       doesn'tStall noDataTimeout (getResponseBody response) $ \body ->
-        runConduit $ body .| sinkFile filename
+        let rawDump = sinkFile filename
+            cleanBasename = takeBaseName basename <> "_clean" <.> takeExtension basename
+            cleanFilename = maybe cleanBasename (</> cleanBasename) maybeCleanRipsDir
+            cleanDump = conduitParserEither maybeFrameParser
+              .| C.mapMaybe getMP3Frame
+              .| mapC (getFrameData . fData)
+              .| sinkFile cleanFilename
+            bothDumps = getZipSink $ ZipSink rawDump *> ZipSink cleanDump
+        in runConduit $ body .| bothDumps
 
       -- we're not inside `MonadRipper` here, so we're using the original IO func
       now <- liftIO getCurrentTZTime
@@ -198,6 +210,11 @@ ripOneStream request maybeOutputDir = do
       pure $ case maybeFilename of
         Just filename -> RipRecorded (SuccessfulRip now filename)
         Nothing -> RipNothing
+
+getMP3Frame :: Either ParseError (PositionRange, MaybeFrame) -> Maybe Frame
+getMP3Frame (Right (_, Valid f)) = Just f
+-- FIXME log parse errors and junk
+getMP3Frame _ = Nothing
 
 -- TODO for some reason, this handler doesn't catch an `InternalException` about
 -- an unknown CA (when using `mitmproxy`):

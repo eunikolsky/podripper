@@ -72,6 +72,7 @@ library
     , base >=4.11 && <10
     , bytestring
     , conduit
+    , conduit-extra
     , directory
     , exceptions
     , filepath

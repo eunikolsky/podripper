@@ -32,7 +32,7 @@ spec = do
 
             expectedArgs = (replicate numActions delay, replicate numActions Nothing)
 
-            args = runTestM testState $ ripper "" Nothing mempty testURL
+            args = runTestM testState $ ripper "" Nothing Nothing mempty testURL
 
         args `shouldBe` expectedArgs
 
@@ -46,7 +46,7 @@ spec = do
 
             expectedArgs = ([delay], [Just ripEndTime])
 
-            args = runTestM testState $ ripper "" Nothing mempty testURL
+            args = runTestM testState $ ripper "" Nothing Nothing mempty testURL
 
         args `shouldBe` expectedArgs
 
@@ -56,7 +56,7 @@ spec = do
 
             expectedArgs = (replicate numActions delay, replicate numActions $ Just ripEndTime)
 
-            args = runTestM testState $ ripper "" Nothing mempty testURL
+            args = runTestM testState $ ripper "" Nothing Nothing mempty testURL
 
         args `shouldBe` expectedArgs
 
@@ -122,7 +122,7 @@ runTestM :: TestState -> TestM a -> CollectedArgs
 runTestM testState (TestM r) = execWriter $ evalStateT r testState
 
 instance MonadRipper TestM where
-  rip _ _ = do
+  rip _ _ _ = do
     s <- get
     let (head, tail) = fromJust . uncons $ tsRipResult s
     put $ s { tsRipResult = tail }

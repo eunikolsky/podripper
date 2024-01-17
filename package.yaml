@@ -58,10 +58,11 @@ library:
     - aeson
     - attoparsec
     - bytestring
+    - conduit
+    - conduit-extra
     - directory
     - exceptions
     - filepath
-    - conduit
     - http-conduit
     - http-client
     - http-client-tls
