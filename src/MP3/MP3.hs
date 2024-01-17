@@ -36,7 +36,7 @@ instance Show FrameData where
   show (FrameData d) = "<" <> show (BS.length d) <> " bytes>"
 
 -- | Parsed information about one MP3 frame. Only `fiMPEGVersion` and
--- `fiSamplingRate` are necessary to calculate frame's duration.
+-- `fiSamplingRate` are necessary to calculate frame's duration in seconds.
 data FrameInfo = FrameInfo
   { fiMPEGVersion :: !MPEGVersion
   , fiSamplingRate :: !SamplingRate
@@ -202,7 +202,8 @@ frameSyncValidator (b0, b1) =
   in unless isValid . fail $ printf "Invalid frame sync (0x%02x%02x, %c%c)" b0 b1 b0 b1
   where byte1Mask = 0b1110_0000
 
--- | MPEG version of a given MP3 frame.
+-- | MPEG version of a given MP3 frame; it's required to calculate the frame
+-- size in bytes and frame duration in seconds (via samples/frame).
 data MPEGVersion = MPEG1 | MPEG2
   deriving stock Show
 
@@ -224,7 +225,8 @@ layerValidator byte = case 0b0000_0011 .&. byte `shiftR` 1 of
   0b00 -> fail "Unexpected Layer \"reserved\" (0) frame"
   x -> fail $ "Impossible Layer value " <> show x
 
--- | Sampling rate of a frame; it's required to calculate the frame length.
+-- | Sampling rate of a frame; it's required to calculate the frame size in
+-- bytes and frame duration in seconds.
 data SamplingRate
   = SR16000Hz | SR22050Hz | SR24000Hz -- MPEG2
   | SR32000Hz | SR44100Hz | SR48000Hz -- MPEG1
@@ -237,7 +239,7 @@ instance Show SamplingRate where
   show SR44100Hz = "44.1 kHz"
   show SR48000Hz = "48 kHz"
 
--- | Bitrate of a frame; it's required to calculate the frame length.
+-- | Bitrate of a frame; it's required to calculate the frame size in bytes.
 data Bitrate
   = BR8kbps
   | BR16kbps
@@ -325,7 +327,7 @@ bitrateParser mpeg byte = case (mpeg, shiftR byte 4) of
   (_, 0b1111) -> fail "Unexpected bitrate \"bad\" (15)"
   (_, x) -> fail $ "Impossible bitrate value " <> show x
 
--- | Returns the frame length based on the provided MPEG version, bitrate and
+-- | Returns the frame size based on the provided MPEG version, bitrate and
 -- sample rate.
 -- Note: most MP3 docs don't mention this, but the formula to calculate the
 -- frame size is slightly different for MPEG2 vs MPEG1 Layer 3. See also:
