@@ -34,10 +34,12 @@ newtype FrameData = FrameData { getFrameData :: ByteString }
 instance Show FrameData where
   show (FrameData d) = "<" <> show (BS.length d) <> " bytes>"
 
--- | Information about one MP3 frame, necessary to calculate its duration.
+-- | Parsed information about one MP3 frame. Only `fiMPEGVersion` and
+-- `fiSamplingRate` are necessary to calculate frame's duration.
 data FrameInfo = FrameInfo
   { fiMPEGVersion :: !MPEGVersion
   , fiSamplingRate :: !SamplingRate
+  , fiBitrate :: !Bitrate
   }
   deriving stock Show
 
@@ -166,7 +168,7 @@ frameHeaderParser = do
   let paddingSize = if testBit byte2 paddingBitIndex then 1 else 0
       contentsSize = frameSize mpegVersion bitrate samplingRate - frameHeaderSize + paddingSize
 
-  pure (FrameInfo{fiMPEGVersion=mpegVersion, fiSamplingRate=samplingRate}, bytes, contentsSize)
+  pure (FrameInfo{fiMPEGVersion=mpegVersion, fiSamplingRate=samplingRate, fiBitrate=bitrate}, bytes, contentsSize)
 
 -- | Parses a single MP3 frame.
 frameParser :: Parser Frame
@@ -239,6 +241,26 @@ data Bitrate
   | BR224kbps
   | BR256kbps
   | BR320kbps
+
+instance Show Bitrate where
+  show BR8kbps = "8 kb/s"
+  show BR16kbps = "16 kb/s"
+  show BR24kbps = "24 kb/s"
+  show BR32kbps = "32 kb/s"
+  show BR40kbps = "40 kb/s"
+  show BR48kbps = "48 kb/s"
+  show BR56kbps = "56 kb/s"
+  show BR64kbps = "64 kb/s"
+  show BR80kbps = "80 kb/s"
+  show BR96kbps = "96 kb/s"
+  show BR112kbps = "112 kb/s"
+  show BR128kbps = "128 kb/s"
+  show BR144kbps = "144 kb/s"
+  show BR160kbps = "160 kb/s"
+  show BR192kbps = "192 kb/s"
+  show BR224kbps = "224 kb/s"
+  show BR256kbps = "256 kb/s"
+  show BR320kbps = "320 kb/s"
 
 -- | Parses the sample rate from the frame byte.
 samplingRateParser :: MPEGVersion -> Word8 -> Parser SamplingRate
