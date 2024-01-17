@@ -13,7 +13,6 @@ import Data.Attoparsec.ByteString qualified as A
 import Data.Attoparsec.Combinator qualified as A (lookAhead)
 import Data.Bits
 import Data.ByteString.Builder qualified as BSB
-import Data.List (singleton)
 import Data.Word
 import MP3.AttoparsecExtra
 import Text.Printf
@@ -49,11 +48,13 @@ data FrameInfo = FrameInfo
 -- metadata can be used instead).
 --
 -- [1] It can include bytes that look like a valid frame start (`fffb` + 2 bytes)
--- and not be one. To validate a frame start, we have to read the possible frame
--- and check whether the next frame is located right after this one because it is
--- very unlikely that the stream will have random `fffb`s at the correct
--- spacings. That is, it makes sense to require two sequential valid frames to
--- filter out junk correctly.
+-- and not be one. It's better to require two sequential valid frames to
+-- filter out junk correctly (by reading this possible frame and check whether
+-- the next frame is located right after this one because it is very unlikely
+-- that the stream will have random `fffb`s at the correct spacings), but to
+-- simplify stream parsing, we accept a frame if it could be parsed; if it's
+-- actually junk, the rest of the bytes until the next frame will be skipped, so
+-- this should work fine overall.
 --
 -- [2] I suppose if a stream ends successfully, the server (such as `icecast`)
 -- should send the complete last frame. However in case of a disconnect, you're
@@ -65,7 +66,7 @@ data FrameInfo = FrameInfo
 -- middle of a file and hide more specific errors.
 mp3Parser :: Parser AudioDuration
 mp3Parser = do
-  firstFrameInfos <- parseFirstFrames
+  firstFrameInfo <- parseFirstFrame
   frameInfos <- A.many' $ retryingAfterOneByte frameParser
 
   -- if we're here, all the sequential valid MP3 frames have been parsed,
@@ -73,7 +74,7 @@ mp3Parser = do
   -- it must start with a valid frame header, or the parser fails
   void . optional $ frameHeaderParser >> A.takeLazyByteString
   endOfInput
-  pure . sum $ frameDuration <$> firstFrameInfos <> frameInfos
+  pure . sum $ frameDuration <$> firstFrameInfo : frameInfos
 
 -- | Runs the parser `p` and if it fails, skips one byte and runs `p` again —
 -- this retry is done only once. It's used to parse MP3 frames with a possible
@@ -84,18 +85,16 @@ mp3Parser = do
 retryingAfterOneByte :: Parser a -> Parser a
 retryingAfterOneByte p = p <|> (A.anyWord8 >> p)
 
--- | Parses first MP3 frames of a file skipping any leftovers from a previous
--- frame. It can return either one frame (for valid MP3 files), or two frames
--- (for MP3 stream dumps that don't start with a frame). If the parser has
--- skipped more than 1440 bytes (the max MP3 frame size) and hasn't found a
--- valid frame header, this is an invalid MP3 stream.
-parseFirstFrames :: Parser [FrameInfo]
-parseFirstFrames = (singleton <$> frameParser) <|> findFirstFrames (SkippedBytesCount 1)
+-- | Parses the first MP3 frame of a file skipping any leftovers from a previous
+-- frame. If the parser has skipped more than 1440 bytes (the max MP3 frame
+-- size) and hasn't found a valid frame header, this is an invalid MP3 stream.
+parseFirstFrame :: Parser FrameInfo
+parseFirstFrame = frameParser <|> findFirstFrame (SkippedBytesCount 1)
   where
     maxFrameSize = 1440
 
-    findFirstFrames :: SkippedBytesCount -> Parser [FrameInfo]
-    findFirstFrames skippedCount
+    findFirstFrame :: SkippedBytesCount -> Parser FrameInfo
+    findFirstFrame skippedCount
       | skippedCount >= maxFrameSize = fail "Couldn't find a valid MP3 frame after skipping leading junk"
       | otherwise = do
         -- this skips a single byte to retry frames parsing from the next position
@@ -106,7 +105,7 @@ parseFirstFrames = (singleton <$> frameParser) <|> findFirstFrames (SkippedBytes
         -- `frameParser`) into this higher-level parser
         -- TODO benchmark this and skip to `0xff` if necessary
         void A.anyWord8
-        A.count 2 frameParser <|> findFirstFrames (skippedCount + 1)
+        frameParser <|> findFirstFrame (skippedCount + 1)
 
 newtype SkippedBytesCount = SkippedBytesCount Int
   deriving newtype (Num, Eq, Ord)
