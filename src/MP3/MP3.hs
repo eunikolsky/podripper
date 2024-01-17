@@ -3,6 +3,7 @@
 module MP3.MP3
   ( AudioDuration(..)
   , frameParser
+  , getFrameData
   , mp3Parser
   ) where
 
@@ -12,6 +13,8 @@ import Data.Attoparsec.ByteString ((<?>), Parser)
 import Data.Attoparsec.ByteString qualified as A
 import Data.Attoparsec.Combinator qualified as A (lookAhead)
 import Data.Bits
+import Data.ByteString (ByteString)
+import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as BSB
 import Data.Word
 import MP3.AttoparsecExtra
@@ -24,10 +27,24 @@ newtype AudioDuration = AudioDuration { getAudioDuration :: Double }
 instance Show AudioDuration where
   show (AudioDuration d) = show d <> " s"
 
+-- | Bytes of an MP3 frame: header + data. The reason for the separate type is
+-- to have a more concise `Show` instance.
+newtype FrameData = FrameData { getFrameData :: ByteString }
+
+instance Show FrameData where
+  show (FrameData d) = "<" <> show (BS.length d) <> " bytes>"
+
 -- | Information about one MP3 frame, necessary to calculate its duration.
 data FrameInfo = FrameInfo
   { fiMPEGVersion :: !MPEGVersion
   , fiSamplingRate :: !SamplingRate
+  }
+  deriving stock Show
+
+-- | One MP3 frame: information and source data.
+data Frame = Frame
+  { fInfo :: !FrameInfo
+  , fData :: !FrameData
   }
   deriving stock Show
 
@@ -66,15 +83,15 @@ data FrameInfo = FrameInfo
 -- middle of a file and hide more specific errors.
 mp3Parser :: Parser AudioDuration
 mp3Parser = do
-  firstFrameInfo <- parseFirstFrame
-  frameInfos <- A.many' $ retryingAfterOneByte frameParser
+  firstFrame <- parseFirstFrame
+  frames <- A.many' $ retryingAfterOneByte frameParser
 
   -- if we're here, all the sequential valid MP3 frames have been parsed,
   -- so try parsing the last, truncated frame if any;
   -- it must start with a valid frame header, or the parser fails
   void . optional $ frameHeaderParser >> A.takeLazyByteString
   endOfInput
-  pure . sum $ frameDuration <$> firstFrameInfo : frameInfos
+  pure . sum $ frameDuration <$> firstFrame : frames
 
 -- | Runs the parser `p` and if it fails, skips one byte and runs `p` again —
 -- this retry is done only once. It's used to parse MP3 frames with a possible
@@ -88,12 +105,12 @@ retryingAfterOneByte p = p <|> (A.anyWord8 >> p)
 -- | Parses the first MP3 frame of a file skipping any leftovers from a previous
 -- frame. If the parser has skipped more than 1440 bytes (the max MP3 frame
 -- size) and hasn't found a valid frame header, this is an invalid MP3 stream.
-parseFirstFrame :: Parser FrameInfo
+parseFirstFrame :: Parser Frame
 parseFirstFrame = frameParser <|> findFirstFrame (SkippedBytesCount 1)
   where
     maxFrameSize = 1440
 
-    findFirstFrame :: SkippedBytesCount -> Parser FrameInfo
+    findFirstFrame :: SkippedBytesCount -> Parser Frame
     findFirstFrame skippedCount
       | skippedCount >= maxFrameSize = fail "Couldn't find a valid MP3 frame after skipping leading junk"
       | otherwise = do
@@ -110,8 +127,8 @@ parseFirstFrame = frameParser <|> findFirstFrame (SkippedBytesCount 1)
 newtype SkippedBytesCount = SkippedBytesCount Int
   deriving newtype (Num, Eq, Ord)
 
-frameDuration :: FrameInfo -> AudioDuration
-frameDuration FrameInfo{fiMPEGVersion,fiSamplingRate} =
+frameDuration :: Frame -> AudioDuration
+frameDuration Frame{fInfo=FrameInfo{fiMPEGVersion,fiSamplingRate}} =
   AudioDuration . (samplesPerFrame fiMPEGVersion /) $ samplingRateHz fiSamplingRate
 
 samplesPerFrame :: Num a => MPEGVersion -> a
@@ -132,12 +149,12 @@ endOfInput = do
   A.endOfInput <?>
     printf "Expected end-of-file at byte %#x (%u), but got %s" pos pos restDump
 
--- | Parses the header of an MP3 frame and returns its `FrameInfo` and the
--- number of bytes to read for this frame.
-frameHeaderParser :: Parser (FrameInfo, Int)
+-- | Parses the header of an MP3 frame and returns its `FrameInfo`, header bytes
+-- and the number of extra bytes to read for this frame.
+frameHeaderParser :: Parser (FrameInfo, [Word8], Int)
 frameHeaderParser = do
   let frameHeaderSize = 4
-  [byte0, byte1, byte2, _] <- A.count frameHeaderSize A.anyWord8 <?> "Incomplete frame header"
+  bytes@[byte0, byte1, byte2, _] <- A.count frameHeaderSize A.anyWord8 <?> "Incomplete frame header"
 
   frameSyncValidator (byte0, byte1)
   mpegVersion <- parseMPEGVersion byte1
@@ -149,14 +166,14 @@ frameHeaderParser = do
   let paddingSize = if testBit byte2 paddingBitIndex then 1 else 0
       contentsSize = frameSize mpegVersion bitrate samplingRate - frameHeaderSize + paddingSize
 
-  pure (FrameInfo{ fiMPEGVersion = mpegVersion, fiSamplingRate = samplingRate }, contentsSize)
+  pure (FrameInfo{fiMPEGVersion=mpegVersion, fiSamplingRate=samplingRate}, bytes, contentsSize)
 
 -- | Parses a single MP3 frame.
-frameParser :: Parser FrameInfo
+frameParser :: Parser Frame
 frameParser = do
-  (frameInfo, contentsSize) <- frameHeaderParser
-  _ <- A.take contentsSize
-  pure frameInfo
+  (frameInfo, headerBytes, contentsSize) <- frameHeaderParser
+  bytes <- A.take contentsSize
+  pure Frame{fInfo=frameInfo, fData=FrameData $ BS.pack headerBytes <> bytes}
 
 -- | Validates that the header bytes contain the valid frame sync.
 -- It's called a validator because it returns unit (or error) since we don't
