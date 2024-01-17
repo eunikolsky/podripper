@@ -76,8 +76,8 @@ mp3Parser = do
     -- technically not a part of it, that's why it's not defined in `id3Parser`
     skipPostID3Padding-}
 
-  firstSamplingRates <- parseFirstFrames
-  samplingRates <- A.many' $ retryingAfterOneByte frameParser
+  firstFrameInfos <- parseFirstFrames
+  frameInfos <- A.many' $ retryingAfterOneByte frameParser
 
   --ID3V1.id3Parser <|>
   -- if we're here, all the sequential valid MP3 frames have been parsed and
@@ -85,7 +85,7 @@ mp3Parser = do
   -- it must start with a valid frame header, or the parser fails
   void . optional $ frameHeaderParser >> A.takeLazyByteString
   endOfInput
-  pure . sum $ frameDuration <$> firstSamplingRates <> samplingRates
+  pure . sum $ frameDuration <$> firstFrameInfos <> frameInfos
 
 -- | Runs the parser `p` and if it fails, skips one byte and runs `p` again —
 -- this retry is done only once. It's used to parse MP3 frames with a possible
@@ -180,9 +180,9 @@ frameHeaderParser = do
 -- | Parses a single MP3 frame.
 frameParser :: Parser FrameInfo
 frameParser = do
-  (samplingRate, contentsSize) <- frameHeaderParser
+  (frameInfo, contentsSize) <- frameHeaderParser
   _ <- A.take contentsSize
-  pure samplingRate
+  pure frameInfo
 
 -- | Validates that the header bytes contain the valid frame sync.
 -- It's called a validator because it returns unit (or error) since we don't
