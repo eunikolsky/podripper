@@ -4,6 +4,7 @@ module MP3.MP3
   ( AudioDuration(..)
   , frameParser
   , getFrameData
+  , maybeFrameParser
   , mp3Parser
   ) where
 
@@ -49,6 +50,21 @@ data Frame = Frame
   , fData :: !FrameData
   }
   deriving stock Show
+
+-- | Result of trying to parse an MP3 stream.
+data MaybeFrame = Valid Frame | Junk
+  deriving stock Show
+
+-- | Parser for MP3 streams that either parses a valid frame, or some junk until
+-- something that looks like a valid frame start (so the next parse result may
+-- also be junk).
+maybeFrameParser :: Parser MaybeFrame
+maybeFrameParser = (Valid <$> frameParser)
+  -- `anyWord8` before `skipWhile` is crucial here to avoid an infinite loop
+  -- that happens because `skipWhile` never does anything after it reaches
+  -- `0xff`; if that's the current byte and `frameParser` couldn't use it, it's
+  -- junk, so we skip it
+  <|> (Junk <$ (A.anyWord8 *> A.skipWhile (/= 0xff)))
 
 -- | Parses an MP3 (MPEG1/MPEG2 Layer III) file and returns the audio duration.
 -- An accepted MP3 file:
