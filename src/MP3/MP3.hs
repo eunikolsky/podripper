@@ -48,8 +48,11 @@ data Frame = Frame
   }
   deriving stock Show
 
+-- | Used only for logging and easier debugging afterwards.
+type JunkLength = Int
+
 -- | Result of trying to parse an MP3 stream.
-data MaybeFrame = Valid Frame | Junk
+data MaybeFrame = Valid Frame | Junk JunkLength
   deriving stock Show
 
 -- | Parser for MP3 streams that either parses a valid frame, or some junk until
@@ -63,12 +66,19 @@ data MaybeFrame = Valid Frame | Junk
 -- last frame. However in case of a disconnect, you're likely to receive a
 -- partial frame, which is also junk.
 maybeFrameParser :: Parser MaybeFrame
-maybeFrameParser = (Valid <$> frameParser)
-  -- `anyWord8` before `skipWhile` is crucial here to avoid an infinite loop
-  -- that happens because `skipWhile` never does anything after it reaches
-  -- `0xff`; if that's the current byte and `frameParser` couldn't use it, it's
-  -- junk, so we skip it
-  <|> (Junk <$ (A.anyWord8 *> A.skipWhile (/= 0xff)))
+maybeFrameParser = validFrame <|> junk
+  where
+    validFrame = Valid <$> frameParser
+
+    junk = do
+      -- `anyWord8` before `skipWhile` is crucial here to avoid an infinite loop
+      -- that happens because `skipWhile` never does anything after it reaches
+      -- `0xff`; if that's the current byte and `frameParser` couldn't use it, it's
+      -- junk, so we skip it
+      void A.anyWord8
+      let skippedByte = 1
+      bs <- A.takeWhile (/= 0xff)
+      pure . Junk $ BS.length bs + skippedByte
 
 frameDuration :: Frame -> AudioDuration
 frameDuration Frame{fInfo=FrameInfo{fiMPEGVersion,fiSamplingRate}} =
