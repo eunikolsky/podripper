@@ -113,10 +113,10 @@ processReencodedRips config queue = go
     reencodedEventDescription InitialRSSUpdate = "Initial RSS update"
 
 ensureDirs :: RipConfigExt -> IO ()
-ensureDirs RipConfigExt{rawRipDir, doneRipDir} = do
+ensureDirs RipConfigExt{rawRipDir, trashRawRipDir, doneRipDir} = do
   let createParents = True
       ensureDir = createDirectoryIfMissing createParents
-  forM_ [rawRipDir, doneRipDir] ensureDir
+  forM_ [rawRipDir, trashRawRipDir, doneRipDir] ensureDir
 
 rip :: Ripper.RipsQueue -> RipConfigExt -> IO ()
 rip ripsQueue RipConfigExt{config, rawRipDir} =
@@ -159,7 +159,7 @@ sourceRipSuffix = "_src"
 reencodedRipSuffix = "_enc"
 
 reencodeRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
-reencodeRip RipConfigExt{config, doneRipDir} newRip = do
+reencodeRip configExt@RipConfigExt{config, doneRipDir} newRip = do
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
   reencodeRip' year $ Ripper.ripFilename newRip
 
@@ -184,11 +184,17 @@ reencodeRip RipConfigExt{config, doneRipDir} newRip = do
             ]
       code <- ffmpeg ffmpegArgs ripName
       if code == ExitSuccess
-        then removeFile ripName
+        then trashFile configExt ripName
         else do
           putStrLn $ mconcat ["reencoding ", ripName, " failed; moving the source"]
           whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
           renameFile ripName $ doneRipDir </> takeBaseName ripName <> sourceRipSuffix <.> "mp3"
+
+trashFile :: RipConfigExt -> FilePath -> IO ()
+trashFile RipConfigExt{trashRawRipDir} file = do
+  let targetFile = trashRawRipDir </> takeFileName file
+  putStrLn $ mconcat ["Moving ", file, " to ", targetFile]
+  renameFile file targetFile
 
 podTitleFromFilename :: FilePath -> IO String
 podTitleFromFilename name = fromMaybe "" <$> readCommand
@@ -210,7 +216,7 @@ reencodedRipNameFromOriginal doneRipDir ripName = doneRipDir </> takeBaseName ri
  - we can try reencoding those older ones again
  -}
 reencodePreviousRips :: RipConfigExt -> ReencodedQueue -> IO ()
-reencodePreviousRips RipConfigExt{config, doneRipDir, rawRipDir} queue = do
+reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, rawRipDir} queue = do
   ripSources <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
   ripOriginals <- fmap (rawRipDir </>) . filter isMP3 <$> listDirectory rawRipDir
   let ripsSources' = (\ripName -> (ripName, T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName)) <$> ripSources
@@ -245,7 +251,7 @@ reencodePreviousRips RipConfigExt{config, doneRipDir, rawRipDir} queue = do
       code <- ffmpeg ffmpegArgs ripName
       if code == ExitSuccess
         then do
-          removeFile ripName
+          trashFile configExt ripName
           atomically $ writeTQueue queue $ QValue NewReencodedRip
         else do
           putStrLn $ mconcat ["reencoding ", ripName, " failed again; leaving as is for now"]
