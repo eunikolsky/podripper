@@ -186,7 +186,7 @@ ripOneStream request maybeOutputDir maybeCleanRipsDir = do
             cleanBasename = takeBaseName basename <> "_clean" <.> takeExtension basename
             cleanFilename = maybe cleanBasename (</> cleanBasename) maybeCleanRipsDir
             cleanDump = conduitParserEither maybeFrameParser
-              .| C.mapMaybe getMP3Frame
+              .| C.mapMaybeM getMP3Frame
               .| mapC (getFrameData . fData)
               .| sinkFile cleanFilename
             bothDumps = getZipSink $ ZipSink rawDump *> ZipSink cleanDump
@@ -211,10 +211,21 @@ ripOneStream request maybeOutputDir maybeCleanRipsDir = do
         Just filename -> RipRecorded (SuccessfulRip now filename)
         Nothing -> RipNothing
 
-getMP3Frame :: Either ParseError (PositionRange, MaybeFrame) -> Maybe Frame
-getMP3Frame (Right (_, Valid f)) = Just f
--- FIXME log parse errors and junk
-getMP3Frame _ = Nothing
+getMP3Frame :: (MonadReader env m, HasLogFunc env, MonadIO m)
+  => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe Frame)
+getMP3Frame (Right (_, Valid f)) = pure $ Just f
+getMP3Frame (Right (posRange, Junk l)) = do
+  logError $ mconcat
+    [ "Found junk in stream: "
+    , displayShow l, " bytes long at bytes "
+    , displayShow . posOffset . posRangeStart $ posRange
+    , "-"
+    , displayShow . posOffset . posRangeEnd $ posRange
+    ]
+  pure Nothing
+getMP3Frame (Left e) = do
+  logError $ "Parse error: " <> displayShow e
+  pure Nothing
 
 -- TODO for some reason, this handler doesn't catch an `InternalException` about
 -- an unknown CA (when using `mitmproxy`):
