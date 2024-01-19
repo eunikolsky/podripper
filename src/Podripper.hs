@@ -161,6 +161,7 @@ reencodedRipSuffix = "_enc"
 
 reencodeRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
 reencodeRip configExt@RipConfigExt{config, doneRipDir} newRip = do
+  -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
   reencodeRip' year $ Ripper.ripFilename newRip
 
@@ -223,6 +224,7 @@ reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, rawRipDir} queue
   let ripsSources' = (\ripName -> (ripName, T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName)) <$> ripSources
       ripOriginals' = (\ripName -> (ripName, reencodedRipNameFromOriginal doneRipDir ripName)) <$> ripOriginals
       rips = ripsSources' <> ripOriginals'
+  -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
   forM_ rips (reencodeRip' year)
 
