@@ -122,7 +122,7 @@ rip :: Ripper.RipsQueue -> RipConfigExt -> IO ()
 rip ripsQueue RipConfigExt{config, rawRipDir, cleanRipDir} =
   let options = Ripper.Options
         { Ripper.optionsVerbose = True
-        , Ripper.optionsOutputDirectory = Just rawRipDir
+        , Ripper.optionsRawRipsDirectory = Just rawRipDir
         , Ripper.optionsCleanRipsDirectory = Just cleanRipDir
         , Ripper.optionsRipLength = Nothing
         , Ripper.optionsRipIntervalRefs = ripIntervalRefs config

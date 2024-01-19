@@ -33,14 +33,14 @@ run = do
   ripIntervals <- getRipIntervals
 
   options <- asks appOptions
-  let maybeOutputDir = optionsOutputDirectory options
+  let maybeRawRipsDir = optionsRawRipsDirectory options
       maybeCleanRipsDir = optionsCleanRipsDirectory options
-  mapM_ ensureDirectory $ catMaybes [maybeOutputDir, maybeCleanRipsDir]
+  mapM_ ensureDirectory $ catMaybes [maybeRawRipsDir, maybeCleanRipsDir]
 
   userAgent <- asks appUserAgent
 
   maybeTimeout (optionsRipLength options)
-    $ ripper userAgent maybeOutputDir maybeCleanRipsDir ripIntervals (optionsStreamConfig options)
+    $ ripper userAgent maybeRawRipsDir maybeCleanRipsDir ripIntervals (optionsStreamConfig options)
 
 maybeTimeout :: MonadUnliftIO m => Maybe Duration -> m () -> m ()
 maybeTimeout (Just d) = void . timeout (toMicroseconds d)
@@ -96,7 +96,7 @@ instance (HasLogFunc env, HasAppRipsQueue env, HasAppOptions env) => MonadRipper
 
 -- | The endless ripping loop.
 ripper :: (MonadRipper m) => Text -> Maybe FilePath -> Maybe FilePath -> [RipperInterval] -> StreamConfig -> m ()
-ripper userAgent maybeOutputDir maybeCleanRipsDir ripperIntervals streamConfig = evalStateT go mempty
+ripper userAgent maybeRawRipsDir maybeCleanRipsDir ripperIntervals streamConfig = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
    - which is the same as the output monad, and the inside monad can't be the
@@ -113,7 +113,7 @@ ripper userAgent maybeOutputDir maybeCleanRipsDir ripperIntervals streamConfig =
       case maybeStreamURL of
         Just (StreamURL url) -> do
           let request = mkRipperRequest userAgent url
-          result <- lift $ rip request maybeOutputDir maybeCleanRipsDir
+          result <- lift $ rip request maybeRawRipsDir maybeCleanRipsDir
           modify' (<> Last (withRecordedRip snd result))
 
           maybe (pure ()) (lift . notifyRip) $ withRecordedRip fst result
@@ -143,7 +143,7 @@ delayWithLog reconnectDelay = do
 ripOneStream
   :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env, HasAppOptions env)
   => Request -> Maybe FilePath ->  Maybe FilePath -> m RipResult
-ripOneStream request maybeOutputDir maybeCleanRipsDir = do
+ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
   noDataTimeout <- optionsNoDataTimeout <$> view appOptionsL
 
   {-
@@ -172,7 +172,7 @@ ripOneStream request maybeOutputDir maybeCleanRipsDir = do
       - so this time should be good enough
       -}
       basename <- liftIO getBasename
-      let filename = maybe basename (</> basename) maybeOutputDir <.> "mp3"
+      let filename = maybe basename (</> basename) maybeRawRipsDir <.> "mp3"
       writeIORef maybeFilenameVar $ Just filename
 
       -- there was a strange issue with ATP when the recording started, but then

@@ -37,13 +37,13 @@ ripperParser = Options
             <> help "Verbose output?"
             )
   <*> optional (
-      strOption ( short 'd'
+      strOption ( short 'r'
                 <> help "Directory to put raw rips into"
                 <> metavar "RAW_RIPS_DIR"
                 )
       )
   <*> optional (
-      strOption ( short 'c'
+      strOption ( short 'd'
                 <> help "Directory to put clean rips into"
                 <> metavar "CLEAN_RIPS_DIR"
                 )

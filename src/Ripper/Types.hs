@@ -26,7 +26,7 @@ newtype StreamURL = StreamURL URL
 data Options = Options
   { optionsVerbose :: !Bool
   -- | The output directory for raw rips if set by the user.
-  , optionsOutputDirectory :: !(Maybe FilePath)
+  , optionsRawRipsDirectory :: !(Maybe FilePath)
   -- | The output directory for clean rips if set by the user.
   , optionsCleanRipsDirectory :: !(Maybe FilePath)
   -- | Record the stream for this duration; it's used only by the `ripper` CLI.
