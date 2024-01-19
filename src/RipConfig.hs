@@ -71,10 +71,10 @@ getConfDir = do
 
 extendConfig :: RipConfig -> RipConfigExt
 extendConfig config =
-  let
-      rawRipDir = T.unpack $ ripDirName config
-      cleanRipDir = rawRipDir </> "clean"
-      trashRawRipDir = rawRipDir </> "trash"
+  let ripDir = T.unpack $ ripDirName config
+      cleanRipDir = ripDir
+      rawRipDir = cleanRipDir </> "raw"
+      trashRawRipDir = cleanRipDir </> "trash"
       doneBaseDir = "complete"
-      doneRipDir = doneBaseDir </> rawRipDir
+      doneRipDir = doneBaseDir </> ripDir
   in RipConfigExt{config, rawRipDir, cleanRipDir, trashRawRipDir, doneRipDir, doneBaseDir}

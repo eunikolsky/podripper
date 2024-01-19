@@ -172,7 +172,9 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
       - so this time should be good enough
       -}
       basename <- liftIO getBasename
-      let filename = maybe basename (</> basename) maybeRawRipsDir <.> "mp3"
+      let filename = maybe basename (</> basename) maybeCleanRipsDir <.> "mp3"
+          rawBasename = basename <> "_raw" <.> "mp3"
+          rawFilename = maybe rawBasename (</> rawBasename) maybeRawRipsDir
       writeIORef maybeFilenameVar $ Just filename
 
       -- there was a strange issue with ATP when the recording started, but then
@@ -182,13 +184,11 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
       -- wrapper ensures that if there is no data for the given duration, we'll
       -- disconnect and reconnect
       doesn'tStall noDataTimeout (getResponseBody response) $ \body ->
-        let rawDump = sinkFile filename
-            cleanBasename = basename <> "_clean" <.> "mp3"
-            cleanFilename = maybe cleanBasename (</> cleanBasename) maybeCleanRipsDir
+        let rawDump = sinkFile rawFilename
             cleanDump = conduitParserEither maybeFrameParser
               .| C.mapMaybeM getMP3Frame
               .| mapC (getFrameData . fData)
-              .| sinkFile cleanFilename
+              .| sinkFile filename
             bothDumps = getZipSink $ ZipSink rawDump *> ZipSink cleanDump
         in runConduit $ body .| bothDumps
 
