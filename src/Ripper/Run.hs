@@ -60,11 +60,11 @@ getRipIntervals = do
 
 -- | The result of a single rip call. The information conveyed by this type
 -- is whether the call has received and saved any data.
-data RipResult = RipRecorded SuccessfulRip | RipNothing
+data RipResult = RipRecorded !SuccessfulRip !RipEndTime | RipNothing
   deriving (Eq, Show)
 
-withRecordedRip :: (SuccessfulRip -> a) -> RipResult -> Maybe a
-withRecordedRip f (RipRecorded r) = Just $ f r
+withRecordedRip :: ((SuccessfulRip, RipEndTime) -> a) -> RipResult -> Maybe a
+withRecordedRip f (RipRecorded r time) = Just $ f (r, time)
 withRecordedRip _ RipNothing = Nothing
 
 class Monad m => MonadRipper m where
@@ -114,9 +114,9 @@ ripper userAgent maybeOutputDir maybeCleanRipsDir ripperIntervals streamConfig =
         Just (StreamURL url) -> do
           let request = mkRipperRequest userAgent url
           result <- lift $ rip request maybeOutputDir maybeCleanRipsDir
-          modify' (<> Last (withRecordedRip ripEndTime result))
+          modify' (<> Last (withRecordedRip snd result))
 
-          maybe (pure ()) (lift . notifyRip) $ withRecordedRip id result
+          maybe (pure ()) (lift . notifyRip) $ withRecordedRip fst result
 
         Nothing -> pure ()
 
@@ -194,7 +194,7 @@ ripOneStream request maybeOutputDir maybeCleanRipsDir = do
 
       -- we're not inside `MonadRipper` here, so we're using the original IO func
       now <- liftIO getCurrentTZTime
-      pure . RipRecorded $ SuccessfulRip now filename
+      pure $ RipRecorded (SuccessfulRip filename) now
 
   {-
    - after a possible http exception is handled, we need to figure out if
@@ -203,12 +203,12 @@ ripOneStream request maybeOutputDir maybeCleanRipsDir = do
    - consider the value of `maybeFilenameVar`
    -}
   case ripResult of
-    r@(RipRecorded _) -> pure r
+    r@(RipRecorded _ _) -> pure r
     RipNothing -> do
       maybeFilename <- readIORef maybeFilenameVar
       now <- liftIO getCurrentTZTime
       pure $ case maybeFilename of
-        Just filename -> RipRecorded (SuccessfulRip now filename)
+        Just filename -> RipRecorded (SuccessfulRip filename) now
         Nothing -> RipNothing
 
 getMP3Frame :: (MonadReader env m, HasLogFunc env, MonadIO m)
