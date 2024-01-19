@@ -212,7 +212,7 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
         Nothing -> RipNothing
 
 getMP3Frame :: (MonadReader env m, HasLogFunc env, MonadIO m)
-  => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe Frame)
+  => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe FullFrame)
 getMP3Frame (Right (_, Valid f)) = pure $ Just f
 getMP3Frame (Right (posRange, Junk l)) = do
   logError $ mconcat

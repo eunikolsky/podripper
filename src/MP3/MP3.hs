@@ -3,6 +3,7 @@
 module MP3.MP3
   ( AudioDuration(..)
   , Frame(..)
+  , FullFrame
   , MaybeFrame(..)
   , frameDuration
   , frameParser
@@ -43,18 +44,22 @@ data FrameInfo = FrameInfo
   }
   deriving stock Show
 
--- | One MP3 frame: information and source data.
-data Frame = Frame
+-- | One MP3 frame: information and data (either all the bytes, or only the
+-- frame length to process frames later).
+data Frame d = Frame
   { fInfo :: !FrameInfo
-  , fData :: !FrameData
+  , fData :: !d
   }
   deriving stock Show
+
+-- | MP3 frame that contains all the bytes.
+type FullFrame = Frame FrameData
 
 -- | Used only for logging and easier debugging afterwards.
 type JunkLength = Int
 
 -- | Result of trying to parse an MP3 stream.
-data MaybeFrame = Valid Frame | Junk JunkLength
+data MaybeFrame = Valid FullFrame | Junk JunkLength
   deriving stock Show
 
 -- | Parser for MP3 streams that either parses a valid frame, or some junk until
@@ -82,7 +87,7 @@ maybeFrameParser = validFrame <|> junk
       bs <- A.takeWhile (/= 0xff)
       pure . Junk $ BS.length bs + skippedByte
 
-frameDuration :: Frame -> AudioDuration
+frameDuration :: Frame d -> AudioDuration
 frameDuration Frame{fInfo=FrameInfo{fiMPEGVersion,fiSamplingRate}} =
   AudioDuration . (samplesPerFrame fiMPEGVersion /) $ samplingRateHz fiSamplingRate
 
@@ -110,7 +115,7 @@ frameHeaderParser = do
   pure (FrameInfo{fiMPEGVersion=mpegVersion, fiSamplingRate=samplingRate, fiBitrate=bitrate}, bytes, contentsSize)
 
 -- | Parses a single MP3 frame.
-frameParser :: Parser Frame
+frameParser :: Parser FullFrame
 frameParser = do
   (frameInfo, headerBytes, contentsSize) <- frameHeaderParser
   bytes <- A.take contentsSize
