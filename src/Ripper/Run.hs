@@ -171,8 +171,8 @@ ripOneStream request maybeOutputDir maybeCleanRipsDir = do
       - in this block, we have the `response` and are ready to stream the body,
       - so this time should be good enough
       -}
-      basename <- liftIO getFilename
-      let filename = maybe basename (</> basename) maybeOutputDir
+      basename <- liftIO getBasename
+      let filename = maybe basename (</> basename) maybeOutputDir <.> "mp3"
       writeIORef maybeFilenameVar $ Just filename
 
       -- there was a strange issue with ATP when the recording started, but then
@@ -183,7 +183,7 @@ ripOneStream request maybeOutputDir maybeCleanRipsDir = do
       -- disconnect and reconnect
       doesn'tStall noDataTimeout (getResponseBody response) $ \body ->
         let rawDump = sinkFile filename
-            cleanBasename = takeBaseName basename <> "_clean" <.> takeExtension basename
+            cleanBasename = basename <> "_clean" <.> "mp3"
             cleanFilename = maybe cleanBasename (</> cleanBasename) maybeCleanRipsDir
             cleanDump = conduitParserEither maybeFrameParser
               .| C.mapMaybeM getMP3Frame
@@ -271,15 +271,16 @@ ensureDirectory :: MonadIO m => FilePath -> m ()
 ensureDirectory = liftIO . createDirectoryIfMissing createParents
   where createParents = True
 
--- | Returns a rip filename that follows the `streamripper`'s pattern:
--- `sr_program_YYYY_mm_dd_HH_MM_SS.mp3` in the current timezone.
+-- | Returns a rip base filename (w/o extension) that follows the
+-- `streamripper`'s pattern: `sr_program_YYYY_mm_dd_HH_MM_SS` in the current
+-- timezone.
 --
 -- https://en.wikipedia.org/wiki/Streamripper
-getFilename :: IO FilePath
-getFilename = do
+getBasename :: IO FilePath
+getBasename = do
   time <- getCurrentLocalTime
   let timeString = formatTime defaultTimeLocale "%_Y_%m_%d_%H_%M_%S" time
-  pure $ "sr_program_" <> timeString <> ".mp3"
+  pure $ "sr_program_" <> timeString
 
   where
     getCurrentLocalTime :: MonadIO m => m LocalTime
