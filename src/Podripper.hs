@@ -222,8 +222,13 @@ reencodePreviousRips :: RipConfigExt -> ReencodedQueue -> IO ()
 reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, rawRipDir} queue = do
   ripSources <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
   ripOriginals <- fmap (rawRipDir </>) . filter isMP3 <$> listDirectory rawRipDir
-  let ripsSources' = (\ripName -> (Ripper.SuccessfulRip ripName, T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName)) <$> ripSources
-      ripOriginals' = (\ripName -> (Ripper.SuccessfulRip ripName, reencodedRipNameFromOriginal doneRipDir ripName)) <$> ripOriginals
+  let ripsSources' =
+        -- FIXME parse the MP3 structure from the file
+        (\ripName -> (Ripper.SuccessfulRip ripName (Ripper.MP3Structure mempty), T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName))
+          <$> ripSources
+      ripOriginals' =
+        (\ripName -> (Ripper.SuccessfulRip ripName (Ripper.MP3Structure mempty), reencodedRipNameFromOriginal doneRipDir ripName))
+          <$> ripOriginals
       rips = ripsSources' <> ripOriginals'
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime

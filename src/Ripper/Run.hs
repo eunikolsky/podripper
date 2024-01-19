@@ -9,8 +9,10 @@ module Ripper.Run
 
 import Conduit
 import Control.Concurrent.STM.TBMQueue
+import Data.ByteString qualified as BS
 import Data.Conduit.Attoparsec
 import Data.Conduit.List qualified as C
+import Data.Maybe
 import Data.Monoid (Last(..))
 import Data.Time.TZTime
 import Network.HTTP.Conduit (HttpExceptionContent(..))
@@ -155,7 +157,7 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
         from the context: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)`
    - As the doc says, `MonadUnliftIO` doesn't work with stateful monads :(
    -}
-  maybeFilenameVar <- newIORef Nothing
+  maybeRipVar <- newIORef Nothing
 
   ripResult <- runResourceT
     . handleStalledException
@@ -175,7 +177,10 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
       let filename = maybe basename (</> basename) maybeCleanRipsDir <.> "mp3"
           rawBasename = basename <> "_raw" <.> "mp3"
           rawFilename = maybe rawBasename (</> rawBasename) maybeRawRipsDir
-      writeIORef maybeFilenameVar $ Just filename
+      writeIORef maybeRipVar . Just $ SuccessfulRip
+        { ripFilename = filename
+        , ripMP3Structure = MP3Structure mempty
+        }
 
       -- there was a strange issue with ATP when the recording started, but then
       -- halted about an hour later (the file modtime confirms this) in the
@@ -185,16 +190,21 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
       -- disconnect and reconnect
       doesn'tStall noDataTimeout (getResponseBody response) $ \body ->
         let rawDump = sinkFile rawFilename
+
+            saveCleanDump = mapC (getFrameData . fData) .| sinkFile filename
+            processCleanDump = mapM_C $ extendRip maybeRipVar . dropFrameData
             cleanDump = conduitParserEither maybeFrameParser
               .| C.mapMaybeM getMP3Frame
-              .| mapC (getFrameData . fData)
-              .| sinkFile filename
+              .| getZipSink (ZipSink saveCleanDump *> ZipSink processCleanDump)
+
             bothDumps = getZipSink $ ZipSink rawDump *> ZipSink cleanDump
         in runConduit $ body .| bothDumps
 
       -- we're not inside `MonadRipper` here, so we're using the original IO func
       now <- liftIO getCurrentTZTime
-      pure $ RipRecorded (SuccessfulRip filename) now
+      -- `maybeRipVar` can't be `Nothing` in this block
+      recordedRip <- fromJust <$> readIORef maybeRipVar
+      pure $ RipRecorded recordedRip now
 
   {-
    - after a possible http exception is handled, we need to figure out if
@@ -205,11 +215,21 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
   case ripResult of
     r@(RipRecorded _ _) -> pure r
     RipNothing -> do
-      maybeFilename <- readIORef maybeFilenameVar
+      maybeRip <- readIORef maybeRipVar
       now <- liftIO getCurrentTZTime
-      pure $ case maybeFilename of
-        Just filename -> RipRecorded (SuccessfulRip filename) now
+      pure $ case maybeRip of
+        Just recordedRip -> RipRecorded recordedRip now
         Nothing -> RipNothing
+
+dropFrameData :: FullFrame -> ShallowFrame
+dropFrameData = fmap $ BS.length . getFrameData
+
+extendRip :: MonadIO m => IORef (Maybe SuccessfulRip) -> ShallowFrame -> m ()
+extendRip maybeRipVar frame = modifyIORef' maybeRipVar $ fmap extend
+  where
+    extend rip' = rip' {
+      ripMP3Structure = MP3Structure $ unMP3Structure (ripMP3Structure rip') <> [frame]
+    }
 
 getMP3Frame :: (MonadReader env m, HasLogFunc env, MonadIO m)
   => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe FullFrame)

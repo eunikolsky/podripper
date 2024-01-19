@@ -1,4 +1,5 @@
 {-# LANGUAGE BinaryLiterals #-}
+{-# LANGUAGE DeriveFunctor #-}
 
 module MP3.MP3
   ( AudioDuration(..)
@@ -42,7 +43,7 @@ data FrameInfo = FrameInfo
   , fiSamplingRate :: !SamplingRate
   , fiBitrate :: !Bitrate
   }
-  deriving stock Show
+  deriving stock (Show, Eq)
 
 -- | One MP3 frame: information and data (either all the bytes, or only the
 -- frame length to process frames later).
@@ -50,7 +51,10 @@ data Frame d = Frame
   { fInfo :: !FrameInfo
   , fData :: !d
   }
-  deriving stock Show
+  deriving stock (Show, Functor)
+
+instance Eq d => Eq (Frame d) where
+  f0 == f1 = (fInfo f0 == fInfo f1) && (fData f0 == fData f1)
 
 -- | MP3 frame that contains all the bytes.
 type FullFrame = Frame FrameData
@@ -133,7 +137,7 @@ frameSyncValidator (b0, b1) =
 -- | MPEG version of a given MP3 frame; it's required to calculate the frame
 -- size in bytes and frame duration in seconds (via samples/frame).
 data MPEGVersion = MPEG1 | MPEG2
-  deriving stock Show
+  deriving stock (Show, Eq)
 
 -- | Parses MPEG Version 1 or 2 from the header byte.
 parseMPEGVersion :: Word8 -> Parser MPEGVersion
@@ -158,6 +162,7 @@ layerValidator byte = case 0b0000_0011 .&. byte `shiftR` 1 of
 data SamplingRate
   = SR16000Hz | SR22050Hz | SR24000Hz -- MPEG2
   | SR32000Hz | SR44100Hz | SR48000Hz -- MPEG1
+  deriving stock Eq
 
 instance Show SamplingRate where
   show SR16000Hz = "16 kHz"
@@ -187,6 +192,7 @@ data Bitrate
   | BR224kbps
   | BR256kbps
   | BR320kbps
+  deriving stock Eq
 
 instance Show Bitrate where
   show BR8kbps = "8 kb/s"
