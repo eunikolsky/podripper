@@ -166,6 +166,7 @@ reencodeRip configExt@RipConfigExt{config, doneRipDir} newRip = do
   reencodeRip' year $ Ripper.ripFilename newRip
 
   where
+    reencodeRip' :: String -> FilePath -> IO ()
     reencodeRip' year ripName = do
       podTitle <- podTitleFromFilename ripName
       let reencodedRip = reencodedRipNameFromOriginal doneRipDir ripName
@@ -233,6 +234,7 @@ reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, rawRipDir} queue
     previouslyFailedRip f = all ($ f)
       [isMP3, (sourceRipSuffix `isSuffixOf`) . takeBaseName]
 
+    reencodeRip' :: String -> (FilePath, FilePath) -> IO ()
     reencodeRip' year (ripName, reencodedRip) = do
       podTitle <- podTitleFromFilename ripName
       let ffmpegArgs =
