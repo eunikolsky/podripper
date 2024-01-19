@@ -81,7 +81,7 @@ spec = do
           io = liftIO $ ioError error
       (_, logOpts) <- logOptionsMemory
       withLogFunc logOpts $ \logFunc -> do
-        flip runReaderT logFunc (handleResourceVanished io) `shouldThrow` (== error)
+        runReaderT (handleResourceVanished io) logFunc `shouldThrow` (== error)
 
     it "logs the exception" $ do
       let io = liftIO . ioError $ mkIOError resourceVanishedErrorType "Network.Socket.recvBuf" Nothing Nothing
