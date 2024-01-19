@@ -163,11 +163,11 @@ reencodeRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
 reencodeRip configExt@RipConfigExt{config, doneRipDir} newRip = do
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  reencodeRip' year $ Ripper.ripFilename newRip
+  reencodeRip' year newRip
 
   where
-    reencodeRip' :: String -> FilePath -> IO ()
-    reencodeRip' year ripName = do
+    reencodeRip' :: String -> Ripper.SuccessfulRip -> IO ()
+    reencodeRip' year Ripper.SuccessfulRip{Ripper.ripFilename=ripName} = do
       podTitle <- podTitleFromFilename ripName
       let reencodedRip = reencodedRipNameFromOriginal doneRipDir ripName
           ffmpegArgs =
@@ -222,8 +222,8 @@ reencodePreviousRips :: RipConfigExt -> ReencodedQueue -> IO ()
 reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, rawRipDir} queue = do
   ripSources <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
   ripOriginals <- fmap (rawRipDir </>) . filter isMP3 <$> listDirectory rawRipDir
-  let ripsSources' = (\ripName -> (ripName, T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName)) <$> ripSources
-      ripOriginals' = (\ripName -> (ripName, reencodedRipNameFromOriginal doneRipDir ripName)) <$> ripOriginals
+  let ripsSources' = (\ripName -> (Ripper.SuccessfulRip ripName, T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName)) <$> ripSources
+      ripOriginals' = (\ripName -> (Ripper.SuccessfulRip ripName, reencodedRipNameFromOriginal doneRipDir ripName)) <$> ripOriginals
       rips = ripsSources' <> ripOriginals'
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
@@ -234,8 +234,8 @@ reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, rawRipDir} queue
     previouslyFailedRip f = all ($ f)
       [isMP3, (sourceRipSuffix `isSuffixOf`) . takeBaseName]
 
-    reencodeRip' :: String -> (FilePath, FilePath) -> IO ()
-    reencodeRip' year (ripName, reencodedRip) = do
+    reencodeRip' :: String -> (Ripper.SuccessfulRip, FilePath) -> IO ()
+    reencodeRip' year (Ripper.SuccessfulRip{Ripper.ripFilename=ripName}, reencodedRip) = do
       podTitle <- podTitleFromFilename ripName
       let ffmpegArgs =
             [ "-nostdin"
