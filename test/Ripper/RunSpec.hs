@@ -10,6 +10,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.List (singleton)
 import Data.Time.TZTime
 import Data.Time.TZTime.QQ
+import MP3.Xing
 import Ripper.Import hiding (error)
 import RIO.List
 import RIO.Partial (fromJust)

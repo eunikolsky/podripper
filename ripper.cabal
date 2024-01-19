@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       MP3.MP3
+      MP3.Xing
       Podripper
       RipConfig
       Ripper.ATPLiveStreamCheck

@@ -3,11 +3,9 @@ module Ripper.Types
   ( App (..)
   , HasAppOptions(..)
   , HasAppRipsQueue(..)
-  , MP3Structure(..)
   , Options (..)
   , RipName
   , RipsQueue
-  , ShallowFrame
   , StreamConfig(..)
   , StreamURL(..)
   , SuccessfulRip(..)
@@ -15,7 +13,7 @@ module Ripper.Types
   ) where
 
 import Data.Aeson (FromJSON)
-import MP3.MP3
+import MP3.Xing
 import RIO
 import RIO.Process
 -- TODO move `Duration` outside of `RSSGen`?
@@ -55,17 +53,6 @@ data StreamConfig
 
 newtype URL = URL { urlToText :: Text }
   deriving newtype (Show, Eq, FromJSON)
-
-type FrameSize = Int
-type ShallowFrame = Frame FrameSize
-
--- TODO a better data structure for storing frames?
-newtype MP3Structure = MP3Structure { unMP3Structure :: [ShallowFrame] }
-  deriving Eq
-
-instance Show MP3Structure where
-  -- shows the number of frames, otherwise the output may be very big
-  show (MP3Structure s) = "MP3Structure{" <> show (length s) <> " frames}"
 
 -- | Stores information about a successful rip. Values of this type are passed
 -- from the ripper back to the parent `Podripper` (and ultimately to the

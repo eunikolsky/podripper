@@ -4,13 +4,16 @@ module Podripper
   ( run
   ) where
 
+import Conduit
 import Control.Exception (AsyncException, throw)
 import Control.Monad
+import Data.Conduit.List qualified as C
 import Data.Maybe
 import Data.List (isSuffixOf)
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
+import MP3.Xing
 import RIO hiding (stdin)
 import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
@@ -160,38 +163,21 @@ sourceRipSuffix = "_src"
 reencodedRipSuffix = "_enc"
 
 reencodeRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
-reencodeRip configExt@RipConfigExt{config, doneRipDir} newRip = do
+reencodeRip configExt@RipConfigExt{doneRipDir} newRip = do
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
   reencodeRip' year newRip
 
   where
     reencodeRip' :: String -> Ripper.SuccessfulRip -> IO ()
-    reencodeRip' year Ripper.SuccessfulRip{Ripper.ripFilename=ripName} = do
-      podTitle <- podTitleFromFilename ripName
+    reencodeRip' _year Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3} = do
+      --podTitle <- podTitleFromFilename ripName
       let reencodedRip = reencodedRipNameFromOriginal doneRipDir ripName
-          ffmpegArgs =
-            [ "-nostdin"
-            , "-hide_banner"
-            , "-i", ripName
-            , "-vn"
-            , "-v", "warning"
-            , "-codec:a", "libmp3lame"
-            , "-b:a", "96k"
-            , "-metadata", "title=" <> podTitle
-            , "-metadata", "artist=" <> T.unpack (podArtist config)
-            , "-metadata", "album=" <> T.unpack (podAlbum config)
-            , "-metadata", "date=" <> year
-            , "-metadata", "genre=Podcast"
-            , reencodedRip
-            ]
-      code <- ffmpeg ffmpegArgs ripName
-      if code == ExitSuccess
-        then trashFile configExt ripName
-        else do
-          putStrLn $ mconcat ["reencoding ", ripName, " failed; moving the source"]
-          whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
-          renameFile ripName $ doneRipDir </> takeBaseName ripName <> sourceRipSuffix <.> "mp3"
+          xingHeader = getXingHeader $ calculateXingHeader mp3
+
+      -- FIXME prepend ID3v2 tag
+      runConduitRes $ C.sourceList [xingHeader] *> sourceFile ripName .| sinkFile reencodedRip
+      trashFile configExt ripName
 
 trashFile :: RipConfigExt -> FilePath -> IO ()
 trashFile RipConfigExt{trashRawRipDir} file = do
@@ -224,10 +210,10 @@ reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, rawRipDir} queue
   ripOriginals <- fmap (rawRipDir </>) . filter isMP3 <$> listDirectory rawRipDir
   let ripsSources' =
         -- FIXME parse the MP3 structure from the file
-        (\ripName -> (Ripper.SuccessfulRip ripName (Ripper.MP3Structure mempty), T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName))
+        (\ripName -> (Ripper.SuccessfulRip ripName (MP3Structure mempty), T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName))
           <$> ripSources
       ripOriginals' =
-        (\ripName -> (Ripper.SuccessfulRip ripName (Ripper.MP3Structure mempty), reencodedRipNameFromOriginal doneRipDir ripName))
+        (\ripName -> (Ripper.SuccessfulRip ripName (MP3Structure mempty), reencodedRipNameFromOriginal doneRipDir ripName))
           <$> ripOriginals
       rips = ripsSources' <> ripOriginals'
   -- TODO get year from the file itself
