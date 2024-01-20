@@ -232,7 +232,7 @@ getMP3Frame :: (MonadReader env m, HasLogFunc env, MonadIO m)
   => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe FullFrame)
 getMP3Frame (Right (_, Valid f)) = pure $ Just f
 getMP3Frame (Right (posRange, Junk l)) = do
-  logError $ mconcat
+  logInfo $ mconcat
     [ "Found junk in stream: "
     , displayShow l, " bytes long at bytes "
     , displayShow . posOffset . posRangeStart $ posRange
