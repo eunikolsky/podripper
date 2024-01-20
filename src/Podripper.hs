@@ -9,7 +9,7 @@ import Control.Exception (AsyncException, throw)
 import Control.Monad
 import Data.Conduit.List qualified as C
 import Data.Maybe
-import Data.List (isSuffixOf)
+import Data.List (intercalate, isSuffixOf)
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
@@ -189,12 +189,26 @@ reencodeRip configExt@RipConfigExt{config, doneRipDir} newRip = do
         .| sinkFile reencodedRip
       trashFile configExt ripName
 
--- FIXME clean 2+ weeks old files
+-- | Puts the given `file` into the rip's `trashRawRipDir`, cleaning up 15+ days
+-- old files from it and `rawRipDir` beforehand.
 trashFile :: RipConfigExt -> FilePath -> IO ()
-trashFile RipConfigExt{trashRawRipDir} file = do
-  let targetFile = trashRawRipDir </> takeFileName file
-  putStrLn $ mconcat ["Moving ", file, " to ", targetFile]
-  renameFile file targetFile
+trashFile RipConfigExt{trashRawRipDir, rawRipDir} file =
+  clean trashRawRipDir *> clean rawRipDir *> trash
+
+  where
+    trash = do
+      let targetFile = trashRawRipDir </> takeFileName file
+      putStrLn $ mconcat ["Moving ", file, " to ", targetFile]
+      renameFile file targetFile
+
+    clean dir = do
+      now <- getCurrentTime
+      allFiles <- fmap (dir </>) <$> listDirectory dir
+      let tooOld = (> 15 * nominalDay)
+      oldFiles <- filterM (fmap (tooOld . diffUTCTime now) . getModificationTime) allFiles
+      unless (null oldFiles) $ do
+        putStrLn $ "Removing old trash files: " <> intercalate ", " oldFiles
+        forM_ oldFiles removeFile
 
 podTitleFromFilename :: FilePath -> IO String
 podTitleFromFilename name = fromMaybe "" <$> readCommand
