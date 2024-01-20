@@ -7,6 +7,7 @@ module Podripper
 import Conduit
 import Control.Exception (AsyncException, throw)
 import Control.Monad
+import Data.Conduit.Attoparsec
 import Data.Conduit.List qualified as C
 import Data.Maybe
 import Data.List (intercalate, isSuffixOf)
@@ -14,6 +15,7 @@ import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
 import MP3.ID3
+import MP3.MP3
 import MP3.Xing
 import RIO hiding (stdin)
 import RSSGen.Duration
@@ -220,6 +222,37 @@ podTitleFromFilename name = fromMaybe "" <$> readCommand
 reencodedRipNameFromOriginal :: FilePath -> FilePath -> FilePath
 reencodedRipNameFromOriginal doneRipDir ripName = doneRipDir </> takeBaseName ripName <> reencodedRipSuffix <.> "mp3"
 
+-- | Calculates `MP3Structure` of the given `file` by parsing it.
+mp3StructureFromFile :: FilePath -> IO MP3Structure
+mp3StructureFromFile file = runConduitRes $
+  sourceFile file
+    -- FIXME this is very similar to, but not the same as, what happens while
+    -- ripping; is it possible to reuse the code?
+    .| conduitParserEither maybeFrameParser
+    .| C.mapMaybeM getMP3Frame
+    .| mapC dropFrameData
+    .| foldlC extendMP3 (MP3Structure mempty)
+
+  where
+    getMP3Frame :: MonadIO m
+      => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe FullFrame)
+    getMP3Frame (Right (_, Valid f)) = pure $ Just f
+    getMP3Frame (Right (posRange, Junk l)) = do
+      liftIO . putStrLn $ mconcat
+        [ "Found junk in stream: "
+        , show l, " bytes long at bytes "
+        , show . posOffset . posRangeStart $ posRange
+        , "-"
+        , show . posOffset . posRangeEnd $ posRange
+        ]
+      pure Nothing
+    getMP3Frame (Left e) = do
+      liftIO . putStrLn $ "Parse error: " <> show e
+      pure Nothing
+
+    extendMP3 :: MP3Structure -> ShallowFrame -> MP3Structure
+    extendMP3 mp3 frame = MP3Structure $ unMP3Structure mp3 <> [frame]
+
 {- |
  - discover previously failed to convert rips and try to reencode them again [0]
  - and also discover and reencode original rips in the source dir, which may be
@@ -233,14 +266,20 @@ reencodePreviousRips :: RipConfigExt -> ReencodedQueue -> IO ()
 reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queue = do
   ripSources <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
   ripOriginals <- fmap (cleanRipDir </>) . filter isMP3 <$> listDirectory cleanRipDir
-  let ripsSources' =
-        -- FIXME parse the MP3 structure from the file
-        (\ripName -> (Ripper.SuccessfulRip ripName (MP3Structure mempty), T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName))
-          <$> ripSources
-      ripOriginals' =
-        (\ripName -> (Ripper.SuccessfulRip ripName (MP3Structure mempty), reencodedRipNameFromOriginal doneRipDir ripName))
-          <$> ripOriginals
-      rips = ripsSources' <> ripOriginals'
+  ripsSources' <- traverse
+    (\ripName -> do
+      mp3 <- mp3StructureFromFile ripName
+      pure (Ripper.SuccessfulRip ripName mp3, T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName)
+    )
+    ripSources
+  ripOriginals' <- traverse
+    (\ripName -> do
+      mp3 <- mp3StructureFromFile ripName
+      pure (Ripper.SuccessfulRip ripName mp3, reencodedRipNameFromOriginal doneRipDir ripName)
+    )
+    ripOriginals
+  let rips = ripsSources' <> ripOriginals'
+
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
   forM_ rips (reencodeRip' year)
@@ -250,36 +289,28 @@ reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} que
     previouslyFailedRip f = all ($ f)
       [isMP3, (sourceRipSuffix `isSuffixOf`) . takeBaseName]
 
+    -- FIXME almost a duplicate of the same-named function above
     reencodeRip' :: String -> (Ripper.SuccessfulRip, FilePath) -> IO ()
-    reencodeRip' year (Ripper.SuccessfulRip{Ripper.ripFilename=ripName}, reencodedRip) = do
+    reencodeRip' year (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3}, reencodedRip) = do
       podTitle <- podTitleFromFilename ripName
-      let ffmpegArgs =
-            [ "-nostdin"
-            , "-hide_banner"
-            , "-y"
-            , "-i", ripName
-            , "-vn"
-            , "-v", "warning"
-            , "-codec:a", "libmp3lame"
-            , "-b:a", "96k"
-            , "-metadata", "title=" <> podTitle
-            , "-metadata", "artist=" <> T.unpack (podArtist config)
-            , "-metadata", "album=" <> T.unpack (podAlbum config)
-            , "-metadata", "date=" <> year
-            , "-metadata", "genre=Podcast"
-            , reencodedRip
-            ]
-      code <- ffmpeg ffmpegArgs ripName
-      if code == ExitSuccess
-        then do
-          trashFile configExt ripName
-          atomically $ writeTQueue queue $ QValue NewReencodedRip
-        else do
-          putStrLn $ mconcat ["reencoding ", ripName, " failed again; leaving as is for now"]
-          whenM (doesFileExist reencodedRip) $ removeFile reencodedRip
+      let id3Header = getID3Header . generateID3Header $ ID3Fields
+            { id3Title = T.pack podTitle
+            , id3Artist = podArtist config
+            , id3Album = podAlbum config
+            -- TODO can actually use a more precise timestamp now
+            , id3Date = T.pack year
+            , id3Genre = "Podcast"
+            }
+          xingHeader = getXingHeader $ calculateXingHeader mp3
 
-ffmpeg :: [String] -> String -> IO ExitCode
-ffmpeg args ripName = do
+      runConduitRes $
+        C.sourceList [id3Header, xingHeader] *> sourceFile ripName
+        .| sinkFile reencodedRip
+      trashFile configExt ripName
+      atomically $ writeTQueue queue $ QValue NewReencodedRip
+
+_ffmpeg :: [String] -> String -> IO ExitCode
+_ffmpeg args ripName = do
   let stdin = ""
   (code, out, err) <- readProcessWithExitCode "ffmpeg" args stdin
   unless (null out) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stdout: ", out]
