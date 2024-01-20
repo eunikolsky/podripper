@@ -56,7 +56,7 @@ newtype URL = URL { urlToText :: Text }
 
 -- | Stores information about a successful rip. Values of this type are passed
 -- from the ripper back to the parent `Podripper` (and ultimately to the
--- reencoding step). It's important that this information can be retrieved from
+-- processing step). It's important that this information can be retrieved from
 -- the file itself because failed/missed source files need to be reprocessed.
 data SuccessfulRip = SuccessfulRip
   { ripFilename :: !FilePath

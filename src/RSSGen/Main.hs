@@ -89,7 +89,7 @@ run filename = do
         --    Old:  (foo/file0_enc.mp3,"")
         --    New:  foo/file0_enc.mp3 foo/file1_enc.mp3 …
         -- ```
-        -- which happened because the first file got recorded, reencoded and was
+        -- which happened because the first file got recorded, processed and was
         -- polling for the upstream RSS while other files got recorded too; it
         -- works as designed, so no need to crash here
         , shakeLint = Nothing

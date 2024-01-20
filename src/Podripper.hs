@@ -37,28 +37,28 @@ run ripName = do
   ensureDirs configExt
 
   ripsQueue <- atomically newTQueue
-  reencodedQueue <- atomically newTQueue
+  processedQueue <- atomically newTQueue
 
   let doRip = rip ripsQueue configExt
-      doProcessSuccessfulRips = processSuccessfulRips configExt ripsQueue reencodedQueue
-      doProcessReencodedRips = processReencodedRips configExt reencodedQueue
-      -- reencode discovered leftover rips, if any, in parallel with ripping at
+      doProcessSuccessfulRips = processSuccessfulRips configExt ripsQueue processedQueue
+      doProcessProcessedRips = processProcessedRips configExt processedQueue
+      -- process discovered leftover rips, if any, in parallel with ripping at
       -- the startup
-      doReencodePreviousRips = reencodePreviousRips configExt reencodedQueue
-      terminateReencodedQueue = atomically $ writeTQueue reencodedQueue QFinish
-      doInitialRSSUpdate = atomically $ writeTQueue reencodedQueue $ QValue InitialRSSUpdate
+      doProcessPreviousRips = processPreviousRips configExt processedQueue
+      terminateProcessedQueue = atomically $ writeTQueue processedQueue QFinish
+      doInitialRSSUpdate = atomically $ writeTQueue processedQueue $ QValue InitialRSSUpdate
 
   if skipRipping
     -- when `skipRipping`, there is no endless ripping loop, so we need to
     -- process whatever unprocesses rips are found and quit cleanly; that's why
     -- `concurrently_` is used: to wait until all is done
     then concurrently_
-      (doReencodePreviousRips >> terminateReencodedQueue)
-      doProcessReencodedRips
-    -- `concurrently_` is used here because the fast `doReencodePreviousRips`
+      (doProcessPreviousRips >> terminateProcessedQueue)
+      doProcessProcessedRips
+    -- `concurrently_` is used here because the fast `doProcessPreviousRips`
     -- shouldn't terminate the other concurrent processes
     else concurrently_
-      doReencodePreviousRips
+      doProcessPreviousRips
       -- `race` waits until any process finishes (which they don't here), and
       -- also terminates everything if any one throws an exception
       $ race3
@@ -66,20 +66,20 @@ run ripName = do
           doProcessSuccessfulRips
           -- do an initial RSS update in case any new rip comes up: this may
           -- happen in the scenario when the ripper has recorded a rip, it was
-          -- reencoded and the `rssgen` was waiting for upstream feed updates
+          -- processed and the `rssgen` was waiting for upstream feed updates
           -- when the process was killed; if there are no changes, the RSS won't
           -- be regenerated
-          (doInitialRSSUpdate >> doProcessReencodedRips)
+          (doInitialRSSUpdate >> doProcessProcessedRips)
 
 race3 :: IO a -> IO b -> IO c -> IO ()
 race3 x y = race_ x . race_ y
 
-processSuccessfulRips :: RipConfigExt -> Ripper.RipsQueue -> ReencodedQueue -> IO ()
-processSuccessfulRips config queue reencodedQueue = forever $ do
+processSuccessfulRips :: RipConfigExt -> Ripper.RipsQueue -> ProcessedQueue -> IO ()
+processSuccessfulRips config queue processedQueue = forever $ do
   newRip <- atomically $ readTQueue queue
   putStrLn $ "Successful rip: " <> show newRip
-  reencodeRip config newRip
-  atomically $ writeTQueue reencodedQueue $ QValue NewReencodedRip
+  processRip config newRip
+  atomically $ writeTQueue processedQueue $ QValue NewProcessedRip
 
 -- | An event in a `TerminatableQueue`: either a value or a termination signal.
 data QEvent a = QValue a | QFinish
@@ -88,34 +88,34 @@ data QEvent a = QValue a | QFinish
 -- | A `TQueue` that sends data and can also send a termination signal.
 type TerminatableQueue a = TQueue (QEvent a)
 
--- | Events in the `ReencodedQueue`. This type exists only for the logging, so
--- that the initial RSS update doesn't print "New reencoded rip", which is
+-- | Events in the `ProcessedQueue`. This type exists only for the logging, so
+-- that the initial RSS update doesn't print "New processed rip", which is
 -- incorrect.
-data ReencodedEvent = NewReencodedRip | InitialRSSUpdate
+data ProcessedEvent = NewProcessedRip | InitialRSSUpdate
 
--- | A queue of reencoded rips sends only empty values because the RSS updater
+-- | A queue of processed rips sends only empty values because the RSS updater
 -- lists and uses all the available files in the complete directory anyway. A
--- reason to send the reencoded filename could be to point the updater to the
+-- reason to send the processed filename could be to point the updater to the
 -- newest file, but I'm not sure how to do that with `shake`, which needs only
 -- the target filename to produce.
-type ReencodedQueue = TerminatableQueue ReencodedEvent
+type ProcessedQueue = TerminatableQueue ProcessedEvent
 
-processReencodedRips :: RipConfigExt -> ReencodedQueue -> IO ()
-processReencodedRips config queue = go
+processProcessedRips :: RipConfigExt -> ProcessedQueue -> IO ()
+processProcessedRips config queue = go
   where
     go = do
       event <- atomically $ readTQueue queue
       case event of
-        QValue reencodedEvent -> do
-          putStrLn $ reencodedEventDescription reencodedEvent
+        QValue processedEvent -> do
+          putStrLn $ processedEventDescription processedEvent
           updateRSS config
           go
 
         QFinish -> pure ()
 
-    reencodedEventDescription :: ReencodedEvent -> String
-    reencodedEventDescription NewReencodedRip = "New reencoded rip"
-    reencodedEventDescription InitialRSSUpdate = "Initial RSS update"
+    processedEventDescription :: ProcessedEvent -> String
+    processedEventDescription NewProcessedRip = "New processed rip"
+    processedEventDescription InitialRSSUpdate = "Initial RSS update"
 
 ensureDirs :: RipConfigExt -> IO ()
 ensureDirs RipConfigExt{rawRipDir, cleanRipDir, trashRawRipDir, doneRipDir} = do
@@ -160,20 +160,20 @@ catchExceptions = handle $ \(e :: SomeException) ->
     Nothing ->
       putStrLn $ mconcat ["operation failed: ", show e]
 
-reencodedRipSuffix :: IsString s => s
-reencodedRipSuffix = "_enc"
+processedRipSuffix :: IsString s => s
+processedRipSuffix = "_enc"
 
-reencodeRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
-reencodeRip configExt@RipConfigExt{config, doneRipDir} newRip = do
+processRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
+processRip configExt@RipConfigExt{config, doneRipDir} newRip = do
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  reencodeRip' year newRip
+  processRip' year newRip
 
   where
-    reencodeRip' :: String -> Ripper.SuccessfulRip -> IO ()
-    reencodeRip' year Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3} = do
+    processRip' :: String -> Ripper.SuccessfulRip -> IO ()
+    processRip' year Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3} = do
       podTitle <- podTitleFromFilename ripName
-      let reencodedRip = reencodedRipNameFromOriginal doneRipDir ripName
+      let processedRip = processedRipNameFromOriginal doneRipDir ripName
           id3Header = getID3Header . generateID3Header $ ID3Fields
             { id3Title = T.pack podTitle
             , id3Artist = podArtist config
@@ -186,7 +186,7 @@ reencodeRip configExt@RipConfigExt{config, doneRipDir} newRip = do
 
       runConduitRes $
         C.sourceList [id3Header, xingHeader] *> sourceFile ripName
-        .| sinkFile reencodedRip
+        .| sinkFile processedRip
       trashFile configExt ripName
 
 -- | Puts the given `file` into the rip's `trashRawRipDir`, cleaning up 15+ days
@@ -217,8 +217,8 @@ podTitleFromFilename name = fromMaybe "" <$> readCommand
   ["-nE", "s/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\\1-\\2-\\3 \\4:\\5:\\6/p"]
   name
 
-reencodedRipNameFromOriginal :: FilePath -> FilePath -> FilePath
-reencodedRipNameFromOriginal doneRipDir ripName = doneRipDir </> takeBaseName ripName <> reencodedRipSuffix <.> "mp3"
+processedRipNameFromOriginal :: FilePath -> FilePath -> FilePath
+processedRipNameFromOriginal doneRipDir ripName = doneRipDir </> takeBaseName ripName <> processedRipSuffix <.> "mp3"
 
 -- | Calculates `MP3Structure` of the given `file` by parsing it.
 mp3StructureFromFile :: FilePath -> IO MP3Structure
@@ -252,29 +252,29 @@ mp3StructureFromFile file = runConduitRes $
     extendMP3 mp3 frame = MP3Structure $ unMP3Structure mp3 <> [frame]
 
 {- |
- - discover and reencode original rips in the source dir, which may be
+ - discover and process original rips in the source dir, which may be
  - there as a result of a crash
  -}
-reencodePreviousRips :: RipConfigExt -> ReencodedQueue -> IO ()
-reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queue = do
+processPreviousRips :: RipConfigExt -> ProcessedQueue -> IO ()
+processPreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queue = do
   ripOriginals <- fmap (cleanRipDir </>) . filter isMP3 <$> listDirectory cleanRipDir
   ripOriginals' <- traverse
     (\ripName -> do
       mp3 <- mp3StructureFromFile ripName
-      pure (Ripper.SuccessfulRip ripName mp3, reencodedRipNameFromOriginal doneRipDir ripName)
+      pure (Ripper.SuccessfulRip ripName mp3, processedRipNameFromOriginal doneRipDir ripName)
     )
     ripOriginals
 
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  forM_ ripOriginals' (reencodeRip' year)
+  forM_ ripOriginals' (processRip' year)
 
   where
     isMP3 = (== ".mp3") . takeExtension
 
     -- FIXME almost a duplicate of the same-named function above
-    reencodeRip' :: String -> (Ripper.SuccessfulRip, FilePath) -> IO ()
-    reencodeRip' year (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3}, reencodedRip) = do
+    processRip' :: String -> (Ripper.SuccessfulRip, FilePath) -> IO ()
+    processRip' year (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3}, processedRip) = do
       podTitle <- podTitleFromFilename ripName
       let id3Header = getID3Header . generateID3Header $ ID3Fields
             { id3Title = T.pack podTitle
@@ -288,9 +288,9 @@ reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} que
 
       runConduitRes $
         C.sourceList [id3Header, xingHeader] *> sourceFile ripName
-        .| sinkFile reencodedRip
+        .| sinkFile processedRip
       trashFile configExt ripName
-      atomically $ writeTQueue queue $ QValue NewReencodedRip
+      atomically $ writeTQueue queue $ QValue NewProcessedRip
 
 updateRSS :: RipConfigExt -> IO ()
 updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
