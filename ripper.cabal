@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      MP3.ID3
       MP3.MP3
       MP3.Xing
       Podripper

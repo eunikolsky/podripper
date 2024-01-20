@@ -13,6 +13,7 @@ import Data.List (isSuffixOf)
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
+import MP3.ID3
 import MP3.Xing
 import RIO hiding (stdin)
 import RSSGen.Duration
@@ -163,20 +164,29 @@ sourceRipSuffix = "_src"
 reencodedRipSuffix = "_enc"
 
 reencodeRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
-reencodeRip configExt@RipConfigExt{doneRipDir} newRip = do
+reencodeRip configExt@RipConfigExt{config, doneRipDir} newRip = do
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
   reencodeRip' year newRip
 
   where
     reencodeRip' :: String -> Ripper.SuccessfulRip -> IO ()
-    reencodeRip' _year Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3} = do
-      --podTitle <- podTitleFromFilename ripName
+    reencodeRip' year Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3} = do
+      podTitle <- podTitleFromFilename ripName
       let reencodedRip = reencodedRipNameFromOriginal doneRipDir ripName
+          id3Header = getID3Header . generateID3Header $ ID3Fields
+            { id3Title = T.pack podTitle
+            , id3Artist = podArtist config
+            , id3Album = podAlbum config
+            -- TODO can actually use a more precise timestamp now
+            , id3Date = T.pack year
+            , id3Genre = "Podcast"
+            }
           xingHeader = getXingHeader $ calculateXingHeader mp3
 
-      -- FIXME prepend ID3v2 tag
-      runConduitRes $ C.sourceList [xingHeader] *> sourceFile ripName .| sinkFile reencodedRip
+      runConduitRes $
+        C.sourceList [id3Header, xingHeader] *> sourceFile ripName
+        .| sinkFile reencodedRip
       trashFile configExt ripName
 
 trashFile :: RipConfigExt -> FilePath -> IO ()
