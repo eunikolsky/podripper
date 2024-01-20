@@ -189,6 +189,7 @@ reencodeRip configExt@RipConfigExt{config, doneRipDir} newRip = do
         .| sinkFile reencodedRip
       trashFile configExt ripName
 
+-- FIXME clean 2+ weeks old files
 trashFile :: RipConfigExt -> FilePath -> IO ()
 trashFile RipConfigExt{trashRawRipDir} file = do
   let targetFile = trashRawRipDir </> takeFileName file
