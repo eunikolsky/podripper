@@ -10,7 +10,7 @@ import Control.Monad
 import Data.Conduit.Attoparsec
 import Data.Conduit.List qualified as C
 import Data.Maybe
-import Data.List (intercalate, isSuffixOf)
+import Data.List (intercalate)
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
@@ -160,8 +160,7 @@ catchExceptions = handle $ \(e :: SomeException) ->
     Nothing ->
       putStrLn $ mconcat ["operation failed: ", show e]
 
-sourceRipSuffix, reencodedRipSuffix :: IsString s => s
-sourceRipSuffix = "_src"
+reencodedRipSuffix :: IsString s => s
 reencodedRipSuffix = "_enc"
 
 reencodeRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
@@ -253,40 +252,25 @@ mp3StructureFromFile file = runConduitRes $
     extendMP3 mp3 frame = MP3Structure $ unMP3Structure mp3 <> [frame]
 
 {- |
- - discover previously failed to convert rips and try to reencode them again [0]
- - and also discover and reencode original rips in the source dir, which may be
+ - discover and reencode original rips in the source dir, which may be
  - there as a result of a crash
- -
- - [0] for example, this helps with the case when `ffmpeg` after an update fails
- - to run (`GLIBC` ld error) and reencode the fresh rips, then a fix comes and
- - we can try reencoding those older ones again
  -}
 reencodePreviousRips :: RipConfigExt -> ReencodedQueue -> IO ()
 reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queue = do
-  ripSources <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
   ripOriginals <- fmap (cleanRipDir </>) . filter isMP3 <$> listDirectory cleanRipDir
-  ripsSources' <- traverse
-    (\ripName -> do
-      mp3 <- mp3StructureFromFile ripName
-      pure (Ripper.SuccessfulRip ripName mp3, T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName)
-    )
-    ripSources
   ripOriginals' <- traverse
     (\ripName -> do
       mp3 <- mp3StructureFromFile ripName
       pure (Ripper.SuccessfulRip ripName mp3, reencodedRipNameFromOriginal doneRipDir ripName)
     )
     ripOriginals
-  let rips = ripsSources' <> ripOriginals'
 
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  forM_ rips (reencodeRip' year)
+  forM_ ripOriginals' (reencodeRip' year)
 
   where
     isMP3 = (== ".mp3") . takeExtension
-    previouslyFailedRip f = all ($ f)
-      [isMP3, (sourceRipSuffix `isSuffixOf`) . takeBaseName]
 
     -- FIXME almost a duplicate of the same-named function above
     reencodeRip' :: String -> (Ripper.SuccessfulRip, FilePath) -> IO ()

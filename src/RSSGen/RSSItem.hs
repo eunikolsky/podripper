@@ -17,7 +17,6 @@ module RSSGen.RSSItem
 
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
-import Control.Monad.Writer.Strict
 import Data.Function
 import Data.List (isSuffixOf, stripPrefix)
 import Data.Maybe (fromMaybe)
@@ -29,14 +28,6 @@ import System.FilePath.Posix
 import Text.XML.Light
 
 import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
-
--- | Specifies the type of the rip file (based on the filename).
-data RipType
-  -- | A rip file that has been reencoded and should have the correct MP3 headers.
-  = ReencodedRip
-  -- | Source rip file for which reeconding failed and seeking inside it in players is likely broken.
-  | SourceRip
-  deriving (Eq, Show)
 
 newtype UTCRipTime = UTCRipTime { toUTCTime :: UTCTime }
   deriving newtype (Show, Eq, Ord, Hashable, Binary, NFData)
@@ -56,7 +47,6 @@ data RipFile = RipFile
   { file :: !FilePath
   , fileSize :: !Integer
   , ripTime :: !RipTime
-  , ripType :: !RipType
   }
   deriving (Show, Eq)
 
@@ -90,7 +80,7 @@ ripFileFromFile :: FilePath -> FilePath -> IO (Maybe RipFile)
 ripFileFromFile relPath filename = runMaybeT $ do
   filename' <- MaybeT . doesFileExist' $ relPath </> filename
   fileSize <- liftIO $ getFileSize filename'
-  (localTime, ripType) <- MaybeT . pure . parseRipDate $ filename'
+  localTime <- MaybeT . pure . parseRipDate $ filename'
   ripTime <- liftIO $ localTimeToZonedTime localTime
   pure RipFile{file=filename,..}
 
@@ -102,8 +92,7 @@ rssItemFromRipFile :: UpstreamRSSFeed.PodcastId -> (UTCTime -> IO (Maybe Upstrea
 rssItemFromRipFile podcastTitle findUpstreamItem ripFile@RipFile{..} = do
   maybeUpstreamItem <- findUpstreamItem . toUTCTime . utcRipTime $ ripTime
   let title = T.pack $ mconcat
-        [ if ripType == SourceRip then "SOURCE " else ""
-        , titlePubDate $ zonedTime ripTime
+        [ titlePubDate $ zonedTime ripTime
         , " / "
         , T.unpack $ (UpstreamRSSFeed.title <$> maybeUpstreamItem) ?? podcastTitle
         ]
@@ -116,37 +105,15 @@ rssItemFromRipFile podcastTitle findUpstreamItem ripFile@RipFile{..} = do
 (??) = flip fromMaybe
 
 -- | Parses the rip time from the filename. Assumes the standard streamripper's
--- filename like `sr_program_2020_03_21_21_55_20_enc.mp3` (the `_enc` or `_src`
--- at the end may be missing).
-parseRipDate :: FilePath -> Maybe (LocalTime, RipType)
-parseRipDate file = fmap mapResult . runWriterT $ do
-  {-
-  the type of the value returned by this block is `WriterT Any Maybe LocalTime`;
-  the `Any` monoid calculates the final flag: `False` by default and can be set to
-  to `True` only based on the presence of the `_src` suffix
-
-  x :: MaybeT (Writer Flag) String
-  runMaybeT x :: Writer Flag (Maybe String)
-  runWriter $ runMaybeT x :: (Maybe String, Flag)
-
-  x :: WriterT Flag Maybe String
-  runWriterT x :: Maybe (String, Flag)
-  -}
-
+-- filename like `sr_program_2020_03_21_21_55_20_enc.mp3` (the `_enc` at the end
+-- may be missing).
+parseRipDate :: FilePath -> Maybe LocalTime
+parseRipDate file = do
   dateString <- takeBaseName file
-    & writer . fmap Any . maybeStripSuffix "_src"
-    <$> fst . maybeStripSuffix "_enc"
-    >>= lift . stripPrefix "sr_program_"
+    & maybeStripSuffix "_enc"
+    & stripPrefix "sr_program_"
   let acceptSurroundingWhitespace = False
   parseTimeM acceptSurroundingWhitespace defaultTimeLocale "%Y_%m_%d_%H_%M_%S" dateString
-
-  where
-    mapResult :: (LocalTime, Any) -> (LocalTime, RipType)
-    mapResult = fmap (ripTypeBySrcSuffix . getAny)
-
-    ripTypeBySrcSuffix :: Bool -> RipType
-    ripTypeBySrcSuffix True = SourceRip
-    ripTypeBySrcSuffix False = ReencodedRip
 
 getTimeZoneAtLocalTime :: LocalTime -> IO TimeZone
 getTimeZoneAtLocalTime localTime = do
@@ -189,11 +156,11 @@ doesFileExist' file = do
     else Nothing
 
 -- | Removes the suffix from the second string if present, and returns the second
--- string otherwise; also returns whether the suffix was present.
+-- string otherwise.
 -- This is different from @Data.Text.stripSuffix@ as that one returns @Nothing@
 -- if there is no match.
 -- TODO extract the optionality to separate functions?
-maybeStripSuffix :: Eq a => [a] -> [a] -> ([a], Bool)
+maybeStripSuffix :: Eq a => [a] -> [a] -> [a]
 maybeStripSuffix suffix s = if suffix `isSuffixOf` s
-  then (reverse . drop (length suffix) . reverse $ s, True)
-  else (s, False)
+  then reverse . drop (length suffix) . reverse $ s
+  else s
