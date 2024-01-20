@@ -28,7 +28,6 @@ import System.Directory
 import System.Environment
 import System.Exit
 import System.FilePath
-import System.Process
 
 run :: Ripper.RipName -> IO ()
 run ripName = do
@@ -308,14 +307,6 @@ reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} que
         .| sinkFile reencodedRip
       trashFile configExt ripName
       atomically $ writeTQueue queue $ QValue NewReencodedRip
-
-_ffmpeg :: [String] -> String -> IO ExitCode
-_ffmpeg args ripName = do
-  let stdin = ""
-  (code, out, err) <- readProcessWithExitCode "ffmpeg" args stdin
-  unless (null out) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stdout: ", out]
-  unless (null err) $ putStrLn $ mconcat ["[ffmpeg ", ripName, "] stderr: ", err]
-  pure code
 
 updateRSS :: RipConfigExt -> IO ()
 updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
