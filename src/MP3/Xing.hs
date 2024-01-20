@@ -10,7 +10,7 @@ module MP3.Xing
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as BSB
-import Data.List (findIndex, scanl')
+import Data.List (findIndex, scanl', uncons)
 import MP3.MP3
 
 type FrameSize = Int
@@ -40,8 +40,7 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
     -- TODO use a frame close to what's already in the file?
     header = BSB.word32BE 0b1111_1111__1111_1011__0011_0000__1100_0100
     sideInfo = BSB.byteString $ BS.replicate 17 0
-    -- FIXME support CBR
-    xingId = "Xing"
+    xingId = if isCBR mp3 then "Info" else "Xing"
     flags = BSB.word32BE 7 -- Frames .|. Bytes .|. TOC
     xingFrame = 1
     frames = BSB.word32BE . fromIntegral $ length mp3Frames + xingFrame
@@ -52,6 +51,13 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
     bytes = BSB.word32BE . fromIntegral $ mp3Size + xingFrameSize
     (toc, mp3Size) = generateTableOfContents mp3
     padding = BSB.byteString $ BS.replicate (xingFrameSize - 137) 0
+
+-- | CBR is when all frames have the same bitrate.
+isCBR :: MP3Structure -> Bool
+isCBR (MP3Structure frames) = case uncons frames of
+  Just (Frame{fInfo=FrameInfo{fiBitrate=firstBitrate}}, rest) ->
+    all ((== firstBitrate) . fiBitrate . fInfo) rest
+  Nothing -> True
 
 generateTableOfContents :: MP3Structure -> (BSB.Builder, Int)
 generateTableOfContents (MP3Structure frames) =
