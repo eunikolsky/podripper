@@ -117,10 +117,10 @@ processReencodedRips config queue = go
     reencodedEventDescription InitialRSSUpdate = "Initial RSS update"
 
 ensureDirs :: RipConfigExt -> IO ()
-ensureDirs RipConfigExt{rawRipDir, trashRawRipDir, doneRipDir} = do
+ensureDirs RipConfigExt{rawRipDir, cleanRipDir, trashRawRipDir, doneRipDir} = do
   let createParents = True
       ensureDir = createDirectoryIfMissing createParents
-  forM_ [rawRipDir, trashRawRipDir, doneRipDir] ensureDir
+  forM_ [rawRipDir, cleanRipDir, trashRawRipDir, doneRipDir] ensureDir
 
 rip :: Ripper.RipsQueue -> RipConfigExt -> IO ()
 rip ripsQueue RipConfigExt{config, rawRipDir, cleanRipDir} =
