@@ -9,7 +9,6 @@ module Ripper.Run
 
 import Conduit
 import Control.Concurrent.STM.TBMQueue
-import Data.ByteString qualified as BS
 import Data.Conduit.Attoparsec
 import Data.Conduit.List qualified as C
 import Data.Maybe
@@ -221,9 +220,6 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
       pure $ case maybeRip of
         Just recordedRip -> RipRecorded recordedRip now
         Nothing -> RipNothing
-
-dropFrameData :: FullFrame -> ShallowFrame
-dropFrameData = fmap $ BS.length . getFrameData
 
 extendRip :: MonadIO m => IORef (Maybe SuccessfulRip) -> ShallowFrame -> m ()
 extendRip maybeRipVar frame = modifyIORef' maybeRipVar $ fmap extend

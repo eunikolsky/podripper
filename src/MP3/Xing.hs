@@ -2,7 +2,6 @@
 
 module MP3.Xing
   ( MP3Structure(..)
-  , ShallowFrame
   , XingHeader(..)
   , calculateXingHeader
   ) where
@@ -12,9 +11,6 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as BSB
 import Data.List (findIndex, scanl', uncons)
 import MP3.MP3
-
-type FrameSize = Int
-type ShallowFrame = Frame FrameSize
 
 -- TODO a better data structure for storing frames?
 newtype MP3Structure = MP3Structure { unMP3Structure :: [ShallowFrame] }

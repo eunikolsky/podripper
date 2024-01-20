@@ -7,6 +7,8 @@ module MP3.MP3
   , FrameInfo(..)
   , FullFrame
   , MaybeFrame(..)
+  , ShallowFrame
+  , dropFrameData
   , frameDuration
   , frameParser
   , getFrameData
@@ -59,6 +61,13 @@ instance Eq d => Eq (Frame d) where
 
 -- | MP3 frame that contains all the bytes.
 type FullFrame = Frame FrameData
+
+type FrameSize = Int
+-- | MP3 frame that contains the frame size.
+type ShallowFrame = Frame FrameSize
+
+dropFrameData :: FullFrame -> ShallowFrame
+dropFrameData = fmap $ BS.length . getFrameData
 
 -- | Used only for logging and easier debugging afterwards.
 type JunkLength = Int
