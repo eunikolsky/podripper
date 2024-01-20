@@ -216,9 +216,9 @@ reencodedRipNameFromOriginal doneRipDir ripName = doneRipDir </> takeBaseName ri
  - we can try reencoding those older ones again
  -}
 reencodePreviousRips :: RipConfigExt -> ReencodedQueue -> IO ()
-reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, rawRipDir} queue = do
+reencodePreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queue = do
   ripSources <- fmap (doneRipDir </>) . filter previouslyFailedRip <$> listDirectory doneRipDir
-  ripOriginals <- fmap (rawRipDir </>) . filter isMP3 <$> listDirectory rawRipDir
+  ripOriginals <- fmap (cleanRipDir </>) . filter isMP3 <$> listDirectory cleanRipDir
   let ripsSources' =
         -- FIXME parse the MP3 structure from the file
         (\ripName -> (Ripper.SuccessfulRip ripName (MP3Structure mempty), T.unpack . T.replace sourceRipSuffix reencodedRipSuffix . T.pack $ ripName))
