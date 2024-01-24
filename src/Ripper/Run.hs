@@ -14,6 +14,7 @@ import Data.Conduit.List qualified as C
 import Data.Maybe
 import Data.Monoid (Last(..))
 import Data.Time.TZTime
+import Data.Vector qualified as V
 import Network.HTTP.Conduit (HttpExceptionContent(..))
 import Network.HTTP.Simple
 import RIO.Directory (createDirectoryIfMissing)
@@ -225,7 +226,7 @@ extendRip :: MonadIO m => IORef (Maybe SuccessfulRip) -> ShallowFrame -> m ()
 extendRip maybeRipVar frame = modifyIORef' maybeRipVar $ fmap extend
   where
     extend rip' = rip' {
-      ripMP3Structure = MP3Structure $ frame : unMP3Structure (ripMP3Structure rip')
+      ripMP3Structure = MP3Structure $ unMP3Structure (ripMP3Structure rip') `V.snoc` frame
     }
 
 getMP3Frame :: (MonadReader env m, HasLogFunc env, MonadIO m)

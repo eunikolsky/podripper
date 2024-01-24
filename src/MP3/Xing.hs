@@ -10,13 +10,12 @@ module MP3.Xing
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as BSB
-import Data.List (findIndex, uncons)
+import Data.Vector (Vector)
+import Data.Vector qualified as V
 import MP3.MP3
 
 -- TODO a better data structure for storing frames?
--- Warning: the frames are stored in the reverse order, from the end of the file
--- to the start! (This is more efficient when generating the data.)
-newtype MP3Structure = MP3Structure { unMP3Structure :: [ShallowFrame] }
+newtype MP3Structure = MP3Structure { unMP3Structure :: Vector ShallowFrame }
   deriving Eq
 
 instance Show MP3Structure where
@@ -53,7 +52,7 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
 
 -- | CBR is when all frames have the same bitrate.
 isCBR :: MP3Structure -> Bool
-isCBR (MP3Structure frames) = case uncons frames of
+isCBR (MP3Structure frames) = case V.uncons frames of
   Just (Frame{fInfo=FrameInfo{fiBitrate=firstBitrate}}, rest) ->
     all ((== firstBitrate) . fiBitrate . fInfo) rest
   Nothing -> True
@@ -65,25 +64,25 @@ generateTableOfContents (MP3Structure frames) =
   where
     tocByte :: Int -> BSB.Builder
     tocByte prcnt =
-      let maybeDurationIndex = findIndex (>= fromIntegral prcnt / 100.0 * duration) durations
+      let maybeDurationIndex = V.findIndex (>= fromIntegral prcnt / 100.0 * duration) durations
           -- TODO is there a cleaner algorithm to avoid indexing?
-          maybeFrameOffset = (frameOffsets !!) <$> maybeDurationIndex
+          maybeFrameOffset = (frameOffsets V.!) <$> maybeDurationIndex
           scaleToByte = floor @Double . (* 255) . (/ fromIntegral filesize) . fromIntegral
           byteValue = maybe 0 scaleToByte maybeFrameOffset
       in BSB.word8 byteValue
 
-    filesize = last frameOffsets
+    filesize = V.last frameOffsets
     -- this generates a list of offsets (in bytes) for each frame + the total
     -- size in bytes
     frameOffsets = fst <$> stats
 
-    duration = last durations
+    duration = V.last durations
     -- this generates a list of durations (in seconds) for when each frame
     -- starts + the total duration in seconds
     durations = snd <$> stats
 
-    stats = reverse $ scanr
-      (\frame (!offset, !dur) -> (offset + fData frame, dur + frameDuration frame))
+    stats = V.scanl'
+      (\(!offset, !dur) frame -> (offset + fData frame, dur + frameDuration frame))
       (0, 0)
       frames
 

@@ -82,6 +82,7 @@ library:
     - unicode-show
     - unliftio
     - unliftio-core
+    - vector
     - xml
 
 executables:

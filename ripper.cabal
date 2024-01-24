@@ -98,6 +98,7 @@ library
     , unicode-show
     , unliftio
     , unliftio-core
+    , vector
     , xml
   default-language: Haskell2010
 

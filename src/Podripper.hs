@@ -14,6 +14,7 @@ import Data.List (intercalate)
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
+import Data.Vector qualified as V
 import MP3.ID3
 import MP3.MP3
 import MP3.Xing
@@ -249,7 +250,7 @@ mp3StructureFromFile file = runConduitRes $
       pure Nothing
 
     extendMP3 :: MP3Structure -> ShallowFrame -> MP3Structure
-    extendMP3 mp3 frame = MP3Structure $ frame : unMP3Structure mp3
+    extendMP3 mp3 frame = MP3Structure $ unMP3Structure mp3 `V.snoc` frame
 
 {- |
  - discover and process original rips in the source dir, which may be
