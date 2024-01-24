@@ -249,7 +249,7 @@ mp3StructureFromFile file = runConduitRes $
       pure Nothing
 
     extendMP3 :: MP3Structure -> ShallowFrame -> MP3Structure
-    extendMP3 mp3 frame = MP3Structure $ unMP3Structure mp3 <> [frame]
+    extendMP3 mp3 frame = MP3Structure $ frame : unMP3Structure mp3
 
 {- |
  - discover and process original rips in the source dir, which may be

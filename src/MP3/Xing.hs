@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE BinaryLiterals #-}
 
 module MP3.Xing
@@ -9,10 +10,12 @@ module MP3.Xing
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as BSB
-import Data.List (findIndex, scanl', uncons)
+import Data.List (findIndex, uncons)
 import MP3.MP3
 
 -- TODO a better data structure for storing frames?
+-- Warning: the frames are stored in the reverse order, from the end of the file
+-- to the start! (This is more efficient when generating the data.)
 newtype MP3Structure = MP3Structure { unMP3Structure :: [ShallowFrame] }
   deriving Eq
 
@@ -72,12 +75,17 @@ generateTableOfContents (MP3Structure frames) =
     filesize = last frameOffsets
     -- this generates a list of offsets (in bytes) for each frame + the total
     -- size in bytes
-    frameOffsets = scanl' (\acc frame -> acc + fData frame) 0 frames
+    frameOffsets = fst <$> stats
 
     duration = last durations
     -- this generates a list of durations (in seconds) for when each frame
     -- starts + the total duration in seconds
-    durations = scanl' (\d frame -> d + frameDuration frame) 0 frames
+    durations = snd <$> stats
+
+    stats = reverse $ scanr
+      (\frame (!offset, !dur) -> (offset + fData frame, dur + frameDuration frame))
+      (0, 0)
+      frames
 
     -- exactly 100 entries
     percentages = [0..99]

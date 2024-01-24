@@ -225,7 +225,7 @@ extendRip :: MonadIO m => IORef (Maybe SuccessfulRip) -> ShallowFrame -> m ()
 extendRip maybeRipVar frame = modifyIORef' maybeRipVar $ fmap extend
   where
     extend rip' = rip' {
-      ripMP3Structure = MP3Structure $ unMP3Structure (ripMP3Structure rip') <> [frame]
+      ripMP3Structure = MP3Structure $ frame : unMP3Structure (ripMP3Structure rip')
     }
 
 getMP3Frame :: (MonadReader env m, HasLogFunc env, MonadIO m)
