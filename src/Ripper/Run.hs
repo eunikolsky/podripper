@@ -27,7 +27,7 @@ import qualified RIO.Text as T
 import RIO.Time
 import System.IO.Error (isResourceVanishedError)
 
-import MP3.MP3
+import MP3.Parser
 import MP3.Xing
 import Ripper.ATPLiveStreamCheck
 import Ripper.Import

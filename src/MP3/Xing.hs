@@ -12,7 +12,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as BSB
 import Data.Vector (Vector)
 import Data.Vector qualified as V
-import MP3.MP3
+import MP3.Parser
 
 -- TODO a better data structure for storing frames?
 newtype MP3Structure = MP3Structure { unMP3Structure :: Vector FrameInfo }

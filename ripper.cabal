@@ -27,6 +27,7 @@ library
   exposed-modules:
       MP3.ID3
       MP3.MP3
+      MP3.Parser
       MP3.Xing
       Podripper
       RipConfig

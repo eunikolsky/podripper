@@ -16,7 +16,7 @@ import Data.Time
 import Data.Time.Calendar.OrdinalDate
 import Data.Vector qualified as V
 import MP3.ID3
-import MP3.MP3
+import MP3.Parser
 import MP3.Xing
 import RIO hiding (stdin)
 import RSSGen.Duration
