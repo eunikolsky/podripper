@@ -37,13 +37,37 @@ newtype FrameData = FrameData { getFrameData :: ByteString }
 instance Show FrameData where
   show (FrameData d) = "<" <> show (BS.length d) <> " bytes>"
 
--- | Parsed information about one MP3 frame. Only `fiSamplingRate` and its MPEG
--- version are necessary to calculate frame's duration in seconds.
-data FrameInfo = FrameInfo
-  { fiSamplingRate :: !SamplingRate
-  , fiBitrate :: !Bitrate
-  }
+-- | Parsed information about one MP3 frame: sampling rate and bitrate packed
+-- into one byte for efficient storage of frames while ripping.
+-- Only sampling rate and its MPEG version are necessary to calculate frame's
+-- duration in seconds; bitrate is necessary to calculate frame's size in bytes.
+newtype FrameInfo = FrameInfo { packedFrameInfo :: Word8 }
   deriving stock (Show, Eq)
+
+mkFrameInfo :: SamplingRate -> Bitrate -> FrameInfo
+mkFrameInfo sr br = FrameInfo $ (packSamplingRate sr `shiftL` 5) .|. packBitrate br
+  where
+    packSamplingRate (MPEG1SR SR32000Hz) = 0b000
+    packSamplingRate (MPEG1SR SR44100Hz) = 0b001
+    packSamplingRate (MPEG1SR SR48000Hz) = 0b010
+    packSamplingRate (MPEG2SR SR16000Hz) = 0b100
+    packSamplingRate (MPEG2SR SR22050Hz) = 0b101
+    packSamplingRate (MPEG2SR SR24000Hz) = 0b110
+
+    packBitrate = fromIntegral . fromEnum
+
+fiSamplingRate :: FrameInfo -> SamplingRate
+fiSamplingRate (FrameInfo byte) = case byte `shiftR` 5 of
+  0b000 -> MPEG1SR SR32000Hz
+  0b001 -> MPEG1SR SR44100Hz
+  0b010 -> MPEG1SR SR48000Hz
+  0b100 -> MPEG2SR SR16000Hz
+  0b101 -> MPEG2SR SR22050Hz
+  0b110 -> MPEG2SR SR24000Hz
+  x -> error $ "Impossible FrameInfo sampling rate value " <> show x
+
+fiBitrate :: FrameInfo -> Bitrate
+fiBitrate (FrameInfo byte) = toEnum . fromIntegral $ byte .&. 0b0001_1111
 
 -- | One MP3 frame: information and all its bytes.
 data Frame = Frame
@@ -87,8 +111,9 @@ maybeFrameParser = validFrame <|> junk
       pure . Junk $ BS.length bs + skippedByte
 
 frameDuration :: FrameInfo -> AudioDuration
-frameDuration FrameInfo{fiSamplingRate} =
-  AudioDuration . (samplesPerFrame (srMPEGVersion fiSamplingRate) /) $ samplingRateHz fiSamplingRate
+frameDuration info =
+  AudioDuration . (samplesPerFrame (srMPEGVersion samplingRate) /) $ samplingRateHz samplingRate
+  where samplingRate = fiSamplingRate info
 
 samplesPerFrame :: Num a => MPEGVersion -> a
 samplesPerFrame MPEG1 = 1152
@@ -111,7 +136,7 @@ frameHeaderParser = do
   let paddingSize = if testBit byte2 paddingBitIndex then 1 else 0
       contentsSize = frameSize' mpegVersion bitrate samplingRate - frameHeaderSize + paddingSize
 
-  pure (FrameInfo{fiSamplingRate=samplingRate, fiBitrate=bitrate}, bytes, contentsSize)
+  pure (mkFrameInfo samplingRate bitrate, bytes, contentsSize)
 
 -- | Parses a single MP3 frame.
 frameParser :: Parser Frame
@@ -203,7 +228,7 @@ data Bitrate
   | BR224kbps
   | BR256kbps
   | BR320kbps
-  deriving stock Eq
+  deriving stock (Eq, Enum)
 
 instance Show Bitrate where
   show BR8kbps = "8 kb/s"
@@ -300,8 +325,11 @@ frameSize' mpeg br sr = floor @Float $ samplesPerFrame mpeg / 8 * bitrateBitsPer
     bitrateBitsPerSecond BR320kbps = 320000
 
 frameSize :: FrameInfo -> FrameSize
-frameSize FrameInfo{fiBitrate, fiSamplingRate} =
-  frameSize' (srMPEGVersion fiSamplingRate) fiBitrate fiSamplingRate
+frameSize info =
+  frameSize' (srMPEGVersion samplingRate) bitrate samplingRate
+  where
+    samplingRate = fiSamplingRate info
+    bitrate = fiBitrate info
 
 srMPEGVersion :: SamplingRate -> MPEGVersion
 srMPEGVersion (MPEG1SR _) = MPEG1
