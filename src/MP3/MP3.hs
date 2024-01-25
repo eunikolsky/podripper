@@ -3,8 +3,9 @@
 module MP3.MP3
   ( AudioDuration(..)
   , Frame(..)
-  , FrameInfo(..)
+  , FrameInfo
   , MaybeFrame(..)
+  , fiBitrate
   , frameDuration
   , frameParser
   , frameSize

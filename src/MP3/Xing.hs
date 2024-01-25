@@ -53,8 +53,8 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
 -- | CBR is when all frames have the same bitrate.
 isCBR :: MP3Structure -> Bool
 isCBR (MP3Structure frames) = case V.uncons frames of
-  Just (FrameInfo{fiBitrate=firstBitrate}, rest) ->
-    all ((== firstBitrate) . fiBitrate) rest
+  Just (firstFrame, rest) ->
+    all ((== fiBitrate firstFrame) . fiBitrate) rest
   Nothing -> True
 
 generateTableOfContents :: MP3Structure -> (BSB.Builder, Int)
