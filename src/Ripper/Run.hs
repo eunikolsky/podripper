@@ -1,4 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Ripper.Run
   ( MonadRipper(..)
@@ -15,6 +16,8 @@ import Data.Maybe
 import Data.Monoid (Last(..))
 import Data.Time.TZTime
 import Data.Vector qualified as V
+import Data.Vector.Mutable (IOVector)
+import Data.Vector.Mutable qualified as MV
 import Network.HTTP.Conduit (HttpExceptionContent(..))
 import Network.HTTP.Simple
 import RIO.Directory (createDirectoryIfMissing)
@@ -142,6 +145,35 @@ delayWithLog reconnectDelay = do
   threadDelay . toMicroseconds . toDuration $ reconnectDelay
   logDebug "Reconnecting"
 
+-- | Information about a rip in progress; the difference from `SuccessfulRip` is
+-- the mutable vector of frames, which should provide a better memory usage than
+-- appending to an immutable vector all the time.
+data InProgressRip = InProgressRip
+  { irFilename :: !FilePath
+  , irFrames :: !(IOVector ShallowFrame)
+  -- ^ mutable vector for storing frames
+  , irWriteIndex :: !Int
+  -- ^ next index, into which the frame should be added; this is not the same as
+  -- vector's `length` because the vector may contain uninitialized elements
+  }
+
+toSuccessfulRip :: MonadIO m => InProgressRip -> m SuccessfulRip
+toSuccessfulRip rip' = do
+  let writtenLength = irWriteIndex rip'
+  -- this is safe because ripping is done at this point
+  -- it's not clear whether `V.force` is worth it here
+  frames <- liftIO . fmap V.force . V.unsafeFreeze . MV.take writtenLength $ irFrames rip'
+  pure $ SuccessfulRip
+    { ripFilename = irFilename rip'
+    , ripMP3Structure = MP3Structure frames
+    }
+
+-- | How many new elements to add to the frames vector when it's fully filled.
+vectorSizeInc :: Int
+vectorSizeInc = 10 * framesInMinute
+  -- | 44100 Hz MPEG1 Layer3 frames
+  where framesInMinute = 2297
+
 -- | Rips a stream for as long as the connection is open.
 ripOneStream
   :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env, HasAppOptions env)
@@ -178,9 +210,11 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
       let filename = maybe basename (</> basename) maybeCleanRipsDir <.> "mp3"
           rawBasename = basename <> "_raw" <.> "mp3"
           rawFilename = maybe rawBasename (</> rawBasename) maybeRawRipsDir
-      writeIORef maybeRipVar . Just $ SuccessfulRip
-        { ripFilename = filename
-        , ripMP3Structure = MP3Structure mempty
+      framesVector <- liftIO $ MV.new vectorSizeInc
+      writeIORef maybeRipVar . Just $ InProgressRip
+        { irFilename = filename
+        , irFrames = framesVector
+        , irWriteIndex = 0
         }
 
       -- there was a strange issue with ATP when the recording started, but then
@@ -204,7 +238,8 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
       -- we're not inside `MonadRipper` here, so we're using the original IO func
       now <- liftIO getCurrentTZTime
       -- `maybeRipVar` can't be `Nothing` in this block
-      recordedRip <- fromJust <$> readIORef maybeRipVar
+      inProgressRip <- fromJust <$> readIORef maybeRipVar
+      recordedRip <- toSuccessfulRip inProgressRip
       pure $ RipRecorded recordedRip now
 
   {-
@@ -218,16 +253,35 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
     RipNothing -> do
       maybeRip <- readIORef maybeRipVar
       now <- liftIO getCurrentTZTime
-      pure $ case maybeRip of
-        Just recordedRip -> RipRecorded recordedRip now
-        Nothing -> RipNothing
+      case maybeRip of
+        Just inProgressRip -> do
+          recordedRip <- toSuccessfulRip inProgressRip
+          pure $ RipRecorded recordedRip now
+        Nothing -> pure RipNothing
 
-extendRip :: MonadIO m => IORef (Maybe SuccessfulRip) -> ShallowFrame -> m ()
-extendRip maybeRipVar frame = modifyIORef' maybeRipVar $ fmap extend
-  where
-    extend rip' = rip' {
-      ripMP3Structure = MP3Structure $ unMP3Structure (ripMP3Structure rip') `V.snoc` frame
-    }
+extendRip :: MonadIO m => IORef (Maybe InProgressRip) -> ShallowFrame -> m ()
+extendRip maybeRipVar frame = modifyIORefIO' maybeRipVar $ \case
+  Just rip' -> do
+    let framesVector = irFrames rip'
+        writeIndex = irWriteIndex rip'
+
+    let isVectorFull = writeIndex >= MV.length framesVector
+    framesVector' <- if isVectorFull
+      then liftIO $ MV.grow framesVector vectorSizeInc
+      else pure framesVector
+    liftIO $ MV.write framesVector' writeIndex frame
+
+    pure . Just $ rip'
+      { irFrames = framesVector'
+      , irWriteIndex = writeIndex + 1
+      }
+  Nothing -> pure Nothing
+
+modifyIORefIO' :: MonadIO m => IORef a -> (a -> m a) -> m ()
+modifyIORefIO' ref f = do
+  x <- readIORef ref
+  x' <- f x
+  x' `seq` writeIORef ref x'
 
 getMP3Frame :: (MonadReader env m, HasLogFunc env, MonadIO m)
   => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe FullFrame)
