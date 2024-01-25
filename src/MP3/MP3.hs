@@ -1,16 +1,13 @@
 {-# LANGUAGE BinaryLiterals #-}
-{-# LANGUAGE DeriveFunctor #-}
 
 module MP3.MP3
   ( AudioDuration(..)
   , Frame(..)
   , FrameInfo(..)
-  , FullFrame
   , MaybeFrame(..)
-  , ShallowFrame
-  , dropFrameData
   , frameDuration
   , frameParser
+  , frameSize
   , getFrameData
   , maybeFrameParser
   ) where
@@ -48,32 +45,20 @@ data FrameInfo = FrameInfo
   }
   deriving stock (Show, Eq)
 
--- | One MP3 frame: information and data (either all the bytes, or only the
--- frame length to process frames later).
-data Frame d = Frame
+-- | One MP3 frame: information and all its bytes.
+data Frame = Frame
   { fInfo :: !FrameInfo
-  , fData :: !d
+  , fData :: !FrameData
   }
-  deriving stock (Show, Functor)
-
-instance Eq d => Eq (Frame d) where
-  f0 == f1 = (fInfo f0 == fInfo f1) && (fData f0 == fData f1)
-
--- | MP3 frame that contains all the bytes.
-type FullFrame = Frame FrameData
+  deriving stock (Show)
 
 type FrameSize = Int
--- | MP3 frame that contains the frame size.
-type ShallowFrame = Frame FrameSize
-
-dropFrameData :: FullFrame -> ShallowFrame
-dropFrameData = fmap $ BS.length . getFrameData
 
 -- | Used only for logging and easier debugging afterwards.
 type JunkLength = Int
 
 -- | Result of trying to parse an MP3 stream.
-data MaybeFrame = Valid FullFrame | Junk JunkLength
+data MaybeFrame = Valid Frame | Junk JunkLength
   deriving stock Show
 
 -- | Parser for MP3 streams that either parses a valid frame, or some junk until
@@ -101,8 +86,8 @@ maybeFrameParser = validFrame <|> junk
       bs <- A.takeWhile (/= 0xff)
       pure . Junk $ BS.length bs + skippedByte
 
-frameDuration :: Frame d -> AudioDuration
-frameDuration Frame{fInfo=FrameInfo{fiMPEGVersion,fiSamplingRate}} =
+frameDuration :: FrameInfo -> AudioDuration
+frameDuration FrameInfo{fiMPEGVersion,fiSamplingRate} =
   AudioDuration . (samplesPerFrame fiMPEGVersion /) $ samplingRateHz fiSamplingRate
 
 samplesPerFrame :: Num a => MPEGVersion -> a
@@ -124,12 +109,12 @@ frameHeaderParser = do
   samplingRate <- samplingRateParser mpegVersion byte2
 
   let paddingSize = if testBit byte2 paddingBitIndex then 1 else 0
-      contentsSize = frameSize mpegVersion bitrate samplingRate - frameHeaderSize + paddingSize
+      contentsSize = frameSize' mpegVersion bitrate samplingRate - frameHeaderSize + paddingSize
 
   pure (FrameInfo{fiMPEGVersion=mpegVersion, fiSamplingRate=samplingRate, fiBitrate=bitrate}, bytes, contentsSize)
 
 -- | Parses a single MP3 frame.
-frameParser :: Parser FullFrame
+frameParser :: Parser Frame
 frameParser = do
   (frameInfo, headerBytes, contentsSize) <- frameHeaderParser
   bytes <- A.take contentsSize
@@ -276,8 +261,8 @@ bitrateParser mpeg byte = case (mpeg, shiftR byte 4) of
 -- Note: most MP3 docs don't mention this, but the formula to calculate the
 -- frame size is slightly different for MPEG2 vs MPEG1 Layer 3. See also:
 -- https://stackoverflow.com/questions/62536328/mpeg-2-and-2-5-problems-calculating-frame-sizes-in-bytes/62539671#62539671
-frameSize :: MPEGVersion -> Bitrate -> SamplingRate -> Int
-frameSize mpeg br sr = floor @Float $ samplesPerFrame mpeg / 8 * bitrateBitsPerSecond br / samplingRateHz sr
+frameSize' :: MPEGVersion -> Bitrate -> SamplingRate -> FrameSize
+frameSize' mpeg br sr = floor @Float $ samplesPerFrame mpeg / 8 * bitrateBitsPerSecond br / samplingRateHz sr
   where
     bitrateBitsPerSecond BR8kbps   = 8000
     bitrateBitsPerSecond BR16kbps  = 16000
@@ -297,6 +282,10 @@ frameSize mpeg br sr = floor @Float $ samplesPerFrame mpeg / 8 * bitrateBitsPerS
     bitrateBitsPerSecond BR224kbps = 224000
     bitrateBitsPerSecond BR256kbps = 256000
     bitrateBitsPerSecond BR320kbps = 320000
+
+frameSize :: FrameInfo -> FrameSize
+frameSize FrameInfo{fiMPEGVersion, fiBitrate, fiSamplingRate} =
+  frameSize' fiMPEGVersion fiBitrate fiSamplingRate
 
 samplingRateHz :: Num a => SamplingRate -> a
 samplingRateHz SR16000Hz = 16000

@@ -150,7 +150,7 @@ delayWithLog reconnectDelay = do
 -- appending to an immutable vector all the time.
 data InProgressRip = InProgressRip
   { irFilename :: !FilePath
-  , irFrames :: !(IOVector ShallowFrame)
+  , irFrames :: !(IOVector FrameInfo)
   -- ^ mutable vector for storing frames
   , irWriteIndex :: !Int
   -- ^ next index, into which the frame should be added; this is not the same as
@@ -227,7 +227,7 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
         let rawDump = sinkFile rawFilename
 
             saveCleanDump = mapC (getFrameData . fData) .| sinkFile filename
-            processCleanDump = mapM_C $ extendRip maybeRipVar . dropFrameData
+            processCleanDump = mapM_C $ extendRip maybeRipVar . fInfo
             cleanDump = conduitParserEither maybeFrameParser
               .| C.mapMaybeM getMP3Frame
               .| getZipSink (ZipSink saveCleanDump *> ZipSink processCleanDump)
@@ -259,7 +259,7 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
           pure $ RipRecorded recordedRip now
         Nothing -> pure RipNothing
 
-extendRip :: MonadIO m => IORef (Maybe InProgressRip) -> ShallowFrame -> m ()
+extendRip :: MonadIO m => IORef (Maybe InProgressRip) -> FrameInfo -> m ()
 extendRip maybeRipVar frame = modifyIORefIO' maybeRipVar $ \case
   Just rip' -> do
     let framesVector = irFrames rip'
@@ -284,7 +284,7 @@ modifyIORefIO' ref f = do
   x' `seq` writeIORef ref x'
 
 getMP3Frame :: (MonadReader env m, HasLogFunc env, MonadIO m)
-  => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe FullFrame)
+  => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe Frame)
 getMP3Frame (Right (_, Valid f)) = pure $ Just f
 getMP3Frame (Right (posRange, Junk l)) = do
   logInfo $ mconcat

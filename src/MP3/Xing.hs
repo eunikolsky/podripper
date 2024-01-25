@@ -15,7 +15,7 @@ import Data.Vector qualified as V
 import MP3.MP3
 
 -- TODO a better data structure for storing frames?
-newtype MP3Structure = MP3Structure { unMP3Structure :: Vector ShallowFrame }
+newtype MP3Structure = MP3Structure { unMP3Structure :: Vector FrameInfo }
   deriving Eq
 
 instance Show MP3Structure where
@@ -53,8 +53,8 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
 -- | CBR is when all frames have the same bitrate.
 isCBR :: MP3Structure -> Bool
 isCBR (MP3Structure frames) = case V.uncons frames of
-  Just (Frame{fInfo=FrameInfo{fiBitrate=firstBitrate}}, rest) ->
-    all ((== firstBitrate) . fiBitrate . fInfo) rest
+  Just (FrameInfo{fiBitrate=firstBitrate}, rest) ->
+    all ((== firstBitrate) . fiBitrate) rest
   Nothing -> True
 
 generateTableOfContents :: MP3Structure -> (BSB.Builder, Int)
@@ -82,7 +82,7 @@ generateTableOfContents (MP3Structure frames) =
     durations = snd <$> stats
 
     stats = V.scanl'
-      (\(!offset, !dur) frame -> (offset + fData frame, dur + frameDuration frame))
+      (\(!offset, !dur) frame -> (offset + frameSize frame, dur + frameDuration frame))
       (0, 0)
       frames
 

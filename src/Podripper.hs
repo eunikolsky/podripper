@@ -229,12 +229,12 @@ mp3StructureFromFile file = runConduitRes $
     -- ripping; is it possible to reuse the code?
     .| conduitParserEither maybeFrameParser
     .| C.mapMaybeM getMP3Frame
-    .| mapC dropFrameData
+    .| mapC fInfo
     .| foldlC extendMP3 (MP3Structure mempty)
 
   where
     getMP3Frame :: MonadIO m
-      => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe FullFrame)
+      => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe Frame)
     getMP3Frame (Right (_, Valid f)) = pure $ Just f
     getMP3Frame (Right (posRange, Junk l)) = do
       liftIO . putStrLn $ mconcat
@@ -249,7 +249,7 @@ mp3StructureFromFile file = runConduitRes $
       liftIO . putStrLn $ "Parse error: " <> show e
       pure Nothing
 
-    extendMP3 :: MP3Structure -> ShallowFrame -> MP3Structure
+    extendMP3 :: MP3Structure -> FrameInfo -> MP3Structure
     extendMP3 mp3 frame = MP3Structure $ unMP3Structure mp3 `V.snoc` frame
 
 {- |
