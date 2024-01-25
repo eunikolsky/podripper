@@ -36,11 +36,10 @@ newtype FrameData = FrameData { getFrameData :: ByteString }
 instance Show FrameData where
   show (FrameData d) = "<" <> show (BS.length d) <> " bytes>"
 
--- | Parsed information about one MP3 frame. Only `fiMPEGVersion` and
--- `fiSamplingRate` are necessary to calculate frame's duration in seconds.
+-- | Parsed information about one MP3 frame. Only `fiSamplingRate` and its MPEG
+-- version are necessary to calculate frame's duration in seconds.
 data FrameInfo = FrameInfo
-  { fiMPEGVersion :: !MPEGVersion
-  , fiSamplingRate :: !SamplingRate
+  { fiSamplingRate :: !SamplingRate
   , fiBitrate :: !Bitrate
   }
   deriving stock (Show, Eq)
@@ -87,8 +86,8 @@ maybeFrameParser = validFrame <|> junk
       pure . Junk $ BS.length bs + skippedByte
 
 frameDuration :: FrameInfo -> AudioDuration
-frameDuration FrameInfo{fiMPEGVersion,fiSamplingRate} =
-  AudioDuration . (samplesPerFrame fiMPEGVersion /) $ samplingRateHz fiSamplingRate
+frameDuration FrameInfo{fiSamplingRate} =
+  AudioDuration . (samplesPerFrame (srMPEGVersion fiSamplingRate) /) $ samplingRateHz fiSamplingRate
 
 samplesPerFrame :: Num a => MPEGVersion -> a
 samplesPerFrame MPEG1 = 1152
@@ -111,7 +110,7 @@ frameHeaderParser = do
   let paddingSize = if testBit byte2 paddingBitIndex then 1 else 0
       contentsSize = frameSize' mpegVersion bitrate samplingRate - frameHeaderSize + paddingSize
 
-  pure (FrameInfo{fiMPEGVersion=mpegVersion, fiSamplingRate=samplingRate, fiBitrate=bitrate}, bytes, contentsSize)
+  pure (FrameInfo{fiSamplingRate=samplingRate, fiBitrate=bitrate}, bytes, contentsSize)
 
 -- | Parses a single MP3 frame.
 frameParser :: Parser Frame
@@ -152,20 +151,36 @@ layerValidator byte = case 0b0000_0011 .&. byte `shiftR` 1 of
   0b00 -> fail "Unexpected Layer \"reserved\" (0) frame"
   x -> fail $ "Impossible Layer value " <> show x
 
--- | Sampling rate of a frame; it's required to calculate the frame size in
--- bytes and frame duration in seconds.
-data SamplingRate
-  = SR16000Hz | SR22050Hz | SR24000Hz -- MPEG2
-  | SR32000Hz | SR44100Hz | SR48000Hz -- MPEG1
+data MPEG1SamplingRate = SR32000Hz | SR44100Hz | SR48000Hz
   deriving stock Eq
 
-instance Show SamplingRate where
-  show SR16000Hz = "16 kHz"
-  show SR22050Hz = "22.05 kHz"
-  show SR24000Hz = "24 kHz"
+instance Show MPEG1SamplingRate where
   show SR32000Hz = "32 kHz"
   show SR44100Hz = "44.1 kHz"
   show SR48000Hz = "48 kHz"
+
+data MPEG2SamplingRate = SR16000Hz | SR22050Hz | SR24000Hz
+  deriving stock Eq
+
+instance Show MPEG2SamplingRate where
+  show SR16000Hz = "16 kHz"
+  show SR22050Hz = "22.05 kHz"
+  show SR24000Hz = "24 kHz"
+
+-- | Sampling rate of a frame; it's required to calculate the frame size in
+-- bytes and frame duration in seconds.
+data SamplingRate
+  -- sampling rate is stored as three values per MPEG version, which can be
+  -- encoded in only 3 bits now (1 bit MPEG version and 2 bits sampling rate);
+  -- it used to be stored as six values w/o MPEG versions, which could only be
+  -- encoded in 4 bits (1 bit MPEG version and 3 bits sampling rate)
+  = MPEG1SR !MPEG1SamplingRate
+  | MPEG2SR !MPEG2SamplingRate
+  deriving stock Eq
+
+instance Show SamplingRate where
+  show (MPEG1SR sr) = show sr
+  show (MPEG2SR sr) = show sr
 
 -- | Bitrate of a frame; it's required to calculate the frame size in bytes.
 data Bitrate
@@ -212,12 +227,12 @@ instance Show Bitrate where
 -- | Parses the sample rate from the frame byte.
 samplingRateParser :: MPEGVersion -> Word8 -> Parser SamplingRate
 samplingRateParser mpeg byte = case (mpeg, 0b00000011 .&. shiftR byte 2) of
-  (MPEG1, 0b00) -> pure SR44100Hz
-  (MPEG1, 0b01) -> pure SR48000Hz
-  (MPEG1, 0b10) -> pure SR32000Hz
-  (MPEG2, 0b00) -> pure SR22050Hz
-  (MPEG2, 0b01) -> pure SR24000Hz
-  (MPEG2, 0b10) -> pure SR16000Hz
+  (MPEG1, 0b00) -> pure $ MPEG1SR SR44100Hz
+  (MPEG1, 0b01) -> pure $ MPEG1SR SR48000Hz
+  (MPEG1, 0b10) -> pure $ MPEG1SR SR32000Hz
+  (MPEG2, 0b00) -> pure $ MPEG2SR SR22050Hz
+  (MPEG2, 0b01) -> pure $ MPEG2SR SR24000Hz
+  (MPEG2, 0b10) -> pure $ MPEG2SR SR16000Hz
   (_, 0b11) -> fail "Unexpected sampling rate \"reserved\" (3)"
   (_, x) -> fail $ "Impossible sampling rate value " <> show x
 
@@ -284,16 +299,20 @@ frameSize' mpeg br sr = floor @Float $ samplesPerFrame mpeg / 8 * bitrateBitsPer
     bitrateBitsPerSecond BR320kbps = 320000
 
 frameSize :: FrameInfo -> FrameSize
-frameSize FrameInfo{fiMPEGVersion, fiBitrate, fiSamplingRate} =
-  frameSize' fiMPEGVersion fiBitrate fiSamplingRate
+frameSize FrameInfo{fiBitrate, fiSamplingRate} =
+  frameSize' (srMPEGVersion fiSamplingRate) fiBitrate fiSamplingRate
+
+srMPEGVersion :: SamplingRate -> MPEGVersion
+srMPEGVersion (MPEG1SR _) = MPEG1
+srMPEGVersion (MPEG2SR _) = MPEG2
 
 samplingRateHz :: Num a => SamplingRate -> a
-samplingRateHz SR16000Hz = 16000
-samplingRateHz SR22050Hz = 22050
-samplingRateHz SR24000Hz = 24000
-samplingRateHz SR32000Hz = 32000
-samplingRateHz SR44100Hz = 44100
-samplingRateHz SR48000Hz = 48000
+samplingRateHz (MPEG2SR SR16000Hz) = 16000
+samplingRateHz (MPEG2SR SR22050Hz) = 22050
+samplingRateHz (MPEG2SR SR24000Hz) = 24000
+samplingRateHz (MPEG1SR SR32000Hz) = 32000
+samplingRateHz (MPEG1SR SR44100Hz) = 44100
+samplingRateHz (MPEG1SR SR48000Hz) = 48000
 
 -- TODO try https://github.com/stevana/bits-and-bobs
 paddingBitIndex :: Int
