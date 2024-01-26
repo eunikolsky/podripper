@@ -14,9 +14,8 @@ import Data.List (intercalate)
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
-import Data.Vector qualified as V
 import MP3.ID3
-import MP3.MP3
+import MP3.Parser
 import MP3.Xing
 import RIO hiding (stdin)
 import RSSGen.Duration
@@ -223,18 +222,18 @@ processedRipNameFromOriginal doneRipDir ripName = doneRipDir </> takeBaseName ri
 
 -- | Calculates `MP3Structure` of the given `file` by parsing it.
 mp3StructureFromFile :: FilePath -> IO MP3Structure
-mp3StructureFromFile file = runConduitRes $
+mp3StructureFromFile file = fmap MP3Structure . runConduitRes $
   sourceFile file
     -- FIXME this is very similar to, but not the same as, what happens while
     -- ripping; is it possible to reuse the code?
     .| conduitParserEither maybeFrameParser
     .| C.mapMaybeM getMP3Frame
-    .| mapC dropFrameData
-    .| foldlC extendMP3 (MP3Structure mempty)
+    .| mapC fInfo
+    .| sinkVector
 
   where
     getMP3Frame :: MonadIO m
-      => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe FullFrame)
+      => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe Frame)
     getMP3Frame (Right (_, Valid f)) = pure $ Just f
     getMP3Frame (Right (posRange, Junk l)) = do
       liftIO . putStrLn $ mconcat
@@ -248,9 +247,6 @@ mp3StructureFromFile file = runConduitRes $
     getMP3Frame (Left e) = do
       liftIO . putStrLn $ "Parse error: " <> show e
       pure Nothing
-
-    extendMP3 :: MP3Structure -> ShallowFrame -> MP3Structure
-    extendMP3 mp3 frame = MP3Structure $ unMP3Structure mp3 `V.snoc` frame
 
 {- |
  - discover and process original rips in the source dir, which may be

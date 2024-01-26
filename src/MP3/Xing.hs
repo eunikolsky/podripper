@@ -10,17 +10,16 @@ module MP3.Xing
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as BSB
-import Data.Vector (Vector)
-import Data.Vector qualified as V
-import MP3.MP3
+import Data.Vector.Unboxed qualified as VU
+import MP3.Parser
 
 -- TODO a better data structure for storing frames?
-newtype MP3Structure = MP3Structure { unMP3Structure :: Vector ShallowFrame }
+newtype MP3Structure = MP3Structure { unMP3Structure :: VU.Vector FrameInfo }
   deriving Eq
 
 instance Show MP3Structure where
   -- shows the number of frames, otherwise the output may be very big
-  show (MP3Structure s) = "MP3Structure{" <> show (length s) <> " frames}"
+  show (MP3Structure s) = "MP3Structure{" <> show (VU.length s) <> " frames}"
 
 newtype XingHeader = XingHeader { getXingHeader :: ByteString }
 
@@ -41,7 +40,7 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
     xingId = if isCBR mp3 then "Info" else "Xing"
     flags = BSB.word32BE 7 -- Frames .|. Bytes .|. TOC
     xingFrame = 1
-    frames = BSB.word32BE . fromIntegral $ length mp3Frames + xingFrame
+    frames = BSB.word32BE . fromIntegral $ VU.length mp3Frames + xingFrame
     -- FIXME remove hardcoded values
     xingFrameSize = 156
     -- it's not clear whether the filesize field should include the size of the
@@ -52,9 +51,9 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
 
 -- | CBR is when all frames have the same bitrate.
 isCBR :: MP3Structure -> Bool
-isCBR (MP3Structure frames) = case V.uncons frames of
-  Just (Frame{fInfo=FrameInfo{fiBitrate=firstBitrate}}, rest) ->
-    all ((== firstBitrate) . fiBitrate . fInfo) rest
+isCBR (MP3Structure frames) = case VU.uncons frames of
+  Just (firstFrame, rest) ->
+    VU.all ((== fiBitrate firstFrame) . fiBitrate) rest
   Nothing -> True
 
 generateTableOfContents :: MP3Structure -> (BSB.Builder, Int)
@@ -64,25 +63,25 @@ generateTableOfContents (MP3Structure frames) =
   where
     tocByte :: Int -> BSB.Builder
     tocByte prcnt =
-      let maybeDurationIndex = V.findIndex (>= fromIntegral prcnt / 100.0 * duration) durations
+      let maybeDurationIndex = VU.findIndex (>= fromIntegral prcnt / 100.0 * duration) durations
           -- TODO is there a cleaner algorithm to avoid indexing?
-          maybeFrameOffset = (frameOffsets V.!) <$> maybeDurationIndex
+          maybeFrameOffset = (frameOffsets VU.!) <$> maybeDurationIndex
           scaleToByte = floor @Double . (* 255) . (/ fromIntegral filesize) . fromIntegral
           byteValue = maybe 0 scaleToByte maybeFrameOffset
       in BSB.word8 byteValue
 
-    filesize = V.last frameOffsets
+    filesize = VU.last frameOffsets
     -- this generates a list of offsets (in bytes) for each frame + the total
     -- size in bytes
-    frameOffsets = fst <$> stats
+    frameOffsets = fst `VU.map` stats
 
-    duration = V.last durations
+    duration = VU.last durations
     -- this generates a list of durations (in seconds) for when each frame
     -- starts + the total duration in seconds
-    durations = snd <$> stats
+    durations = snd `VU.map` stats
 
-    stats = V.scanl'
-      (\(!offset, !dur) frame -> (offset + fData frame, dur + frameDuration frame))
+    stats = VU.scanl'
+      (\(!offset, !dur) frame -> (offset + frameSize frame, dur + frameDuration frame))
       (0, 0)
       frames
 
