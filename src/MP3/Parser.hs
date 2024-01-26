@@ -21,15 +21,10 @@ import Data.Bits
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.Word
+import MP3.AudioDuration
+import MP3.FrameInfo
 import MP3.MP3
 import Text.Printf
-
--- | Audio duration of an MP3 frame/file, in seconds.
-newtype AudioDuration = AudioDuration { getAudioDuration :: Double }
-  deriving newtype (Eq, Ord, Fractional, Num)
-
-instance Show AudioDuration where
-  show (AudioDuration d) = show d <> " s"
 
 -- | Bytes of an MP3 frame: header + data. The reason for the separate type is
 -- to have a more concise `Show` instance.
@@ -37,38 +32,6 @@ newtype FrameData = FrameData { getFrameData :: ByteString }
 
 instance Show FrameData where
   show (FrameData d) = "<" <> show (BS.length d) <> " bytes>"
-
--- | Parsed information about one MP3 frame: sampling rate and bitrate packed
--- into one byte for efficient storage of frames while ripping.
--- Only sampling rate and its MPEG version are necessary to calculate frame's
--- duration in seconds; bitrate is necessary to calculate frame's size in bytes.
-newtype FrameInfo = FrameInfo { packedFrameInfo :: Word8 }
-  deriving stock (Show, Eq)
-
-mkFrameInfo :: SamplingRate -> Bitrate -> FrameInfo
-mkFrameInfo sr br = FrameInfo $ (packSamplingRate sr `shiftL` 5) .|. packBitrate br
-  where
-    packSamplingRate (MPEG1SR SR32000Hz) = 0b000
-    packSamplingRate (MPEG1SR SR44100Hz) = 0b001
-    packSamplingRate (MPEG1SR SR48000Hz) = 0b010
-    packSamplingRate (MPEG2SR SR16000Hz) = 0b100
-    packSamplingRate (MPEG2SR SR22050Hz) = 0b101
-    packSamplingRate (MPEG2SR SR24000Hz) = 0b110
-
-    packBitrate = fromIntegral . fromEnum
-
-fiSamplingRate :: FrameInfo -> SamplingRate
-fiSamplingRate (FrameInfo byte) = case byte `shiftR` 5 of
-  0b000 -> MPEG1SR SR32000Hz
-  0b001 -> MPEG1SR SR44100Hz
-  0b010 -> MPEG1SR SR48000Hz
-  0b100 -> MPEG2SR SR16000Hz
-  0b101 -> MPEG2SR SR22050Hz
-  0b110 -> MPEG2SR SR24000Hz
-  x -> error $ "Impossible FrameInfo sampling rate value " <> show x
-
-fiBitrate :: FrameInfo -> Bitrate
-fiBitrate (FrameInfo byte) = toEnum . fromIntegral $ byte .&. 0b0001_1111
 
 -- | One MP3 frame: information and all its bytes.
 data Frame = Frame

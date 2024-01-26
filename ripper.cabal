@@ -25,6 +25,8 @@ source-repository head
 
 library
   exposed-modules:
+      MP3.AudioDuration
+      MP3.FrameInfo
       MP3.ID3
       MP3.MP3
       MP3.Parser

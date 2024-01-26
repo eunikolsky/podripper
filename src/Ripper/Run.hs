@@ -15,9 +15,9 @@ import Data.Conduit.List qualified as C
 import Data.Maybe
 import Data.Monoid (Last(..))
 import Data.Time.TZTime
-import Data.Vector qualified as V
-import Data.Vector.Mutable (IOVector)
-import Data.Vector.Mutable qualified as MV
+import Data.Vector.Unboxed qualified as UV
+import Data.Vector.Unboxed.Mutable (IOVector)
+import Data.Vector.Unboxed.Mutable qualified as UMV
 import Network.HTTP.Conduit (HttpExceptionContent(..))
 import Network.HTTP.Simple
 import RIO.Directory (createDirectoryIfMissing)
@@ -162,7 +162,7 @@ toSuccessfulRip rip' = do
   let writtenLength = irWriteIndex rip'
   -- this is safe because ripping is done at this point
   -- it's not clear whether `V.force` is worth it here
-  frames <- liftIO . fmap V.force . V.unsafeFreeze . MV.take writtenLength $ irFrames rip'
+  frames <- liftIO . fmap UV.force . UV.unsafeFreeze . UMV.take writtenLength $ irFrames rip'
   pure $ SuccessfulRip
     { ripFilename = irFilename rip'
     , ripMP3Structure = MP3Structure frames
@@ -210,7 +210,7 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
       let filename = maybe basename (</> basename) maybeCleanRipsDir <.> "mp3"
           rawBasename = basename <> "_raw" <.> "mp3"
           rawFilename = maybe rawBasename (</> rawBasename) maybeRawRipsDir
-      framesVector <- liftIO $ MV.new vectorSizeInc
+      framesVector <- liftIO $ UMV.new vectorSizeInc
       writeIORef maybeRipVar . Just $ InProgressRip
         { irFilename = filename
         , irFrames = framesVector
@@ -265,11 +265,11 @@ extendRip maybeRipVar frame = modifyIORefIO' maybeRipVar $ \case
     let framesVector = irFrames rip'
         writeIndex = irWriteIndex rip'
 
-    let isVectorFull = writeIndex >= MV.length framesVector
+    let isVectorFull = writeIndex >= UMV.length framesVector
     framesVector' <- if isVectorFull
-      then liftIO $ MV.grow framesVector vectorSizeInc
+      then liftIO $ UMV.grow framesVector vectorSizeInc
       else pure framesVector
-    liftIO $ MV.write framesVector' writeIndex frame
+    liftIO $ UMV.write framesVector' writeIndex frame
 
     pure . Just $ rip'
       { irFrames = framesVector'
