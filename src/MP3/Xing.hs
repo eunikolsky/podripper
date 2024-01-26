@@ -11,6 +11,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as BSB
 import Data.Vector.Unboxed qualified as VU
+import Data.Word
 import MP3.Parser
 
 -- TODO a better data structure for storing frames?
@@ -45,9 +46,9 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
     xingFrameSize = 156
     -- it's not clear whether the filesize field should include the size of the
     -- ID3v2 tag; I think ffmpeg and audacity don't include it
-    bytes = BSB.word32BE . fromIntegral $ mp3Size + xingFrameSize
+    bytes = BSB.word32BE $ mp3Size + xingFrameSize
     (toc, mp3Size) = generateTableOfContents mp3
-    padding = BSB.byteString $ BS.replicate (xingFrameSize - 137) 0
+    padding = BSB.byteString $ BS.replicate (fromIntegral xingFrameSize - 137) 0
 
 -- | CBR is when all frames have the same bitrate.
 isCBR :: MP3Structure -> Bool
@@ -56,7 +57,7 @@ isCBR (MP3Structure frames) = case VU.uncons frames of
     VU.all ((== fiBitrate firstFrame) . fiBitrate) rest
   Nothing -> True
 
-generateTableOfContents :: MP3Structure -> (BSB.Builder, Int)
+generateTableOfContents :: MP3Structure -> (BSB.Builder, Word32)
 generateTableOfContents (MP3Structure frames) =
   (mconcat $ tocByte <$> percentages, filesize)
 
@@ -81,8 +82,8 @@ generateTableOfContents (MP3Structure frames) =
     durations = snd `VU.map` stats
 
     stats = VU.scanl'
-      (\(!offset, !dur) frame -> (offset + frameSize frame, dur + frameDuration frame))
-      (0, 0)
+      (\(!offset, !dur) frame -> (offset + fromIntegral (frameSize frame), dur + frameDuration frame))
+      (0 :: Word32, 0)
       frames
 
     -- exactly 100 entries

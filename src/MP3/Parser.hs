@@ -40,7 +40,7 @@ data Frame = Frame
   }
   deriving stock (Show)
 
-type FrameSize = Int
+type FrameSize = Word16
 
 -- | Used only for logging and easier debugging afterwards.
 type JunkLength = Int
@@ -85,7 +85,7 @@ samplesPerFrame MPEG2 = 576
 
 -- | Parses the header of an MP3 frame and returns its `FrameInfo`, header bytes
 -- and the number of extra bytes to read for this frame.
-frameHeaderParser :: Parser (FrameInfo, [Word8], Int)
+frameHeaderParser :: Parser (FrameInfo, [Word8], FrameSize)
 frameHeaderParser = do
   let frameHeaderSize = 4
   bytes@[byte0, byte1, byte2, _] <- A.count frameHeaderSize A.anyWord8 <?> "Incomplete frame header"
@@ -98,7 +98,7 @@ frameHeaderParser = do
   samplingRate <- samplingRateParser mpegVersion byte2
 
   let paddingSize = if testBit byte2 paddingBitIndex then 1 else 0
-      contentsSize = frameSize' mpegVersion bitrate samplingRate - frameHeaderSize + paddingSize
+      contentsSize = frameSize' mpegVersion bitrate samplingRate - fromIntegral frameHeaderSize + paddingSize
 
   pure (mkFrameInfo samplingRate bitrate, bytes, contentsSize)
 
@@ -106,7 +106,7 @@ frameHeaderParser = do
 frameParser :: Parser Frame
 frameParser = do
   (frameInfo, headerBytes, contentsSize) <- frameHeaderParser
-  bytes <- A.take contentsSize
+  bytes <- A.take $ fromIntegral contentsSize
   pure Frame{fInfo=frameInfo, fData=FrameData $ BS.pack headerBytes <> bytes}
 
 -- | Validates that the header bytes contain the valid frame sync.
