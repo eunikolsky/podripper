@@ -46,7 +46,7 @@ type FrameSize = Word16
 type JunkLength = Int
 
 -- | Result of trying to parse an MP3 stream.
-data MaybeFrame = Valid Frame | Junk JunkLength
+data MaybeFrame = Valid !Frame | Junk !JunkLength
   deriving stock Show
 
 -- | Parser for MP3 streams that either parses a valid frame, or some junk until
