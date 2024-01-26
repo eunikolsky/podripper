@@ -14,7 +14,6 @@ import Data.List (intercalate)
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
-import Data.Vector.Unboxed qualified as UV
 import MP3.ID3
 import MP3.Parser
 import MP3.Xing
@@ -223,14 +222,14 @@ processedRipNameFromOriginal doneRipDir ripName = doneRipDir </> takeBaseName ri
 
 -- | Calculates `MP3Structure` of the given `file` by parsing it.
 mp3StructureFromFile :: FilePath -> IO MP3Structure
-mp3StructureFromFile file = runConduitRes $
+mp3StructureFromFile file = fmap MP3Structure . runConduitRes $
   sourceFile file
     -- FIXME this is very similar to, but not the same as, what happens while
     -- ripping; is it possible to reuse the code?
     .| conduitParserEither maybeFrameParser
     .| C.mapMaybeM getMP3Frame
     .| mapC fInfo
-    .| foldlC extendMP3 (MP3Structure mempty)
+    .| sinkVector
 
   where
     getMP3Frame :: MonadIO m
@@ -248,10 +247,6 @@ mp3StructureFromFile file = runConduitRes $
     getMP3Frame (Left e) = do
       liftIO . putStrLn $ "Parse error: " <> show e
       pure Nothing
-
-    extendMP3 :: MP3Structure -> FrameInfo -> MP3Structure
-    -- FIXME this is O(n)
-    extendMP3 mp3 frame = MP3Structure $ unMP3Structure mp3 `UV.snoc` frame
 
 {- |
  - discover and process original rips in the source dir, which may be
