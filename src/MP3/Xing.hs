@@ -10,6 +10,7 @@ module MP3.Xing
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as BSB
+import Data.Maybe
 import Data.Vector.Unboxed qualified as VU
 import Data.Word
 import MP3.Parser
@@ -58,18 +59,29 @@ isCBR (MP3Structure frames) = case VU.uncons frames of
   Nothing -> True
 
 generateTableOfContents :: MP3Structure -> (BSB.Builder, Word32)
-generateTableOfContents (MP3Structure frames) =
-  (mconcat $ tocByte <$> percentages, filesize)
-
+generateTableOfContents (MP3Structure frames) = (tocBytes, filesize)
   where
-    tocByte :: Int -> BSB.Builder
-    tocByte prcnt =
-      let maybeFrameOffset = fst <$>
-            -- TODO avoid searching from the beginning for every percentage
-            VU.find ((>= fromIntegral prcnt / 100.0 * duration) . snd) stats
-          scaleToByte = floor @Double . (* 255) . (/ fromIntegral filesize) . fromIntegral
-          byteValue = maybe 0 scaleToByte maybeFrameOffset
-      in BSB.word8 byteValue
+    tocBytes :: BSB.Builder
+    -- this `foldl` avoids the repetitive search from the beginning of the
+    -- matching frame for every duration percentage by dropping all the previous
+    -- `stats` as the percentage increases because we know that `percentages`
+    -- are in the ascending order
+    tocBytes = fst $ VU.foldl' appendPercentageByte (mempty, stats) percentages
+
+    appendPercentageByte (bytesAcc, statsLeft) percentage =
+      -- this error really shouldn't happen because `stats` always starts with
+      -- zeros and `percentages` go from zero, but not to 100
+      let index = fromMaybe (error $ "Xing TOC: can't find index for percentage " <> show percentage)
+            $ VU.findIndex (forDurationPercentage percentage) statsLeft
+      in
+        ( bytesAcc <> (BSB.word8 . scaleToByte . frameOffset $ statsLeft VU.! index)
+        , (if index > 0 then VU.drop index else id) statsLeft
+        )
+
+    (frameOffset, frameTimeOffset) = (fst, snd)
+
+    forDurationPercentage prcnt = (>= fromIntegral prcnt / 100 * duration) . frameTimeOffset
+    scaleToByte = floor @Double . (* 255) . (/ fromIntegral filesize) . fromIntegral
 
     (filesize, duration) = VU.last stats
     -- this generates a vector of tuples, one for each frame, containing:
@@ -82,4 +94,4 @@ generateTableOfContents (MP3Structure frames) =
       frames
 
     -- exactly 100 entries
-    percentages = [0..99]
+    percentages = VU.fromList @Word8 [0..99]
