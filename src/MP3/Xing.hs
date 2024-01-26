@@ -64,23 +64,18 @@ generateTableOfContents (MP3Structure frames) =
   where
     tocByte :: Int -> BSB.Builder
     tocByte prcnt =
-      let maybeDurationIndex = VU.findIndex (>= fromIntegral prcnt / 100.0 * duration) durations
-          -- TODO is there a cleaner algorithm to avoid indexing?
-          maybeFrameOffset = (frameOffsets VU.!) <$> maybeDurationIndex
+      let maybeFrameOffset = fst <$>
+            -- TODO avoid searching from the beginning for every percentage
+            VU.find ((>= fromIntegral prcnt / 100.0 * duration) . snd) stats
           scaleToByte = floor @Double . (* 255) . (/ fromIntegral filesize) . fromIntegral
           byteValue = maybe 0 scaleToByte maybeFrameOffset
       in BSB.word8 byteValue
 
-    filesize = VU.last frameOffsets
-    -- this generates a list of offsets (in bytes) for each frame + the total
-    -- size in bytes
-    frameOffsets = fst `VU.map` stats
-
-    duration = VU.last durations
-    -- this generates a list of durations (in seconds) for when each frame
-    -- starts + the total duration in seconds
-    durations = snd `VU.map` stats
-
+    (filesize, duration) = VU.last stats
+    -- this generates a vector of tuples, one for each frame, containing:
+    -- frame's offset (in bytes) and frame's time offset (in seconds); and the
+    -- last, extra value is the total size in bytes and the total duration in
+    -- seconds
     stats = VU.scanl'
       (\(!offset, !dur) frame -> (offset + fromIntegral (frameSize frame), dur + frameDuration frame))
       (0 :: Word32, 0)
