@@ -254,6 +254,7 @@ mp3StructureFromFile file = fmap MP3Structure . runConduitRes $
  -}
 processPreviousRips :: RipConfigExt -> ProcessedQueue -> IO ()
 processPreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queue = do
+  let isMP3 = (== ".mp3") . takeExtension
   ripOriginals <- fmap (cleanRipDir </>) . filter isMP3 <$> listDirectory cleanRipDir
   ripOriginals' <- traverse
     (\ripName -> do
@@ -267,8 +268,6 @@ processPreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queu
   forM_ ripOriginals' (processRip' year)
 
   where
-    isMP3 = (== ".mp3") . takeExtension
-
     -- FIXME almost a duplicate of the same-named function above
     processRip' :: String -> (Ripper.SuccessfulRip, FilePath) -> IO ()
     processRip' year (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3}, processedRip) = do
