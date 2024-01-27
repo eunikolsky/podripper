@@ -27,6 +27,7 @@ data RipConfig = RipConfig
   , ripDirName :: !Text
   , podArtist :: !Text
   , podAlbum :: !Text
+  , podLanguage :: !Text
   }
   deriving (Show, Eq)
 
@@ -43,6 +44,7 @@ instance FromJSON RipConfig where
     <*> o .: "ripDirName"
     <*> o .: "podArtist"
     <*> o .: "podAlbum"
+    <*> o .: "podLanguage"
 
 data RipConfigExt = RipConfigExt
   { config :: !RipConfig

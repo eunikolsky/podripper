@@ -25,6 +25,8 @@ data ID3Fields = ID3Fields
   , id3Publisher :: !Text
   , id3Duration :: !AudioDuration
   , id3EncodingTime :: !UTCTime
+  , id3Language :: !Text
+  -- ^ A three-letter ISO-639-2 language code
   }
 
 newtype ID3Header = ID3Header { getID3Header :: ByteString }
@@ -33,7 +35,7 @@ newtype ID3Header = ID3Header { getID3Header :: ByteString }
 generateID3Header :: ID3Fields -> ID3Header
 generateID3Header ID3Fields
     { id3Title, id3Artist, id3Album, id3RecordingTime, id3Genre, id3Publisher
-    , id3Duration, id3EncodingTime
+    , id3Duration, id3EncodingTime, id3Language
     } =
   ID3Header . BS.toStrict . BSB.toLazyByteString $ header <> BSB.lazyByteString frames
 
@@ -53,10 +55,12 @@ generateID3Header ID3Fields
       , textFrame framePublisher id3Publisher
       , textFrame frameLength $ inMilliseconds id3Duration
       , textFrame frameEncodingTime $ formatID3Time id3EncodingTime
+      , textFrame frameLanguage id3Language
       ]
 
 frameTitle, frameLeadPerformer, frameAlbum, frameRecordingTime
-  , frameContentType, framePublisher, frameLength, frameEncodingTime :: ByteString
+  , frameContentType, framePublisher, frameLength, frameEncodingTime
+  , frameLanguage :: ByteString
 frameTitle = "TIT2"
 frameLeadPerformer = "TPE1"
 frameAlbum = "TALB"
@@ -65,6 +69,7 @@ frameContentType = "TCON"
 framePublisher = "TPUB"
 frameLength = "TLEN"
 frameEncodingTime = "TDEN"
+frameLanguage = "TLAN"
 
 formatID3Time :: UTCTime -> Text
 formatID3Time = T.pack . formatTime defaultTimeLocale "%FT%T"

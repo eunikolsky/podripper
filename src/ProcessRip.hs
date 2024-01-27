@@ -40,6 +40,7 @@ processRip'
         , id3Publisher = "podripper/" <> version
         , id3Duration = audioDuration
         , id3EncodingTime = now
+        , id3Language = podLanguage config
         }
       (XingHeader xingHeader, audioDuration) = calculateXingHeader mp3
 
