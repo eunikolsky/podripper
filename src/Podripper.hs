@@ -167,14 +167,14 @@ processRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
 processRip configExt@RipConfigExt{config, doneRipDir} newRip = do
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  processRip' year newRip
+  let processedRip = processedRipNameFromOriginal doneRipDir (Ripper.ripFilename newRip)
+  processRip' year (newRip, processedRip)
 
   where
-    processRip' :: String -> Ripper.SuccessfulRip -> IO ()
-    processRip' year Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3} = do
+    processRip' :: String -> (Ripper.SuccessfulRip, FilePath) -> IO ()
+    processRip' year (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3}, processedRip) = do
       podTitle <- podTitleFromFilename ripName
-      let processedRip = processedRipNameFromOriginal doneRipDir ripName
-          id3Header = getID3Header . generateID3Header $ ID3Fields
+      let id3Header = getID3Header . generateID3Header $ ID3Fields
             { id3Title = T.pack podTitle
             , id3Artist = podArtist config
             , id3Album = podAlbum config
