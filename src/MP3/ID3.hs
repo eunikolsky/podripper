@@ -36,12 +36,20 @@ generateID3Header ID3Fields{id3Title, id3Artist, id3Album, id3Date, id3Genre} =
     size = BSB.word32BE . syncSafe . fromIntegral . BSL.length $ frames
 
     frames = BSB.toLazyByteString $ mconcat
-      [ textFrame "TIT2" id3Title
-      , textFrame "TPE1" id3Artist
-      , textFrame "TALB" id3Album
-      , textFrame "TDRC" id3Date
-      , textFrame "TCON" id3Genre
+      [ textFrame frameTitle id3Title
+      , textFrame frameLeadPerformer id3Artist
+      , textFrame frameAlbum id3Album
+      , textFrame frameRecordingTime id3Date
+      , textFrame frameContentType id3Genre
       ]
+
+frameTitle, frameLeadPerformer, frameAlbum, frameRecordingTime
+  , frameContentType :: ByteString
+frameTitle = "TIT2"
+frameLeadPerformer = "TPE1"
+frameAlbum = "TALB"
+frameRecordingTime = "TDRC"
+frameContentType = "TCON"
 
 textFrame
   :: ByteString
