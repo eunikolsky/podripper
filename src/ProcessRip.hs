@@ -30,6 +30,7 @@ processRip'
   = do
   let ripDate = fromMaybe (error $ "Couldn't parse rip time from filename " <> ripName) $ parseRipDate ripName
   ripTime <- localTimeToZonedTime ripDate
+  now <- getCurrentTime
   let id3Header = getID3Header . generateID3Header $ ID3Fields
         { id3Title = T.pack . titlePubDate $ fst ripTime
         , id3Artist = podArtist config
@@ -38,6 +39,7 @@ processRip'
         , id3Genre = "Podcast"
         , id3Publisher = "podripper/" <> version
         , id3Duration = audioDuration
+        , id3EncodingTime = now
         }
       (XingHeader xingHeader, audioDuration) = calculateXingHeader mp3
 
