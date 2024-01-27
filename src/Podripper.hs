@@ -164,30 +164,33 @@ processedRipSuffix :: IsString s => s
 processedRipSuffix = "_enc"
 
 processRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
-processRip configExt@RipConfigExt{config, doneRipDir} newRip = do
+processRip configExt@RipConfigExt{doneRipDir} newRip = do
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
   let processedRip = processedRipNameFromOriginal doneRipDir (Ripper.ripFilename newRip)
-  processRip' year (newRip, processedRip)
+  processRip' configExt year (newRip, processedRip)
 
-  where
-    processRip' :: String -> (Ripper.SuccessfulRip, FilePath) -> IO ()
-    processRip' year (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3}, processedRip) = do
-      podTitle <- podTitleFromFilename ripName
-      let id3Header = getID3Header . generateID3Header $ ID3Fields
-            { id3Title = T.pack podTitle
-            , id3Artist = podArtist config
-            , id3Album = podAlbum config
-            -- TODO can actually use a more precise timestamp now
-            , id3Date = T.pack year
-            , id3Genre = "Podcast"
-            }
-          xingHeader = getXingHeader $ calculateXingHeader mp3
+processRip' :: RipConfigExt -> String -> (Ripper.SuccessfulRip, FilePath) -> IO ()
+processRip'
+    configExt@RipConfigExt{config}
+    year
+    (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3}, processedRip)
+  = do
+  podTitle <- podTitleFromFilename ripName
+  let id3Header = getID3Header . generateID3Header $ ID3Fields
+        { id3Title = T.pack podTitle
+        , id3Artist = podArtist config
+        , id3Album = podAlbum config
+        -- TODO can actually use a more precise timestamp now
+        , id3Date = T.pack year
+        , id3Genre = "Podcast"
+        }
+      xingHeader = getXingHeader $ calculateXingHeader mp3
 
-      runConduitRes $
-        C.sourceList [id3Header, xingHeader] *> sourceFile ripName
-        .| sinkFile processedRip
-      trashFile configExt ripName
+  runConduitRes $
+    C.sourceList [id3Header, xingHeader] *> sourceFile ripName
+    .| sinkFile processedRip
+  trashFile configExt ripName
 
 -- | Puts the given `file` into the rip's `trashRawRipDir`, cleaning up 15+ days
 -- old files from it and `rawRipDir` beforehand.
@@ -253,7 +256,7 @@ mp3StructureFromFile file = fmap MP3Structure . runConduitRes $
  - there as a result of a crash
  -}
 processPreviousRips :: RipConfigExt -> ProcessedQueue -> IO ()
-processPreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queue = do
+processPreviousRips configExt@RipConfigExt{doneRipDir, cleanRipDir} queue = do
   let isMP3 = (== ".mp3") . takeExtension
   ripOriginals <- fmap (cleanRipDir </>) . filter isMP3 <$> listDirectory cleanRipDir
   ripOriginals' <- traverse
@@ -267,27 +270,7 @@ processPreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queu
 
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  forM_ ripOriginals' $ \newRip -> processRip' year newRip >> notifyProcessedQueue
-
-  where
-    -- FIXME almost a duplicate of the same-named function above
-    processRip' :: String -> (Ripper.SuccessfulRip, FilePath) -> IO ()
-    processRip' year (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3}, processedRip) = do
-      podTitle <- podTitleFromFilename ripName
-      let id3Header = getID3Header . generateID3Header $ ID3Fields
-            { id3Title = T.pack podTitle
-            , id3Artist = podArtist config
-            , id3Album = podAlbum config
-            -- TODO can actually use a more precise timestamp now
-            , id3Date = T.pack year
-            , id3Genre = "Podcast"
-            }
-          xingHeader = getXingHeader $ calculateXingHeader mp3
-
-      runConduitRes $
-        C.sourceList [id3Header, xingHeader] *> sourceFile ripName
-        .| sinkFile processedRip
-      trashFile configExt ripName
+  forM_ ripOriginals' $ \newRip -> processRip' configExt year newRip >> notifyProcessedQueue
 
 updateRSS :: RipConfigExt -> IO ()
 updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
