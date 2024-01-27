@@ -37,8 +37,9 @@ processRip'
         , id3RecordingTime = snd ripTime
         , id3Genre = "Podcast"
         , id3Publisher = "podripper/" <> version
+        , id3Duration = audioDuration
         }
-      xingHeader = getXingHeader $ calculateXingHeader mp3
+      (XingHeader xingHeader, audioDuration) = calculateXingHeader mp3
 
   runConduitRes $
     C.sourceList [id3Header, xingHeader] *> sourceFile ripName

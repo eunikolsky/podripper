@@ -30,10 +30,12 @@ newtype XingHeader = XingHeader { getXingHeader :: ByteString }
 -- of the MP3). The header is created in a MPEG1 Layer 3, 44100 Hz, 48 kb/s,
 -- mono frame (156 bytes), which is the smallest 44.1 kHz one that can store the
 -- header (137 bytes).
-calculateXingHeader :: MP3Structure -> XingHeader
+calculateXingHeader :: MP3Structure -> (XingHeader, AudioDuration)
 calculateXingHeader mp3@(MP3Structure mp3Frames) =
-  XingHeader . BS.toStrict . BSB.toLazyByteString . mconcat $
-    [header, sideInfo, xingId, flags, frames, bytes, toc, padding]
+  ( XingHeader . BS.toStrict . BSB.toLazyByteString . mconcat $
+      [header, sideInfo, xingId, flags, frames, bytes, toc, padding]
+    , duration
+  )
 
   where
     -- TODO use a frame close to what's already in the file?
@@ -48,7 +50,7 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
     -- it's not clear whether the filesize field should include the size of the
     -- ID3v2 tag; I think ffmpeg and audacity don't include it
     bytes = BSB.word32BE $ mp3Size + xingFrameSize
-    (toc, mp3Size) = generateTableOfContents mp3
+    (toc, mp3Size, duration) = generateTableOfContents mp3
     padding = BSB.byteString $ BS.replicate (fromIntegral xingFrameSize - 137) 0
 
 -- | CBR is when all frames have the same bitrate.
@@ -58,8 +60,8 @@ isCBR (MP3Structure frames) = case VU.uncons frames of
     VU.all ((== fiBitrate firstFrame) . fiBitrate) rest
   Nothing -> True
 
-generateTableOfContents :: MP3Structure -> (BSB.Builder, Word32)
-generateTableOfContents (MP3Structure frames) = (tocBytes, filesize)
+generateTableOfContents :: MP3Structure -> (BSB.Builder, Word32, AudioDuration)
+generateTableOfContents (MP3Structure frames) = (tocBytes, filesize, duration)
   where
     tocBytes :: BSB.Builder
     -- this `foldl` avoids the repetitive search from the beginning of the

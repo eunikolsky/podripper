@@ -14,6 +14,7 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Data.Time
 import Data.Word (Word32)
+import MP3.AudioDuration
 
 data ID3Fields = ID3Fields
   { id3Title :: !Text
@@ -22,13 +23,17 @@ data ID3Fields = ID3Fields
   , id3RecordingTime :: !UTCTime
   , id3Genre :: !Text
   , id3Publisher :: !Text
+  , id3Duration :: !AudioDuration
   }
 
 newtype ID3Header = ID3Header { getID3Header :: ByteString }
 
 -- | Generates an ID3 v2.4 header with the given fields.
 generateID3Header :: ID3Fields -> ID3Header
-generateID3Header ID3Fields{id3Title, id3Artist, id3Album, id3RecordingTime, id3Genre, id3Publisher} =
+generateID3Header ID3Fields
+    { id3Title, id3Artist, id3Album, id3RecordingTime, id3Genre, id3Publisher
+    , id3Duration
+    } =
   ID3Header . BS.toStrict . BSB.toLazyByteString $ header <> BSB.lazyByteString frames
 
   where
@@ -45,19 +50,24 @@ generateID3Header ID3Fields{id3Title, id3Artist, id3Album, id3RecordingTime, id3
       , textFrame frameRecordingTime $ formatID3Time id3RecordingTime
       , textFrame frameContentType id3Genre
       , textFrame framePublisher id3Publisher
+      , textFrame frameLength $ inMilliseconds id3Duration
       ]
 
 frameTitle, frameLeadPerformer, frameAlbum, frameRecordingTime
-  , frameContentType, framePublisher :: ByteString
+  , frameContentType, framePublisher, frameLength :: ByteString
 frameTitle = "TIT2"
 frameLeadPerformer = "TPE1"
 frameAlbum = "TALB"
 frameRecordingTime = "TDRC"
 frameContentType = "TCON"
 framePublisher = "TPUB"
+frameLength = "TLEN"
 
 formatID3Time :: UTCTime -> Text
 formatID3Time = T.pack . formatTime defaultTimeLocale "%FT%T"
+
+inMilliseconds :: AudioDuration -> Text
+inMilliseconds = T.pack . show @Int . floor . (* 1000) . getAudioDuration
 
 textFrame
   :: ByteString
