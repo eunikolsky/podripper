@@ -4,26 +4,18 @@ module Podripper
   ( run
   ) where
 
-import Conduit
 import Control.Exception (AsyncException, throw)
 import Control.Monad
-import Data.Conduit.Attoparsec
-import Data.Conduit.List qualified as C
-import Data.Maybe
-import Data.List (intercalate)
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
-import MP3.ID3
-import MP3.Parser
-import MP3.Xing
+import ProcessRip
 import RIO hiding (stdin)
 import RSSGen.Duration
 import qualified RSSGen.Main as RSSGen (run)
 import RipConfig
 import qualified Ripper.Main as Ripper (run)
 import qualified Ripper.Types as Ripper
-import Ripper.Util
 import System.Directory
 import System.Environment
 import System.Exit
@@ -164,96 +156,22 @@ processedRipSuffix :: IsString s => s
 processedRipSuffix = "_enc"
 
 processRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
-processRip configExt@RipConfigExt{config, doneRipDir} newRip = do
+processRip configExt@RipConfigExt{doneRipDir} newRip = do
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  processRip' year newRip
-
-  where
-    processRip' :: String -> Ripper.SuccessfulRip -> IO ()
-    processRip' year Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3} = do
-      podTitle <- podTitleFromFilename ripName
-      let processedRip = processedRipNameFromOriginal doneRipDir ripName
-          id3Header = getID3Header . generateID3Header $ ID3Fields
-            { id3Title = T.pack podTitle
-            , id3Artist = podArtist config
-            , id3Album = podAlbum config
-            -- TODO can actually use a more precise timestamp now
-            , id3Date = T.pack year
-            , id3Genre = "Podcast"
-            }
-          xingHeader = getXingHeader $ calculateXingHeader mp3
-
-      runConduitRes $
-        C.sourceList [id3Header, xingHeader] *> sourceFile ripName
-        .| sinkFile processedRip
-      trashFile configExt ripName
-
--- | Puts the given `file` into the rip's `trashRawRipDir`, cleaning up 15+ days
--- old files from it and `rawRipDir` beforehand.
-trashFile :: RipConfigExt -> FilePath -> IO ()
-trashFile RipConfigExt{trashRawRipDir, rawRipDir} file =
-  clean trashRawRipDir *> clean rawRipDir *> trash
-
-  where
-    trash = do
-      let targetFile = trashRawRipDir </> takeFileName file
-      putStrLn $ mconcat ["Moving ", file, " to ", targetFile]
-      renameFile file targetFile
-
-    clean dir = do
-      now <- getCurrentTime
-      allFiles <- fmap (dir </>) <$> listDirectory dir
-      let tooOld = (> 15 * nominalDay)
-      oldFiles <- filterM (fmap (tooOld . diffUTCTime now) . getModificationTime) allFiles
-      unless (null oldFiles) $ do
-        putStrLn $ "Removing old trash files: " <> intercalate ", " oldFiles
-        forM_ oldFiles removeFile
-
-podTitleFromFilename :: FilePath -> IO String
-podTitleFromFilename name = fromMaybe "" <$> readCommand
-  -- FIXME replace with a native Haskell solution
-  "sed"
-  ["-nE", "s/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\\1-\\2-\\3 \\4:\\5:\\6/p"]
-  name
+  let processedRip = processedRipNameFromOriginal doneRipDir (Ripper.ripFilename newRip)
+  processRip' configExt year (newRip, processedRip)
 
 processedRipNameFromOriginal :: FilePath -> FilePath -> FilePath
 processedRipNameFromOriginal doneRipDir ripName = doneRipDir </> takeBaseName ripName <> processedRipSuffix <.> "mp3"
-
--- | Calculates `MP3Structure` of the given `file` by parsing it.
-mp3StructureFromFile :: FilePath -> IO MP3Structure
-mp3StructureFromFile file = fmap MP3Structure . runConduitRes $
-  sourceFile file
-    -- FIXME this is very similar to, but not the same as, what happens while
-    -- ripping; is it possible to reuse the code?
-    .| conduitParserEither maybeFrameParser
-    .| C.mapMaybeM getMP3Frame
-    .| mapC fInfo
-    .| sinkVector
-
-  where
-    getMP3Frame :: MonadIO m
-      => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe Frame)
-    getMP3Frame (Right (_, Valid f)) = pure $ Just f
-    getMP3Frame (Right (posRange, Junk l)) = do
-      liftIO . putStrLn $ mconcat
-        [ "Found junk in stream: "
-        , show l, " bytes long at bytes "
-        , show . posOffset . posRangeStart $ posRange
-        , "-"
-        , show . posOffset . posRangeEnd $ posRange
-        ]
-      pure Nothing
-    getMP3Frame (Left e) = do
-      liftIO . putStrLn $ "Parse error: " <> show e
-      pure Nothing
 
 {- |
  - discover and process original rips in the source dir, which may be
  - there as a result of a crash
  -}
 processPreviousRips :: RipConfigExt -> ProcessedQueue -> IO ()
-processPreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queue = do
+processPreviousRips configExt@RipConfigExt{doneRipDir, cleanRipDir} queue = do
+  let isMP3 = (== ".mp3") . takeExtension
   ripOriginals <- fmap (cleanRipDir </>) . filter isMP3 <$> listDirectory cleanRipDir
   ripOriginals' <- traverse
     (\ripName -> do
@@ -262,32 +180,11 @@ processPreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queu
     )
     ripOriginals
 
+  let notifyProcessedQueue = atomically $ writeTQueue queue $ QValue NewProcessedRip
+
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  forM_ ripOriginals' (processRip' year)
-
-  where
-    isMP3 = (== ".mp3") . takeExtension
-
-    -- FIXME almost a duplicate of the same-named function above
-    processRip' :: String -> (Ripper.SuccessfulRip, FilePath) -> IO ()
-    processRip' year (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3}, processedRip) = do
-      podTitle <- podTitleFromFilename ripName
-      let id3Header = getID3Header . generateID3Header $ ID3Fields
-            { id3Title = T.pack podTitle
-            , id3Artist = podArtist config
-            , id3Album = podAlbum config
-            -- TODO can actually use a more precise timestamp now
-            , id3Date = T.pack year
-            , id3Genre = "Podcast"
-            }
-          xingHeader = getXingHeader $ calculateXingHeader mp3
-
-      runConduitRes $
-        C.sourceList [id3Header, xingHeader] *> sourceFile ripName
-        .| sinkFile processedRip
-      trashFile configExt ripName
-      atomically $ writeTQueue queue $ QValue NewProcessedRip
+  forM_ ripOriginals' $ \newRip -> processRip' configExt year newRip >> notifyProcessedQueue
 
 updateRSS :: RipConfigExt -> IO ()
 updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
