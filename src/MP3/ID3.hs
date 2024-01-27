@@ -10,14 +10,16 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
 import Data.ByteString.Builder qualified as BSB
 import Data.Text (Text)
+import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
+import Data.Time
 import Data.Word (Word32)
 
 data ID3Fields = ID3Fields
   { id3Title :: !Text
   , id3Artist :: !Text
   , id3Album :: !Text
-  , id3Date :: !Text
+  , id3RecordingTime :: !UTCTime
   , id3Genre :: !Text
   }
 
@@ -25,7 +27,7 @@ newtype ID3Header = ID3Header { getID3Header :: ByteString }
 
 -- | Generates an ID3 v2.4 header with the given fields.
 generateID3Header :: ID3Fields -> ID3Header
-generateID3Header ID3Fields{id3Title, id3Artist, id3Album, id3Date, id3Genre} =
+generateID3Header ID3Fields{id3Title, id3Artist, id3Album, id3RecordingTime, id3Genre} =
   ID3Header . BS.toStrict . BSB.toLazyByteString $ header <> BSB.lazyByteString frames
 
   where
@@ -39,7 +41,7 @@ generateID3Header ID3Fields{id3Title, id3Artist, id3Album, id3Date, id3Genre} =
       [ textFrame frameTitle id3Title
       , textFrame frameLeadPerformer id3Artist
       , textFrame frameAlbum id3Album
-      , textFrame frameRecordingTime id3Date
+      , textFrame frameRecordingTime $ formatID3Time id3RecordingTime
       , textFrame frameContentType id3Genre
       ]
 
@@ -50,6 +52,9 @@ frameLeadPerformer = "TPE1"
 frameAlbum = "TALB"
 frameRecordingTime = "TDRC"
 frameContentType = "TCON"
+
+formatID3Time :: UTCTime -> Text
+formatID3Time = T.pack . formatTime defaultTimeLocale "%FT%T"
 
 textFrame
   :: ByteString

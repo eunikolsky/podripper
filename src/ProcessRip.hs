@@ -8,6 +8,7 @@ import Control.Monad
 import Data.Conduit.Attoparsec
 import Data.Conduit.List qualified as C
 import Data.List (intercalate)
+import Data.Maybe
 import Data.Text qualified as T
 import Data.Time
 import MP3.ID3
@@ -19,19 +20,20 @@ import Ripper.Types qualified as Ripper
 import System.Directory
 import System.FilePath
 
-processRip' :: RipConfigExt -> String -> (Ripper.SuccessfulRip, FilePath) -> IO ()
+processRip' :: RipConfigExt -> (Ripper.SuccessfulRip, FilePath) -> IO ()
 processRip'
     configExt@RipConfigExt{config}
-    year
     (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3}, processedRip)
   = do
-  let podTitle = podTitleFromFilename ripName
+  let ripDate = fromMaybe (error $ "Couldn't parse rip time from filename " <> ripName) $ parseRipDate ripName
+  ripTime <- localTimeToZonedTime ripDate
+  -- TODO add timezone?
+  let podTitle = formatTime defaultTimeLocale "%F %T" ripDate
       id3Header = getID3Header . generateID3Header $ ID3Fields
         { id3Title = T.pack podTitle
         , id3Artist = podArtist config
         , id3Album = podAlbum config
-        -- TODO can actually use a more precise timestamp now
-        , id3Date = T.pack year
+        , id3RecordingTime = snd ripTime
         , id3Genre = "Podcast"
         }
       xingHeader = getXingHeader $ calculateXingHeader mp3
@@ -68,11 +70,6 @@ mp3StructureFromFile file = fmap MP3Structure . runConduitRes $
     getMP3Frame (Left e) = do
       liftIO . putStrLn $ "Parse error: " <> show e
       pure Nothing
-
-podTitleFromFilename :: FilePath -> String
-podTitleFromFilename = maybe "" format . parseRipDate
-  -- TODO add timezone?
-  where format = formatTime defaultTimeLocale "%F %T"
 
 -- | Puts the given `file` into the rip's `trashRawRipDir`, cleaning up 15+ days
 -- old files from it and `rawRipDir` beforehand.

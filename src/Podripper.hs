@@ -7,8 +7,6 @@ module Podripper
 import Control.Exception (AsyncException, throw)
 import Control.Monad
 import qualified Data.Text as T
-import Data.Time
-import Data.Time.Calendar.OrdinalDate
 import ProcessRip
 import RIO hiding (stdin)
 import RSSGen.Duration
@@ -156,11 +154,9 @@ processedRipSuffix :: IsString s => s
 processedRipSuffix = "_enc"
 
 processRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
-processRip configExt@RipConfigExt{doneRipDir} newRip = do
-  -- TODO get year from the file itself
-  year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
+processRip configExt@RipConfigExt{doneRipDir} newRip =
   let processedRip = processedRipNameFromOriginal doneRipDir (Ripper.ripFilename newRip)
-  processRip' configExt year (newRip, processedRip)
+  in processRip' configExt (newRip, processedRip)
 
 processedRipNameFromOriginal :: FilePath -> FilePath -> FilePath
 processedRipNameFromOriginal doneRipDir ripName = doneRipDir </> takeBaseName ripName <> processedRipSuffix <.> "mp3"
@@ -182,9 +178,7 @@ processPreviousRips configExt@RipConfigExt{doneRipDir, cleanRipDir} queue = do
 
   let notifyProcessedQueue = atomically $ writeTQueue queue $ QValue NewProcessedRip
 
-  -- TODO get year from the file itself
-  year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  forM_ ripOriginals' $ \newRip -> processRip' configExt year newRip >> notifyProcessedQueue
+  forM_ ripOriginals' $ \newRip -> processRip' configExt newRip >> notifyProcessedQueue
 
 updateRSS :: RipConfigExt -> IO ()
 updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
