@@ -8,15 +8,14 @@ import Control.Monad
 import Data.Conduit.Attoparsec
 import Data.Conduit.List qualified as C
 import Data.List (intercalate)
-import Data.Maybe
 import Data.Text qualified as T
 import Data.Time
 import MP3.ID3
 import MP3.Parser
 import MP3.Xing
+import Rip
 import RipConfig
 import Ripper.Types qualified as Ripper
-import Ripper.Util
 import System.Directory
 import System.FilePath
 
@@ -26,8 +25,8 @@ processRip'
     year
     (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3}, processedRip)
   = do
-  podTitle <- podTitleFromFilename ripName
-  let id3Header = getID3Header . generateID3Header $ ID3Fields
+  let podTitle = podTitleFromFilename ripName
+      id3Header = getID3Header . generateID3Header $ ID3Fields
         { id3Title = T.pack podTitle
         , id3Artist = podArtist config
         , id3Album = podAlbum config
@@ -70,12 +69,10 @@ mp3StructureFromFile file = fmap MP3Structure . runConduitRes $
       liftIO . putStrLn $ "Parse error: " <> show e
       pure Nothing
 
-podTitleFromFilename :: FilePath -> IO String
-podTitleFromFilename name = fromMaybe "" <$> readCommand
-  -- FIXME replace with a native Haskell solution
-  "sed"
-  ["-nE", "s/.*([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2})_([0-9]{2}).*/\\1-\\2-\\3 \\4:\\5:\\6/p"]
-  name
+podTitleFromFilename :: FilePath -> String
+podTitleFromFilename = maybe "" format . parseRipDate
+  -- TODO add timezone?
+  where format = formatTime defaultTimeLocale "%F %T"
 
 -- | Puts the given `file` into the rip's `trashRawRipDir`, cleaning up 15+ days
 -- old files from it and `rawRipDir` beforehand.
