@@ -27,10 +27,8 @@ processRip'
   = do
   let ripDate = fromMaybe (error $ "Couldn't parse rip time from filename " <> ripName) $ parseRipDate ripName
   ripTime <- localTimeToZonedTime ripDate
-  -- TODO add timezone?
-  let podTitle = formatTime defaultTimeLocale "%F %T" ripDate
-      id3Header = getID3Header . generateID3Header $ ID3Fields
-        { id3Title = T.pack podTitle
+  let id3Header = getID3Header . generateID3Header $ ID3Fields
+        { id3Title = T.pack . titlePubDate $ fst ripTime
         , id3Artist = podArtist config
         , id3Album = podAlbum config
         , id3RecordingTime = snd ripTime

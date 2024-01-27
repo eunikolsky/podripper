@@ -1,6 +1,7 @@
 module Rip
   ( localTimeToZonedTime
   , parseRipDate
+  , titlePubDate
   ) where
 
 import Data.Function
@@ -35,6 +36,13 @@ localTimeToZonedTime localTime = do
   localTZ <- getTimeZoneAtLocalTime localTime
   let utcTime = localTimeToUTC localTZ localTime
   pure (utcToZonedTime localTZ utcTime, utcTime)
+
+-- | Formats the publication date for the RSS item's title, specifically in
+-- the `YYYY-MM-DD` format so that the files appear sorted on the podcast
+-- player when synced with gPodder (which renames the files on the device
+-- based on the title).
+titlePubDate :: ZonedTime -> String
+titlePubDate = formatTime defaultTimeLocale "%F %T %z"
 
 -- | Removes the suffix from the second string if present, and returns the second
 -- string otherwise.

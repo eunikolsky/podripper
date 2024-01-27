@@ -69,13 +69,6 @@ data RSSItem = RSSItem
 formatPubDate :: ZonedTime -> String
 formatPubDate = formatTime defaultTimeLocale "%d %b %Y %H:%M:%S %z"
 
--- | Formats the publication date for the RSS item's title, specifically in
--- the `YYYY-MM-DD` format so that the files appear sorted on the podcast
--- player when synced with gPodder (which renames the files on the device
--- based on the title).
-titlePubDate :: ZonedTime -> String
-titlePubDate = formatTime defaultTimeLocale "%F %T %z"
-
 -- | Creates an @RipFile@ based on the information about the file located in
 -- `relPath`. Returns @Nothing@ if the file is not found.
 ripFileFromFile :: FilePath -> FilePath -> IO (Maybe RipFile)
