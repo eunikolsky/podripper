@@ -2,19 +2,33 @@ module MP3.ID3
   ( ID3Fields(..)
   , ID3Header(..)
   , generateID3Header
+  , mkID3URL
   ) where
 
 import Data.Bits
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Lazy qualified as BSL
 import Data.ByteString.Builder qualified as BSB
+import Data.Char
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Data.Time
 import Data.Word (Word32)
 import MP3.AudioDuration
+
+-- | A URL that can be used in an ID3 tag. The reason it's a bytestring and not
+-- `Text` is the ID3 v2.4 spec says URLs should be in ISO-8859-1 (aka Latin-1),
+-- and `ByteString` represents that better than a unicode `Text`.
+newtype ID3URL = ID3URL { getID3URL :: ByteString }
+
+-- | Converts the text to a Latin-1 ID3 URL. All unsupported characters are
+-- replaced with a question mark.
+mkID3URL :: Text -> ID3URL
+mkID3URL = ID3URL . C.pack . T.unpack . T.map replaceUnsupported
+  where replaceUnsupported c = if c >= chr 0x20 && c <= chr 0xff then c else '?'
 
 data ID3Fields = ID3Fields
   { id3Title :: !Text
@@ -28,6 +42,7 @@ data ID3Fields = ID3Fields
   , id3Language :: !Text
   -- ^ A three-letter ISO-639-2 language code
   , id3MediaType :: !Text
+  , id3PodcastURL :: !ID3URL
   }
 
 newtype ID3Header = ID3Header { getID3Header :: ByteString }
@@ -36,7 +51,7 @@ newtype ID3Header = ID3Header { getID3Header :: ByteString }
 generateID3Header :: ID3Fields -> ID3Header
 generateID3Header ID3Fields
     { id3Title, id3Artist, id3Album, id3RecordingTime, id3Genre, id3Publisher
-    , id3Duration, id3EncodingTime, id3Language, id3MediaType
+    , id3Duration, id3EncodingTime, id3Language, id3MediaType, id3PodcastURL
     } =
   ID3Header . BS.toStrict . BSB.toLazyByteString $ header <> BSB.lazyByteString frames
 
@@ -58,11 +73,12 @@ generateID3Header ID3Fields
       , textFrame frameEncodingTime $ formatID3Time id3EncodingTime
       , textFrame frameLanguage id3Language
       , textFrame frameMediaType id3MediaType
+      , urlFrame frameOfficialInternetRadioStationHomepage id3PodcastURL
       ]
 
 frameTitle, frameLeadPerformer, frameAlbum, frameRecordingTime
   , frameContentType, framePublisher, frameLength, frameEncodingTime
-  , frameLanguage, frameMediaType :: ByteString
+  , frameLanguage, frameMediaType, frameOfficialInternetRadioStationHomepage :: ByteString
 frameTitle = "TIT2"
 frameLeadPerformer = "TPE1"
 frameAlbum = "TALB"
@@ -73,6 +89,7 @@ frameLength = "TLEN"
 frameEncodingTime = "TDEN"
 frameLanguage = "TLAN"
 frameMediaType = "TMED"
+frameOfficialInternetRadioStationHomepage = "WORS"
 
 formatID3Time :: UTCTime -> Text
 formatID3Time = T.pack . formatTime defaultTimeLocale "%FT%T"
@@ -97,6 +114,17 @@ textFrame frameId value =
     utf8Marker = "\x03"
     utf8Value = TE.encodeUtf8 value
     utf8Terminator = "\x00"
+
+-- FIXME deduplicate with `textFrame`
+urlFrame :: ByteString -> ID3URL -> BSB.Builder
+urlFrame frameId value =
+  mconcat [BSB.byteString frameId, size, flags, BSB.byteString contents]
+
+  where
+    size = BSB.word32BE . syncSafe . fromIntegral . BS.length $ contents
+    flags = BSB.word16BE 0
+
+    contents = getID3URL value
 
 -- | Returns a "synchsafe integer" for the given integer: the most-significant
 -- bit of every byte is reset, thus it can store 28 bits of information.

@@ -14,5 +14,6 @@
   "ripDirName": "test",
   "podArtist": "Various",
   "podAlbum": "Test stream",
-  "podLanguage": "eng"
+  "podLanguage": "eng",
+  "podHomepageLatin1": "http://localhost/"
 }

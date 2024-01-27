@@ -42,6 +42,7 @@ processRip'
         , id3EncodingTime = now
         , id3Language = podLanguage config
         , id3MediaType = "Internet stream"
+        , id3PodcastURL = mkID3URL $ podHomepage config
         }
       (XingHeader xingHeader, audioDuration) = calculateXingHeader mp3
 
