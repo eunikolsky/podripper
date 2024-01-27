@@ -4,16 +4,11 @@ module Podripper
   ( run
   ) where
 
-import Conduit
 import Control.Exception (AsyncException, throw)
 import Control.Monad
-import Data.Conduit.Attoparsec
-import Data.Conduit.List qualified as C
 import qualified Data.Text as T
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
-import MP3.Parser
-import MP3.Xing
 import ProcessRip
 import RIO hiding (stdin)
 import RSSGen.Duration
@@ -169,35 +164,6 @@ processRip configExt@RipConfigExt{doneRipDir} newRip = do
 
 processedRipNameFromOriginal :: FilePath -> FilePath -> FilePath
 processedRipNameFromOriginal doneRipDir ripName = doneRipDir </> takeBaseName ripName <> processedRipSuffix <.> "mp3"
-
--- FIXME move this to another module
--- | Calculates `MP3Structure` of the given `file` by parsing it.
-mp3StructureFromFile :: FilePath -> IO MP3Structure
-mp3StructureFromFile file = fmap MP3Structure . runConduitRes $
-  sourceFile file
-    -- FIXME this is very similar to, but not the same as, what happens while
-    -- ripping; is it possible to reuse the code?
-    .| conduitParserEither maybeFrameParser
-    .| C.mapMaybeM getMP3Frame
-    .| mapC fInfo
-    .| sinkVector
-
-  where
-    getMP3Frame :: MonadIO m
-      => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe Frame)
-    getMP3Frame (Right (_, Valid f)) = pure $ Just f
-    getMP3Frame (Right (posRange, Junk l)) = do
-      liftIO . putStrLn $ mconcat
-        [ "Found junk in stream: "
-        , show l, " bytes long at bytes "
-        , show . posOffset . posRangeStart $ posRange
-        , "-"
-        , show . posOffset . posRangeEnd $ posRange
-        ]
-      pure Nothing
-    getMP3Frame (Left e) = do
-      liftIO . putStrLn $ "Parse error: " <> show e
-      pure Nothing
 
 {- |
  - discover and process original rips in the source dir, which may be

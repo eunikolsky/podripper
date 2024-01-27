@@ -1,15 +1,18 @@
 module ProcessRip
-  ( processRip'
+  ( mp3StructureFromFile
+  , processRip'
   ) where
 
 import Conduit
 import Control.Monad
+import Data.Conduit.Attoparsec
 import Data.Conduit.List qualified as C
 import Data.List (intercalate)
 import Data.Maybe
 import Data.Text qualified as T
 import Data.Time
 import MP3.ID3
+import MP3.Parser
 import MP3.Xing
 import RipConfig
 import Ripper.Types qualified as Ripper
@@ -38,6 +41,34 @@ processRip'
     C.sourceList [id3Header, xingHeader] *> sourceFile ripName
     .| sinkFile processedRip
   trashFile configExt ripName
+
+-- | Calculates `MP3Structure` of the given `file` by parsing it.
+mp3StructureFromFile :: FilePath -> IO MP3Structure
+mp3StructureFromFile file = fmap MP3Structure . runConduitRes $
+  sourceFile file
+    -- FIXME this is very similar to, but not the same as, what happens while
+    -- ripping; is it possible to reuse the code?
+    .| conduitParserEither maybeFrameParser
+    .| C.mapMaybeM getMP3Frame
+    .| mapC fInfo
+    .| sinkVector
+
+  where
+    getMP3Frame :: MonadIO m
+      => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe Frame)
+    getMP3Frame (Right (_, Valid f)) = pure $ Just f
+    getMP3Frame (Right (posRange, Junk l)) = do
+      liftIO . putStrLn $ mconcat
+        [ "Found junk in stream: "
+        , show l, " bytes long at bytes "
+        , show . posOffset . posRangeStart $ posRange
+        , "-"
+        , show . posOffset . posRangeEnd $ posRange
+        ]
+      pure Nothing
+    getMP3Frame (Left e) = do
+      liftIO . putStrLn $ "Parse error: " <> show e
+      pure Nothing
 
 podTitleFromFilename :: FilePath -> IO String
 podTitleFromFilename name = fromMaybe "" <$> readCommand
