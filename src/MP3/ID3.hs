@@ -97,34 +97,28 @@ formatID3Time = T.pack . formatTime defaultTimeLocale "%FT%T"
 inMilliseconds :: AudioDuration -> Text
 inMilliseconds = T.pack . show @Int . floor . (* 1000) . getAudioDuration
 
+frame :: ByteString -> ByteString -> BSB.Builder
+frame frameId contents =
+  mconcat [BSB.byteString frameId, size, flags, BSB.byteString contents]
+
+  where
+    size = BSB.word32BE . syncSafe . fromIntegral . BS.length $ contents
+    flags = BSB.word16BE 0
+
 textFrame
   :: ByteString
   -- ^ Frame ID, must be 4 characters
   -> Text
   -- ^ Frame value
   -> BSB.Builder
-textFrame frameId value =
-  mconcat [BSB.byteString frameId, size, flags, BSB.byteString contents]
-
+textFrame frameId value = frame frameId $ mconcat [utf8Marker, utf8Value, utf8Terminator]
   where
-    size = BSB.word32BE . syncSafe . fromIntegral . BS.length $ contents
-    flags = BSB.word16BE 0
-
-    contents = mconcat [utf8Marker, utf8Value, utf8Terminator]
     utf8Marker = "\x03"
     utf8Value = TE.encodeUtf8 value
     utf8Terminator = "\x00"
 
--- FIXME deduplicate with `textFrame`
 urlFrame :: ByteString -> ID3URL -> BSB.Builder
-urlFrame frameId value =
-  mconcat [BSB.byteString frameId, size, flags, BSB.byteString contents]
-
-  where
-    size = BSB.word32BE . syncSafe . fromIntegral . BS.length $ contents
-    flags = BSB.word16BE 0
-
-    contents = getID3URL value
+urlFrame frameId = frame frameId . getID3URL
 
 -- | Returns a "synchsafe integer" for the given integer: the most-significant
 -- bit of every byte is reset, thus it can store 28 bits of information.
