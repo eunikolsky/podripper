@@ -33,6 +33,7 @@ library
       MP3.Xing
       Podripper
       ProcessRip
+      Rip
       RipConfig
       Ripper.ATPLiveStreamCheck
       Ripper.Import

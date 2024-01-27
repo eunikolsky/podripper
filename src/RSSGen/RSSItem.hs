@@ -18,11 +18,11 @@ module RSSGen.RSSItem
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.Function
-import Data.List (isSuffixOf, stripPrefix)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import Data.Time
 import Development.Shake.Classes
+import Rip
 import System.Directory
 import System.FilePath.Posix
 import Text.XML.Light
@@ -104,17 +104,6 @@ rssItemFromRipFile podcastTitle findUpstreamItem ripFile@RipFile{..} = do
 (??) :: Maybe a -> a -> a
 (??) = flip fromMaybe
 
--- | Parses the rip time from the filename. Assumes the standard streamripper's
--- filename like `sr_program_2020_03_21_21_55_20_enc.mp3` (the `_enc` at the end
--- may be missing).
-parseRipDate :: FilePath -> Maybe LocalTime
-parseRipDate file = do
-  dateString <- takeBaseName file
-    & maybeStripSuffix "_enc"
-    & stripPrefix "sr_program_"
-  let acceptSurroundingWhitespace = False
-  parseTimeM acceptSurroundingWhitespace defaultTimeLocale "%Y_%m_%d_%H_%M_%S" dateString
-
 getTimeZoneAtLocalTime :: LocalTime -> IO TimeZone
 getTimeZoneAtLocalTime localTime = do
   -- this probably introduces a bug in some corner cases where the
@@ -154,13 +143,3 @@ doesFileExist' file = do
   return $ if exists
     then Just file
     else Nothing
-
--- | Removes the suffix from the second string if present, and returns the second
--- string otherwise.
--- This is different from @Data.Text.stripSuffix@ as that one returns @Nothing@
--- if there is no match.
--- TODO extract the optionality to separate functions?
-maybeStripSuffix :: Eq a => [a] -> [a] -> [a]
-maybeStripSuffix suffix s = if suffix `isSuffixOf` s
-  then reverse . drop (length suffix) . reverse $ s
-  else s
