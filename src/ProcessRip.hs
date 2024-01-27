@@ -26,7 +26,7 @@ import System.FilePath
 processRip' :: RipConfigExt -> (Ripper.SuccessfulRip, FilePath) -> IO ()
 processRip'
     configExt@RipConfigExt{config}
-    (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3}, processedRip)
+    (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3, Ripper.ripStreamURL=streamURL}, processedRip)
   = do
   let ripDate = fromMaybe (error $ "Couldn't parse rip time from filename " <> ripName) $ parseRipDate ripName
   ripTime <- localTimeToZonedTime ripDate
@@ -43,6 +43,7 @@ processRip'
         , id3Language = podLanguage config
         , id3MediaType = "Internet stream"
         , id3PodcastURL = mkID3URL $ podHomepage config
+        , id3StreamURL = mkID3URL . Ripper.urlToText . Ripper.getStreamURL <$> streamURL
         }
       (XingHeader xingHeader, audioDuration) = calculateXingHeader mp3
 

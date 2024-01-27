@@ -172,7 +172,7 @@ processPreviousRips configExt@RipConfigExt{doneRipDir, cleanRipDir} queue = do
   ripOriginals' <- traverse
     (\ripName -> do
       mp3 <- mp3StructureFromFile ripName
-      pure (Ripper.SuccessfulRip ripName mp3, processedRipNameFromOriginal doneRipDir ripName)
+      pure (Ripper.SuccessfulRip ripName mp3 Nothing, processedRipNameFromOriginal doneRipDir ripName)
     )
     ripOriginals
 

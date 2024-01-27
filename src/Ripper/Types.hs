@@ -20,7 +20,7 @@ import RIO.Process
 import RSSGen.Duration
 import Ripper.RipperDelay
 
-newtype StreamURL = StreamURL URL
+newtype StreamURL = StreamURL { getStreamURL :: URL }
   deriving newtype (Show, Eq, FromJSON)
 
 -- | Command line arguments
@@ -61,6 +61,8 @@ newtype URL = URL { urlToText :: Text }
 data SuccessfulRip = SuccessfulRip
   { ripFilename :: !FilePath
   , ripMP3Structure :: !MP3Structure
+  , ripStreamURL :: !(Maybe StreamURL)
+  -- ^ this is `Nothing` for rips that are found after program restart
   }
   deriving (Eq, Show)
 

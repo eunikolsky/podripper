@@ -36,7 +36,7 @@ checkATPLiveStream originalStreamURL = handleError <=< runExceptT $ do
   isLiveValue <- liftEither $ A.lookup "live" status <?> "Can't find `live` key"
   isLive <- liftEither $ extractBool isLiveValue
 
-  if isLive then liftIO (Just <$> getStreamURL originalStreamURL status) else pure Nothing
+  if isLive then liftIO (Just <$> retrieveStreamURL originalStreamURL status) else pure Nothing
 
 extractBool :: Value -> Either String Bool
 extractBool (Bool b) = Right b
@@ -46,8 +46,8 @@ asString :: Value -> Maybe String
 asString (String t) = Just $ T.unpack t
 asString _ = Nothing
 
-getStreamURL :: StreamURL -> Object -> IO StreamURL
-getStreamURL originalStreamURL status = fromMaybe originalStreamURL <$>
+retrieveStreamURL :: StreamURL -> Object -> IO StreamURL
+retrieveStreamURL originalStreamURL status = fromMaybe originalStreamURL <$>
   case A.lookup "player" status >>= asString of
     Just player -> do
       -- FIXME replace with a native Haskell solution

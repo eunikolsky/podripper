@@ -93,7 +93,7 @@ spec = do
       toLazyByteString builder `shouldBe` "Network.Socket.recvBuf: resource vanished\n"
 
 emptyRip :: SuccessfulRip
-emptyRip = SuccessfulRip "" (MP3Structure mempty)
+emptyRip = SuccessfulRip "" (MP3Structure mempty) Nothing
 
 testURL :: StreamConfig
 testURL = SimpleURL . StreamURL $ URL "http://localhost/"
