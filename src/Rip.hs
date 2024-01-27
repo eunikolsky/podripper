@@ -1,5 +1,6 @@
 module Rip
-  ( parseRipDate
+  ( localTimeToZonedTime
+  , parseRipDate
   ) where
 
 import Data.Function
@@ -17,6 +18,23 @@ parseRipDate file = do
     & stripPrefix "sr_program_"
   let acceptSurroundingWhitespace = False
   parseTimeM acceptSurroundingWhitespace defaultTimeLocale "%Y_%m_%d_%H_%M_%S" dateString
+
+getTimeZoneAtLocalTime :: LocalTime -> IO TimeZone
+getTimeZoneAtLocalTime localTime = do
+  -- this probably introduces a bug in some corner cases where the
+  -- timezone may be off one hour (EET/EEST)
+  currentTZ <- getCurrentTimeZone
+  let utcTime = localTimeToUTC currentTZ localTime
+  getTimeZone utcTime
+
+-- | Extends the local time with the local timezone /at that time/.
+localTimeToZonedTime :: LocalTime -> IO (ZonedTime, UTCTime)
+localTimeToZonedTime localTime = do
+  -- we need to have UTCTime to convert it to a zoned time,
+  -- but converting local time to UTC also requires a timezone
+  localTZ <- getTimeZoneAtLocalTime localTime
+  let utcTime = localTimeToUTC localTZ localTime
+  pure (utcToZonedTime localTZ utcTime, utcTime)
 
 -- | Removes the suffix from the second string if present, and returns the second
 -- string otherwise.

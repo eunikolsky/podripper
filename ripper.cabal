@@ -147,12 +147,12 @@ test-suite ripper-test
       RipConfigSpec
       Ripper.RipperDelaySpec
       Ripper.RunSpec
+      RipSpec
       RSSGen.BinaryUTCTimeSpec
       RSSGen.DatabaseSpec
       RSSGen.DownloaderSpec
       RSSGen.DurationSpec
       RSSGen.RSSFeedSpec
-      RSSGen.RSSItemSpec
       RSSGen.RunUntilSpec
       RSSGen.UpstreamRSSFeedSpec
       Paths_ripper

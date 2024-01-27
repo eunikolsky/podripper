@@ -6,7 +6,6 @@ module RSSGen.RSSItem
   , RipFile(..)
   , RipTime
   , UTCRipTime
-  , localTimeToZonedTime
   , renderItem
   , ripFileFromFile
   , rssItemFromRipFile
@@ -41,6 +40,9 @@ data RipTime = RipTime
 
 instance Eq RipTime where
   (==) = (==) `on` utcRipTime
+
+mkRipTime :: (ZonedTime, UTCTime) -> RipTime
+mkRipTime (zonedTime, utcTime) = RipTime{zonedTime, utcRipTime=UTCRipTime utcTime}
 
 -- | Information about a rip file, which is read from the filesystem.
 data RipFile = RipFile
@@ -81,7 +83,7 @@ ripFileFromFile relPath filename = runMaybeT $ do
   filename' <- MaybeT . doesFileExist' $ relPath </> filename
   fileSize <- liftIO $ getFileSize filename'
   localTime <- MaybeT . pure . parseRipDate $ filename'
-  ripTime <- liftIO $ localTimeToZonedTime localTime
+  ripTime <- liftIO . fmap mkRipTime $ localTimeToZonedTime localTime
   pure RipFile{file=filename,..}
 
 -- | Creates an @RSSItem@ from the `RipFile` by adding extra information.
@@ -103,23 +105,6 @@ rssItemFromRipFile podcastTitle findUpstreamItem ripFile@RipFile{..} = do
 -- | `Maybe`-coalescing operator.
 (??) :: Maybe a -> a -> a
 (??) = flip fromMaybe
-
-getTimeZoneAtLocalTime :: LocalTime -> IO TimeZone
-getTimeZoneAtLocalTime localTime = do
-  -- this probably introduces a bug in some corner cases where the
-  -- timezone may be off one hour (EET/EEST)
-  currentTZ <- getCurrentTimeZone
-  let utcTime = localTimeToUTC currentTZ localTime
-  getTimeZone utcTime
-
--- | Extends the local time with the local timezone /at that time/.
-localTimeToZonedTime :: LocalTime -> IO RipTime
-localTimeToZonedTime localTime = do
-  -- we need to have UTCTime to convert it to a zoned time,
-  -- but converting local time to UTC also requires a timezone
-  localTZ <- getTimeZoneAtLocalTime localTime
-  let utcTime = localTimeToUTC localTZ localTime
-  pure RipTime{zonedTime = utcToZonedTime localTZ utcTime, utcRipTime = UTCRipTime utcTime}
 
 -- | Renders the RSS item into an XML element for the feed. First parameter
 -- is the base URL for the file.
