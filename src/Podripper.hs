@@ -263,9 +263,11 @@ processPreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queu
     )
     ripOriginals
 
+  let notifyProcessedQueue = atomically $ writeTQueue queue $ QValue NewProcessedRip
+
   -- TODO get year from the file itself
   year <- show . fst . toOrdinalDate . localDay . zonedTimeToLocalTime <$> getZonedTime
-  forM_ ripOriginals' (processRip' year)
+  forM_ ripOriginals' $ \newRip -> processRip' year newRip >> notifyProcessedQueue
 
   where
     -- FIXME almost a duplicate of the same-named function above
@@ -286,7 +288,6 @@ processPreviousRips configExt@RipConfigExt{config, doneRipDir, cleanRipDir} queu
         C.sourceList [id3Header, xingHeader] *> sourceFile ripName
         .| sinkFile processedRip
       trashFile configExt ripName
-      atomically $ writeTQueue queue $ QValue NewProcessedRip
 
 updateRSS :: RipConfigExt -> IO ()
 updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
