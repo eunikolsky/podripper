@@ -13,6 +13,7 @@ module Ripper.Types
   ) where
 
 import Data.Aeson (FromJSON)
+import MP3.Xing
 import RIO
 import RIO.Process
 -- TODO move `Duration` outside of `RSSGen`?
@@ -25,8 +26,10 @@ newtype StreamURL = StreamURL URL
 -- | Command line arguments
 data Options = Options
   { optionsVerbose :: !Bool
-  -- | The output directory for rips if set by the user.
-  , optionsOutputDirectory :: !(Maybe FilePath)
+  -- | The output directory for raw rips if set by the user.
+  , optionsRawRipsDirectory :: !(Maybe FilePath)
+  -- | The output directory for clean rips if set by the user.
+  , optionsCleanRipsDirectory :: !(Maybe FilePath)
   -- | Record the stream for this duration; it's used only by the `ripper` CLI.
   , optionsRipLength :: !(Maybe Duration)
   , optionsRipIntervalRefs :: ![RipperIntervalRef]
@@ -53,10 +56,11 @@ newtype URL = URL { urlToText :: Text }
 
 -- | Stores information about a successful rip. Values of this type are passed
 -- from the ripper back to the parent `Podripper` (and ultimately to the
--- reencoding step).
+-- processing step). It's important that this information can be retrieved from
+-- the file itself because failed/missed source files need to be reprocessed.
 data SuccessfulRip = SuccessfulRip
-  { ripEndTime :: !RipEndTime
-  , ripFilename :: !FilePath
+  { ripFilename :: !FilePath
+  , ripMP3Structure :: !MP3Structure
   }
   deriving (Eq, Show)
 

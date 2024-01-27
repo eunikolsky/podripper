@@ -1,4 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Ripper.Run
   ( MonadRipper(..)
@@ -9,17 +10,25 @@ module Ripper.Run
 
 import Conduit
 import Control.Concurrent.STM.TBMQueue
+import Data.Conduit.Attoparsec
+import Data.Conduit.List qualified as C
+import Data.Maybe
 import Data.Monoid (Last(..))
 import Data.Time.TZTime
+import Data.Vector.Unboxed qualified as UV
+import Data.Vector.Unboxed.Mutable (IOVector)
+import Data.Vector.Unboxed.Mutable qualified as UMV
 import Network.HTTP.Conduit (HttpExceptionContent(..))
 import Network.HTTP.Simple
 import RIO.Directory (createDirectoryIfMissing)
-import RIO.FilePath ((</>))
+import RIO.FilePath
 import RIO.State
 import qualified RIO.Text as T
 import RIO.Time
 import System.IO.Error (isResourceVanishedError)
 
+import MP3.Parser
+import MP3.Xing
 import Ripper.ATPLiveStreamCheck
 import Ripper.Import
 import Ripper.RipperDelay
@@ -30,13 +39,14 @@ run = do
   ripIntervals <- getRipIntervals
 
   options <- asks appOptions
-  let maybeOutputDir = optionsOutputDirectory options
-  for_ maybeOutputDir ensureDirectory
+  let maybeRawRipsDir = optionsRawRipsDirectory options
+      maybeCleanRipsDir = optionsCleanRipsDirectory options
+  mapM_ ensureDirectory $ catMaybes [maybeRawRipsDir, maybeCleanRipsDir]
 
   userAgent <- asks appUserAgent
 
   maybeTimeout (optionsRipLength options)
-    $ ripper userAgent maybeOutputDir ripIntervals (optionsStreamConfig options)
+    $ ripper userAgent maybeRawRipsDir maybeCleanRipsDir ripIntervals (optionsStreamConfig options)
 
 maybeTimeout :: MonadUnliftIO m => Maybe Duration -> m () -> m ()
 maybeTimeout (Just d) = void . timeout (toMicroseconds d)
@@ -56,15 +66,15 @@ getRipIntervals = do
 
 -- | The result of a single rip call. The information conveyed by this type
 -- is whether the call has received and saved any data.
-data RipResult = RipRecorded SuccessfulRip | RipNothing
+data RipResult = RipRecorded !SuccessfulRip !RipEndTime | RipNothing
   deriving (Eq, Show)
 
-withRecordedRip :: (SuccessfulRip -> a) -> RipResult -> Maybe a
-withRecordedRip f (RipRecorded r) = Just $ f r
+withRecordedRip :: ((SuccessfulRip, RipEndTime) -> a) -> RipResult -> Maybe a
+withRecordedRip f (RipRecorded r time) = Just $ f (r, time)
 withRecordedRip _ RipNothing = Nothing
 
 class Monad m => MonadRipper m where
-  rip :: Request -> Maybe FilePath -> m RipResult
+  rip :: Request -> Maybe FilePath -> Maybe FilePath -> m RipResult
   checkLiveStream :: RipName -> StreamURL -> m (Maybe StreamURL)
   getRipDelay :: [RipperInterval] -> Maybe RipEndTime -> Now -> m RetryDelay
   -- TODO can `MonadTime` be composed here to replace these two functions?
@@ -91,8 +101,8 @@ instance (HasLogFunc env, HasAppRipsQueue env, HasAppOptions env) => MonadRipper
     atomically $ writeTQueue ripsQueue r
 
 -- | The endless ripping loop.
-ripper :: (MonadRipper m) => Text -> Maybe FilePath -> [RipperInterval] -> StreamConfig -> m ()
-ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mempty
+ripper :: (MonadRipper m) => Text -> Maybe FilePath -> Maybe FilePath -> [RipperInterval] -> StreamConfig -> m ()
+ripper userAgent maybeRawRipsDir maybeCleanRipsDir ripperIntervals streamConfig = evalStateT go mempty
   {-
    - * `repeatForever` can't be used because its parameter is in monad `m`,
    - which is the same as the output monad, and the inside monad can't be the
@@ -109,10 +119,10 @@ ripper userAgent maybeOutputDir ripperIntervals streamConfig = evalStateT go mem
       case maybeStreamURL of
         Just (StreamURL url) -> do
           let request = mkRipperRequest userAgent url
-          result <- lift $ rip request maybeOutputDir
-          modify' (<> Last (withRecordedRip ripEndTime result))
+          result <- lift $ rip request maybeRawRipsDir maybeCleanRipsDir
+          modify' (<> Last (withRecordedRip snd result))
 
-          maybe (pure ()) (lift . notifyRip) $ withRecordedRip id result
+          maybe (pure ()) (lift . notifyRip) $ withRecordedRip fst result
 
         Nothing -> pure ()
 
@@ -135,11 +145,40 @@ delayWithLog reconnectDelay = do
   threadDelay . toMicroseconds . toDuration $ reconnectDelay
   logDebug "Reconnecting"
 
+-- | Information about a rip in progress; the difference from `SuccessfulRip` is
+-- the mutable vector of frames, which should provide a better memory usage than
+-- appending to an immutable vector all the time.
+data InProgressRip = InProgressRip
+  { irFilename :: !FilePath
+  , irFrames :: !(IOVector FrameInfo)
+  -- ^ mutable vector for storing frames
+  , irWriteIndex :: !Int
+  -- ^ next index, into which the frame should be added; this is not the same as
+  -- vector's `length` because the vector may contain uninitialized elements
+  }
+
+toSuccessfulRip :: MonadIO m => InProgressRip -> m SuccessfulRip
+toSuccessfulRip rip' = do
+  let writtenLength = irWriteIndex rip'
+  -- this is safe because ripping is done at this point
+  -- it's not clear whether `V.force` is worth it here
+  frames <- liftIO . fmap UV.force . UV.unsafeFreeze . UMV.take writtenLength $ irFrames rip'
+  pure $ SuccessfulRip
+    { ripFilename = irFilename rip'
+    , ripMP3Structure = MP3Structure frames
+    }
+
+-- | How many new elements to add to the frames vector when it's fully filled.
+vectorSizeInc :: Int
+vectorSizeInc = 10 * framesInMinute
+  -- | 44100 Hz MPEG1 Layer3 frames
+  where framesInMinute = 2297
+
 -- | Rips a stream for as long as the connection is open.
 ripOneStream
   :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env, HasAppOptions env)
-  => Request -> Maybe FilePath -> m RipResult
-ripOneStream request maybeOutputDir = do
+  => Request -> Maybe FilePath ->  Maybe FilePath -> m RipResult
+ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
   noDataTimeout <- optionsNoDataTimeout <$> view appOptionsL
 
   {-
@@ -151,7 +190,7 @@ ripOneStream request maybeOutputDir = do
         from the context: (MonadUnliftIO m, MonadReader env m, HasLogFunc env)`
    - As the doc says, `MonadUnliftIO` doesn't work with stateful monads :(
    -}
-  maybeFilenameVar <- newIORef Nothing
+  maybeRipVar <- newIORef Nothing
 
   ripResult <- runResourceT
     . handleStalledException
@@ -167,9 +206,16 @@ ripOneStream request maybeOutputDir = do
       - in this block, we have the `response` and are ready to stream the body,
       - so this time should be good enough
       -}
-      basename <- liftIO getFilename
-      let filename = maybe basename (</> basename) maybeOutputDir
-      writeIORef maybeFilenameVar $ Just filename
+      basename <- liftIO getBasename
+      let filename = maybe basename (</> basename) maybeCleanRipsDir <.> "mp3"
+          rawBasename = basename <> "_raw" <.> "mp3"
+          rawFilename = maybe rawBasename (</> rawBasename) maybeRawRipsDir
+      framesVector <- liftIO $ UMV.new vectorSizeInc
+      writeIORef maybeRipVar . Just $ InProgressRip
+        { irFilename = filename
+        , irFrames = framesVector
+        , irWriteIndex = 0
+        }
 
       -- there was a strange issue with ATP when the recording started, but then
       -- halted about an hour later (the file modtime confirms this) in the
@@ -178,11 +224,23 @@ ripOneStream request maybeOutputDir = do
       -- wrapper ensures that if there is no data for the given duration, we'll
       -- disconnect and reconnect
       doesn'tStall noDataTimeout (getResponseBody response) $ \body ->
-        runConduit $ body .| sinkFile filename
+        let rawDump = sinkFile rawFilename
+
+            saveCleanDump = mapC (getFrameData . fData) .| sinkFile filename
+            processCleanDump = mapM_C $ extendRip maybeRipVar . fInfo
+            cleanDump = conduitParserEither maybeFrameParser
+              .| C.mapMaybeM getMP3Frame
+              .| getZipSink (ZipSink saveCleanDump *> ZipSink processCleanDump)
+
+            bothDumps = getZipSink $ ZipSink rawDump *> ZipSink cleanDump
+        in runConduit $ body .| bothDumps
 
       -- we're not inside `MonadRipper` here, so we're using the original IO func
       now <- liftIO getCurrentTZTime
-      pure . RipRecorded $ SuccessfulRip now filename
+      -- `maybeRipVar` can't be `Nothing` in this block
+      inProgressRip <- fromJust <$> readIORef maybeRipVar
+      recordedRip <- toSuccessfulRip inProgressRip
+      pure $ RipRecorded recordedRip now
 
   {-
    - after a possible http exception is handled, we need to figure out if
@@ -191,13 +249,55 @@ ripOneStream request maybeOutputDir = do
    - consider the value of `maybeFilenameVar`
    -}
   case ripResult of
-    r@(RipRecorded _) -> pure r
+    r@(RipRecorded _ _) -> pure r
     RipNothing -> do
-      maybeFilename <- readIORef maybeFilenameVar
+      maybeRip <- readIORef maybeRipVar
       now <- liftIO getCurrentTZTime
-      pure $ case maybeFilename of
-        Just filename -> RipRecorded (SuccessfulRip now filename)
-        Nothing -> RipNothing
+      case maybeRip of
+        Just inProgressRip -> do
+          recordedRip <- toSuccessfulRip inProgressRip
+          pure $ RipRecorded recordedRip now
+        Nothing -> pure RipNothing
+
+extendRip :: MonadIO m => IORef (Maybe InProgressRip) -> FrameInfo -> m ()
+extendRip maybeRipVar frame = modifyIORefIO' maybeRipVar $ \case
+  Just rip' -> do
+    let framesVector = irFrames rip'
+        writeIndex = irWriteIndex rip'
+
+    let isVectorFull = writeIndex >= UMV.length framesVector
+    framesVector' <- if isVectorFull
+      then liftIO $ UMV.grow framesVector vectorSizeInc
+      else pure framesVector
+    liftIO $ UMV.write framesVector' writeIndex frame
+
+    pure . Just $ rip'
+      { irFrames = framesVector'
+      , irWriteIndex = writeIndex + 1
+      }
+  Nothing -> pure Nothing
+
+modifyIORefIO' :: MonadIO m => IORef a -> (a -> m a) -> m ()
+modifyIORefIO' ref f = do
+  x <- readIORef ref
+  x' <- f x
+  x' `seq` writeIORef ref x'
+
+getMP3Frame :: (MonadReader env m, HasLogFunc env, MonadIO m)
+  => Either ParseError (PositionRange, MaybeFrame) -> m (Maybe Frame)
+getMP3Frame (Right (_, Valid f)) = pure $ Just f
+getMP3Frame (Right (posRange, Junk l)) = do
+  logInfo $ mconcat
+    [ "Found junk in stream: "
+    , displayShow l, " bytes long at bytes "
+    , displayShow . posOffset . posRangeStart $ posRange
+    , "-"
+    , displayShow . posOffset . posRangeEnd $ posRange
+    ]
+  pure Nothing
+getMP3Frame (Left e) = do
+  logError $ "Parse error: " <> displayShow e
+  pure Nothing
 
 -- TODO for some reason, this handler doesn't catch an `InternalException` about
 -- an unknown CA (when using `mitmproxy`):
@@ -243,15 +343,16 @@ ensureDirectory :: MonadIO m => FilePath -> m ()
 ensureDirectory = liftIO . createDirectoryIfMissing createParents
   where createParents = True
 
--- | Returns a rip filename that follows the `streamripper`'s pattern:
--- `sr_program_YYYY_mm_dd_HH_MM_SS.mp3` in the current timezone.
+-- | Returns a rip base filename (w/o extension) that follows the
+-- `streamripper`'s pattern: `sr_program_YYYY_mm_dd_HH_MM_SS` in the current
+-- timezone.
 --
 -- https://en.wikipedia.org/wiki/Streamripper
-getFilename :: IO FilePath
-getFilename = do
+getBasename :: IO FilePath
+getBasename = do
   time <- getCurrentLocalTime
   let timeString = formatTime defaultTimeLocale "%_Y_%m_%d_%H_%M_%S" time
-  pure $ "sr_program_" <> timeString <> ".mp3"
+  pure $ "sr_program_" <> timeString
 
   where
     getCurrentLocalTime :: MonadIO m => m LocalTime

@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           ripper
-version:        2.0.4
+version:        2.1.0
 description:    Please see the README on Github at <https://github.com/githubuser/ripper#readme>
 homepage:       https://github.com/githubuser/ripper#readme
 bug-reports:    https://github.com/githubuser/ripper/issues
@@ -25,6 +25,12 @@ source-repository head
 
 library
   exposed-modules:
+      MP3.AudioDuration
+      MP3.FrameInfo
+      MP3.ID3
+      MP3.MP3
+      MP3.Parser
+      MP3.Xing
       Podripper
       RipConfig
       Ripper.ATPLiveStreamCheck
@@ -71,6 +77,7 @@ library
     , base >=4.11 && <10
     , bytestring
     , conduit
+    , conduit-extra
     , directory
     , exceptions
     , filepath
@@ -94,6 +101,7 @@ library
     , unicode-show
     , unliftio
     , unliftio-core
+    , vector
     , xml
   default-language: Haskell2010
 

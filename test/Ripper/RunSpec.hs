@@ -10,6 +10,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.List (singleton)
 import Data.Time.TZTime
 import Data.Time.TZTime.QQ
+import MP3.Xing
 import Ripper.Import hiding (error)
 import RIO.List
 import RIO.Partial (fromJust)
@@ -32,7 +33,7 @@ spec = do
 
             expectedArgs = (replicate numActions delay, replicate numActions Nothing)
 
-            args = runTestM testState $ ripper "" Nothing mempty testURL
+            args = runTestM testState $ ripper "" Nothing Nothing mempty testURL
 
         args `shouldBe` expectedArgs
 
@@ -42,21 +43,21 @@ spec = do
 
       it "uses an after-recording delay" $ do
         let numActions = 1
-            testState = TestState (repeat . RipRecorded $ SuccessfulRip ripEndTime "") numActions delay now
+            testState = TestState (repeat $ RipRecorded emptyRip ripEndTime) numActions delay now
 
             expectedArgs = ([delay], [Just ripEndTime])
 
-            args = runTestM testState $ ripper "" Nothing mempty testURL
+            args = runTestM testState $ ripper "" Nothing Nothing mempty testURL
 
         args `shouldBe` expectedArgs
 
       it "uses an after-recording delay since the first successful recording" $ do
         let numActions = 3
-            testState = TestState (RipRecorded (SuccessfulRip ripEndTime "") : repeat RipNothing) numActions delay now
+            testState = TestState (RipRecorded emptyRip ripEndTime : repeat RipNothing) numActions delay now
 
             expectedArgs = (replicate numActions delay, replicate numActions $ Just ripEndTime)
 
-            args = runTestM testState $ ripper "" Nothing mempty testURL
+            args = runTestM testState $ ripper "" Nothing Nothing mempty testURL
 
         args `shouldBe` expectedArgs
 
@@ -69,7 +70,7 @@ spec = do
         actual `shouldBe` RipNothing
 
     it "doesn't do anything on no exception" $ do
-      let result = RipRecorded $ SuccessfulRip now ""
+      let result = RipRecorded emptyRip now
           io = pure result
       (_, logOpts) <- logOptionsMemory
       withLogFunc logOpts $ \logFunc -> do
@@ -81,7 +82,7 @@ spec = do
           io = liftIO $ ioError error
       (_, logOpts) <- logOptionsMemory
       withLogFunc logOpts $ \logFunc -> do
-        flip runReaderT logFunc (handleResourceVanished io) `shouldThrow` (== error)
+        runReaderT (handleResourceVanished io) logFunc `shouldThrow` (== error)
 
     it "logs the exception" $ do
       let io = liftIO . ioError $ mkIOError resourceVanishedErrorType "Network.Socket.recvBuf" Nothing Nothing
@@ -90,6 +91,9 @@ spec = do
         flip runReaderT logFunc $ handleResourceVanished io
       builder <- readIORef builderRef
       toLazyByteString builder `shouldBe` "Network.Socket.recvBuf: resource vanished\n"
+
+emptyRip :: SuccessfulRip
+emptyRip = SuccessfulRip "" (MP3Structure mempty)
 
 testURL :: StreamConfig
 testURL = SimpleURL . StreamURL $ URL "http://localhost/"
@@ -122,7 +126,7 @@ runTestM :: TestState -> TestM a -> CollectedArgs
 runTestM testState (TestM r) = execWriter $ evalStateT r testState
 
 instance MonadRipper TestM where
-  rip _ _ = do
+  rip _ _ _ = do
     s <- get
     let (head, tail) = fromJust . uncons $ tsRipResult s
     put $ s { tsRipResult = tail }

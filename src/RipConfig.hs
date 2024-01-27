@@ -47,8 +47,14 @@ instance FromJSON RipConfig where
 data RipConfigExt = RipConfigExt
   { config :: !RipConfig
   , rawRipDir :: !FilePath
+  -- ^ The output directory for raw rips recorded by ripper.
+  , cleanRipDir :: !FilePath
+  -- ^ The output directory for clean rips recorded by ripper.
+  , trashRawRipDir :: !FilePath
+  -- ^ The "trash" directory for raw rips for easier debugging.
   , doneRipDir :: !FilePath
   , doneBaseDir :: !FilePath
+  -- ^ The base directory for complete rips; this should be mounted from S3.
   }
 
 loadConfig :: RipName -> IO RipConfig
@@ -65,10 +71,10 @@ getConfDir = do
 
 extendConfig :: RipConfig -> RipConfigExt
 extendConfig config =
-  let
-      -- | The output directory for raw rips recorded by ripper.
-      rawRipDir = T.unpack $ ripDirName config
-      -- | The base directory for complete rips; this should be mounted from S3.
+  let ripDir = T.unpack $ ripDirName config
+      cleanRipDir = ripDir
+      rawRipDir = cleanRipDir </> "raw"
+      trashRawRipDir = cleanRipDir </> "trash"
       doneBaseDir = "complete"
-      doneRipDir = doneBaseDir </> rawRipDir
-  in RipConfigExt{config, rawRipDir, doneRipDir, doneBaseDir}
+      doneRipDir = doneBaseDir </> ripDir
+  in RipConfigExt{config, rawRipDir, cleanRipDir, trashRawRipDir, doneRipDir, doneBaseDir}
