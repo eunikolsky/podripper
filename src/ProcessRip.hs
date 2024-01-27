@@ -9,11 +9,14 @@ import Data.Conduit.Attoparsec
 import Data.Conduit.List qualified as C
 import Data.List (intercalate)
 import Data.Maybe
+import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time
+import Data.Version (showVersion)
 import MP3.ID3
 import MP3.Parser
 import MP3.Xing
+import Paths_ripper qualified
 import Rip
 import RipConfig
 import Ripper.Types qualified as Ripper
@@ -33,6 +36,7 @@ processRip'
         , id3Album = podAlbum config
         , id3RecordingTime = snd ripTime
         , id3Genre = "Podcast"
+        , id3Publisher = "podripper/" <> version
         }
       xingHeader = getXingHeader $ calculateXingHeader mp3
 
@@ -40,6 +44,10 @@ processRip'
     C.sourceList [id3Header, xingHeader] *> sourceFile ripName
     .| sinkFile processedRip
   trashFile configExt ripName
+
+-- FIXME version information is retrieved in multiple places
+version :: Text
+version = T.pack $ showVersion Paths_ripper.version
 
 -- | Calculates `MP3Structure` of the given `file` by parsing it.
 mp3StructureFromFile :: FilePath -> IO MP3Structure

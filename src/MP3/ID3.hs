@@ -21,13 +21,14 @@ data ID3Fields = ID3Fields
   , id3Album :: !Text
   , id3RecordingTime :: !UTCTime
   , id3Genre :: !Text
+  , id3Publisher :: !Text
   }
 
 newtype ID3Header = ID3Header { getID3Header :: ByteString }
 
 -- | Generates an ID3 v2.4 header with the given fields.
 generateID3Header :: ID3Fields -> ID3Header
-generateID3Header ID3Fields{id3Title, id3Artist, id3Album, id3RecordingTime, id3Genre} =
+generateID3Header ID3Fields{id3Title, id3Artist, id3Album, id3RecordingTime, id3Genre, id3Publisher} =
   ID3Header . BS.toStrict . BSB.toLazyByteString $ header <> BSB.lazyByteString frames
 
   where
@@ -43,15 +44,17 @@ generateID3Header ID3Fields{id3Title, id3Artist, id3Album, id3RecordingTime, id3
       , textFrame frameAlbum id3Album
       , textFrame frameRecordingTime $ formatID3Time id3RecordingTime
       , textFrame frameContentType id3Genre
+      , textFrame framePublisher id3Publisher
       ]
 
 frameTitle, frameLeadPerformer, frameAlbum, frameRecordingTime
-  , frameContentType :: ByteString
+  , frameContentType, framePublisher :: ByteString
 frameTitle = "TIT2"
 frameLeadPerformer = "TPE1"
 frameAlbum = "TALB"
 frameRecordingTime = "TDRC"
 frameContentType = "TCON"
+framePublisher = "TPUB"
 
 formatID3Time :: UTCTime -> Text
 formatID3Time = T.pack . formatTime defaultTimeLocale "%FT%T"
