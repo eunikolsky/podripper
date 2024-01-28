@@ -3,11 +3,11 @@
     "language": "en",
     "title": "Pirate ATP Live",
     "upstreamFeedConfig": {
-        "closestUpstreamItemInterval": "27h",
+        "closestUpstreamItemInterval": "30h",
         "maxItems": 5,
-        "pollingDuration": "27h",
-        "pollingDuration_comment": "the biggest duration between a live stream and the published feed has been 25:28 recently (#553)",
-        "pollingRetryDelay": "45m",
+        "pollingDuration": "30h",
+        "pollingDuration_comment": "the biggest duration between a live stream and the published feed has been 28:06 recently (#571)",
+        "pollingRetryDelay": "1h",
         "upstreamRSSURL": "https://atp.fm/rss"
     }
 }
