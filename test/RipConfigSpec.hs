@@ -32,7 +32,8 @@ spec = do
           "podArtist": "Хакер",
           "podAlbum": "Hackers",
           "podLanguage": "eng",
-          "podHomepageLatin1": "https://example.org"
+          "podHomepageLatin1": "https://example.org",
+          "oldFileDays": 10
         }|]
 
         let expected = RipConfig
@@ -51,6 +52,7 @@ spec = do
               , podAlbum = "Hackers"
               , podLanguage = "eng"
               , podHomepage = "https://example.org"
+              , oldFileDays = 10
               }
 
         eitherDecode' s `shouldBe` Right expected
@@ -68,6 +70,7 @@ spec = do
           "podAlbum": "Hackers",
           "podLanguage": "eng",
           "podHomepageLatin1": "https://example.org",
+          "oldFileDays": 1,
           "?": "?"
         }|]
 
@@ -82,6 +85,7 @@ spec = do
               , podAlbum = "Hackers"
               , podLanguage = "eng"
               , podHomepage = "https://example.org"
+              , oldFileDays = 1
               }
 
         eitherDecode' s `shouldBe` Right expected
