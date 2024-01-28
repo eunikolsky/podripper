@@ -1,10 +1,8 @@
-module RSSGen.RSSItemSpec where
+module RipSpec where
 
 import Data.Time.Calendar
 import Data.Time.LocalTime
-
-import RSSGen.RSSItem
-
+import Rip
 import Test.Hspec
 
 -- | @ZonedTime@ with the @Eq@ instance. For @TimeZone@,
@@ -24,6 +22,8 @@ dst = hoursToTimeZone 3   -- EEST
 spec :: Spec
 spec =
   describe "localTimeToZonedTime" $ do
+    let zonedTime = fst
+
     it "returns original time for no-DST local time" $ do
       let localTime = LocalTime (fromGregorian 2022 03 26) (TimeOfDay 21 50 18)
       actual <- EqZonedTime . zonedTime <$> localTimeToZonedTime localTime

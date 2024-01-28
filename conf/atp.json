@@ -13,5 +13,7 @@
   "noDataTimeout": "4s",
   "ripDirName": "atp",
   "podArtist": "Marco Arment, Casey Liss, and John Siracusa",
-  "podAlbum": "ATP Live"
+  "podAlbum": "ATP Live",
+  "podLanguage": "eng",
+  "podHomepageLatin1": "https://atp.fm/"
 }

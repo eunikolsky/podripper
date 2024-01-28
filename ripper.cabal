@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           ripper
-version:        2.1.0
+version:        2.2.0
 description:    Please see the README on Github at <https://github.com/githubuser/ripper#readme>
 homepage:       https://github.com/githubuser/ripper#readme
 bug-reports:    https://github.com/githubuser/ripper/issues
@@ -32,6 +32,8 @@ library
       MP3.Parser
       MP3.Xing
       Podripper
+      ProcessRip
+      Rip
       RipConfig
       Ripper.ATPLiveStreamCheck
       Ripper.Import
@@ -145,12 +147,12 @@ test-suite ripper-test
       RipConfigSpec
       Ripper.RipperDelaySpec
       Ripper.RunSpec
+      RipSpec
       RSSGen.BinaryUTCTimeSpec
       RSSGen.DatabaseSpec
       RSSGen.DownloaderSpec
       RSSGen.DurationSpec
       RSSGen.RSSFeedSpec
-      RSSGen.RSSItemSpec
       RSSGen.RunUntilSpec
       RSSGen.UpstreamRSSFeedSpec
       Paths_ripper

@@ -30,7 +30,9 @@ spec = do
           "noDataTimeout": "8s",
           "ripDirName": "test",
           "podArtist": "Хакер",
-          "podAlbum": "Hackers"
+          "podAlbum": "Hackers",
+          "podLanguage": "eng",
+          "podHomepageLatin1": "https://example.org"
         }|]
 
         let expected = RipConfig
@@ -47,6 +49,8 @@ spec = do
               , ripDirName = "test"
               , podArtist = "Хакер"
               , podAlbum = "Hackers"
+              , podLanguage = "eng"
+              , podHomepage = "https://example.org"
               }
 
         eitherDecode' s `shouldBe` Right expected
@@ -62,6 +66,8 @@ spec = do
           "noDataTimeout": "1h",
           "podArtist": "Хакер",
           "podAlbum": "Hackers",
+          "podLanguage": "eng",
+          "podHomepageLatin1": "https://example.org",
           "?": "?"
         }|]
 
@@ -74,6 +80,8 @@ spec = do
               , ripDirName = "test"
               , podArtist = "Хакер"
               , podAlbum = "Hackers"
+              , podLanguage = "eng"
+              , podHomepage = "https://example.org"
               }
 
         eitherDecode' s `shouldBe` Right expected

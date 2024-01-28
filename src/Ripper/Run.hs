@@ -74,7 +74,7 @@ withRecordedRip f (RipRecorded r time) = Just $ f (r, time)
 withRecordedRip _ RipNothing = Nothing
 
 class Monad m => MonadRipper m where
-  rip :: Request -> Maybe FilePath -> Maybe FilePath -> m RipResult
+  rip :: (StreamURL, Request) -> Maybe FilePath -> Maybe FilePath -> m RipResult
   checkLiveStream :: RipName -> StreamURL -> m (Maybe StreamURL)
   getRipDelay :: [RipperInterval] -> Maybe RipEndTime -> Now -> m RetryDelay
   -- TODO can `MonadTime` be composed here to replace these two functions?
@@ -117,9 +117,9 @@ ripper userAgent maybeRawRipsDir maybeCleanRipsDir ripperIntervals streamConfig 
     go = do
       maybeStreamURL <- lift $ urlFromStreamConfig streamConfig
       case maybeStreamURL of
-        Just (StreamURL url) -> do
+        Just streamURL@(StreamURL url) -> do
           let request = mkRipperRequest userAgent url
-          result <- lift $ rip request maybeRawRipsDir maybeCleanRipsDir
+          result <- lift $ rip (streamURL, request) maybeRawRipsDir maybeCleanRipsDir
           modify' (<> Last (withRecordedRip snd result))
 
           maybe (pure ()) (lift . notifyRip) $ withRecordedRip fst result
@@ -157,8 +157,8 @@ data InProgressRip = InProgressRip
   -- vector's `length` because the vector may contain uninitialized elements
   }
 
-toSuccessfulRip :: MonadIO m => InProgressRip -> m SuccessfulRip
-toSuccessfulRip rip' = do
+toSuccessfulRip :: MonadIO m => StreamURL -> InProgressRip -> m SuccessfulRip
+toSuccessfulRip streamURL rip' = do
   let writtenLength = irWriteIndex rip'
   -- this is safe because ripping is done at this point
   -- it's not clear whether `V.force` is worth it here
@@ -166,6 +166,7 @@ toSuccessfulRip rip' = do
   pure $ SuccessfulRip
     { ripFilename = irFilename rip'
     , ripMP3Structure = MP3Structure frames
+    , ripStreamURL = Just streamURL
     }
 
 -- | How many new elements to add to the frames vector when it's fully filled.
@@ -177,8 +178,8 @@ vectorSizeInc = 10 * framesInMinute
 -- | Rips a stream for as long as the connection is open.
 ripOneStream
   :: (MonadUnliftIO m, MonadReader env m, HasLogFunc env, HasAppOptions env)
-  => Request -> Maybe FilePath ->  Maybe FilePath -> m RipResult
-ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
+  => (StreamURL, Request) -> Maybe FilePath ->  Maybe FilePath -> m RipResult
+ripOneStream (streamURL, request) maybeRawRipsDir maybeCleanRipsDir = do
   noDataTimeout <- optionsNoDataTimeout <$> view appOptionsL
 
   {-
@@ -239,7 +240,7 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
       now <- liftIO getCurrentTZTime
       -- `maybeRipVar` can't be `Nothing` in this block
       inProgressRip <- fromJust <$> readIORef maybeRipVar
-      recordedRip <- toSuccessfulRip inProgressRip
+      recordedRip <- toSuccessfulRip streamURL inProgressRip
       pure $ RipRecorded recordedRip now
 
   {-
@@ -255,7 +256,7 @@ ripOneStream request maybeRawRipsDir maybeCleanRipsDir = do
       now <- liftIO getCurrentTZTime
       case maybeRip of
         Just inProgressRip -> do
-          recordedRip <- toSuccessfulRip inProgressRip
+          recordedRip <- toSuccessfulRip streamURL inProgressRip
           pure $ RipRecorded recordedRip now
         Nothing -> pure RipNothing
 

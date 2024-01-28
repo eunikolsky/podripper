@@ -13,5 +13,7 @@
   "noDataTimeout": "4s",
   "ripDirName": "test",
   "podArtist": "Various",
-  "podAlbum": "Test stream"
+  "podAlbum": "Test stream",
+  "podLanguage": "eng",
+  "podHomepageLatin1": "http://localhost/"
 }
