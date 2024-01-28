@@ -12,6 +12,7 @@
   "defaultRipperDelay": "10m",
   "noDataTimeout": "4s",
   "ripDirName": "test",
+  "oldFileDays": 15,
   "podArtist": "Various",
   "podAlbum": "Test stream",
   "podLanguage": "eng",

@@ -25,6 +25,7 @@ data RipConfig = RipConfig
   , defaultRipperDelay :: !RetryDelay
   , noDataTimeout :: !Duration
   , ripDirName :: !Text
+  , oldFileDays :: !Int
   , podArtist :: !Text
   , podAlbum :: !Text
   , podLanguage :: !Text
@@ -43,6 +44,7 @@ instance FromJSON RipConfig where
     <*> o .: "defaultRipperDelay"
     <*> o .: "noDataTimeout"
     <*> o .: "ripDirName"
+    <*> o .: "oldFileDays"
     <*> o .: "podArtist"
     <*> o .: "podAlbum"
     <*> o .: "podLanguage"

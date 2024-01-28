@@ -85,10 +85,11 @@ mp3StructureFromFile file = fmap MP3Structure . runConduitRes $
       liftIO . putStrLn $ "Parse error: " <> show e
       pure Nothing
 
--- | Puts the given `file` into the rip's `trashRawRipDir`, cleaning up 15+ days
--- old files from it and `rawRipDir` beforehand.
+-- | Puts the given `file` into the rip's `trashRawRipDir`, cleaning up old
+-- files from it and `rawRipDir` beforehand. Whether a file is old, is
+-- determined by the number of days `oldFileDays` in `RipConfig`.
 trashFile :: RipConfigExt -> FilePath -> IO ()
-trashFile RipConfigExt{trashRawRipDir, rawRipDir} file =
+trashFile RipConfigExt{trashRawRipDir, rawRipDir, config=RipConfig{oldFileDays}} file =
   clean trashRawRipDir *> clean rawRipDir *> trash
 
   where
@@ -100,7 +101,7 @@ trashFile RipConfigExt{trashRawRipDir, rawRipDir} file =
     clean dir = do
       now <- getCurrentTime
       allFiles <- fmap (dir </>) <$> listDirectory dir
-      let tooOld = (> 15 * nominalDay)
+      let tooOld = (> fromIntegral oldFileDays * nominalDay)
       oldFiles <- filterM (fmap (tooOld . diffUTCTime now) . getModificationTime) allFiles
       unless (null oldFiles) $ do
         putStrLn $ "Removing old trash files: " <> intercalate ", " oldFiles
