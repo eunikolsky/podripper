@@ -47,6 +47,7 @@ data ID3Fields = ID3Fields
   -- ^ Podcasts with a live check (ATP) may not have a static stream URL (even
   -- though one is written in the rip config), thus podcasts that are processed
   -- after program start (if it crashed) won't have this information.
+  , id3OriginalFilename :: !Text
   }
 
 newtype ID3Header = ID3Header { getID3Header :: ByteString }
@@ -56,7 +57,7 @@ generateID3Header :: ID3Fields -> ID3Header
 generateID3Header ID3Fields
     { id3Title, id3Artist, id3Album, id3RecordingTime, id3Genre, id3Publisher
     , id3Duration, id3EncodingTime, id3Language, id3MediaType, id3PodcastURL
-    , id3StreamURL
+    , id3StreamURL, id3OriginalFilename
     } =
   ID3Header . BS.toStrict . BSB.toLazyByteString $ header <> BSB.lazyByteString frames
 
@@ -80,12 +81,13 @@ generateID3Header ID3Fields
       , textFrame frameMediaType id3MediaType
       , urlFrame frameOfficialInternetRadioStationHomepage id3PodcastURL
       , maybe mempty (urlFrame frameOfficialAudioSourceWebpage) id3StreamURL
+      , textFrame frameOriginalFilename id3OriginalFilename
       ]
 
 frameTitle, frameLeadPerformer, frameAlbum, frameRecordingTime
   , frameContentType, framePublisher, frameLength, frameEncodingTime
   , frameLanguage, frameMediaType, frameOfficialInternetRadioStationHomepage
-  , frameOfficialAudioSourceWebpage :: ByteString
+  , frameOfficialAudioSourceWebpage, frameOriginalFilename :: ByteString
 frameTitle = "TIT2"
 frameLeadPerformer = "TPE1"
 frameAlbum = "TALB"
@@ -98,6 +100,7 @@ frameLanguage = "TLAN"
 frameMediaType = "TMED"
 frameOfficialInternetRadioStationHomepage = "WORS"
 frameOfficialAudioSourceWebpage = "WOAS"
+frameOriginalFilename = "TOFN"
 
 formatID3Time :: UTCTime -> Text
 formatID3Time = T.pack . formatTime defaultTimeLocale "%FT%T"

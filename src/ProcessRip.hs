@@ -44,6 +44,7 @@ processRip'
         , id3MediaType = "Internet stream"
         , id3PodcastURL = mkID3URL $ podHomepage config
         , id3StreamURL = mkID3URL . Ripper.urlToText . Ripper.getStreamURL <$> streamURL
+        , id3OriginalFilename = T.pack $ takeFileName ripName
         }
       (XingHeader xingHeader, audioDuration) = calculateXingHeader mp3
 
