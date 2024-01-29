@@ -1,5 +1,5 @@
 name:                ripper
-version:             2.2.1
+version:             2.2.2
 github:              githubuser/ripper
 license:             MIT
 author:              Author name here
@@ -70,7 +70,6 @@ library:
     - monad-logger
     - mtl
     - optparse-applicative
-    - process
     - shake
     - sqlite-simple
     - stm-chans
@@ -120,15 +119,12 @@ tests:
     - hspec
     - hspec-attoparsec
     - http-client
-    - http-conduit
     - http-types
     - monad-logger
     - mtl
     - raw-strings-qq
-    - sqlite-simple
     - text
     - time
-    - transformers
     - tztime
 
     ghc-options:

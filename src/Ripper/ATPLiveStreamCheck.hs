@@ -1,23 +1,25 @@
 module Ripper.ATPLiveStreamCheck
   ( checkATPLiveStream
+  , extractURL
   ) where
 
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Except
 import Data.Aeson hiding ((<?>))
 import Data.Aeson.KeyMap qualified as A
-import Data.Char
 import Data.Functor
-import Data.List (dropWhileEnd)
+import Data.List (find)
 import Data.Maybe
 import Data.Monoid
+import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Lazy.Encoding qualified as TLE
 import Data.Text.Lazy.IO qualified as TL
 import Network.HTTP.Simple
 import RipConfig
 import Ripper.Types
-import Ripper.Util
+import Text.XML.Light
 
 -- | Checks whether the ATP's stream is live and if so, extracts the stream URL
 -- from the status response. If the stream is live, but the stream URL can't be
@@ -36,43 +38,37 @@ checkATPLiveStream originalStreamURL = handleError <=< runExceptT $ do
   isLiveValue <- liftEither $ A.lookup "live" status <?> "Can't find `live` key"
   isLive <- liftEither $ extractBool isLiveValue
 
-  if isLive then liftIO (Just <$> retrieveStreamURL originalStreamURL status) else pure Nothing
+  pure $ if isLive then Just (retrieveStreamURL originalStreamURL status) else Nothing
 
 extractBool :: Value -> Either String Bool
 extractBool (Bool b) = Right b
 extractBool x = Left $ "Expected a bool, got " <> show x
 
-asString :: Value -> Maybe String
-asString (String t) = Just $ T.unpack t
-asString _ = Nothing
+asText :: Value -> Maybe Text
+asText (String t) = Just t
+asText _ = Nothing
 
-retrieveStreamURL :: StreamURL -> Object -> IO StreamURL
-retrieveStreamURL originalStreamURL status = fromMaybe originalStreamURL <$>
-  case A.lookup "player" status >>= asString of
-    Just player -> do
-      -- FIXME replace with a native Haskell solution
-      maybeAudioSourceSrc <- readCommandNonEmpty "htmlq" ["-a", "src", "audio source"] player
-      maybeAudioSrc <- readCommandNonEmpty "htmlq" ["-a", "src", "audio"] player
-      maybeFirstLink <- readCommandNonEmpty "sed" ["-nE", "s/.*\"(http[^\"]+)\".*/\\1/p"] player
-      -- if I understand correctly, all three values are not lazy and are
-      -- evaluated regardless of whether the previous one was a `Just`; if so,
-      -- it's not a big deal as this function isn't called often
-      let firstMaybe = getFirst $ foldMap First [maybeAudioSourceSrc, maybeAudioSrc, maybeFirstLink]
-      pure $ StreamURL . URL . T.pack <$> firstMaybe
+retrieveStreamURL :: StreamURL -> Object -> StreamURL
+retrieveStreamURL originalStreamURL status = fromMaybe originalStreamURL $
+  A.lookup "player" status >>= asText >>= extractURL
 
-    Nothing -> pure Nothing
+extractURL :: Text -> Maybe StreamURL
+extractURL t = do
+  xmlElem <- listToMaybe . onlyElems $ parseXML t
+  src <- T.pack <$> firstJust [findAudioSourceSrc xmlElem, findAudioSrc xmlElem]
+    <|> findFirstURL t
+  pure . StreamURL . URL $ src
 
--- | Wrapper around `readCommand` that returns `Nothing` if the output is
--- whitespace only.
-readCommandNonEmpty :: String -> [String] -> String -> IO (Maybe String)
-readCommandNonEmpty prog args input = readCommand prog args input <&> (>>= skipEmpty)
+  where
+    findAudioSourceSrc = srcAttr <=< findElement (unqual "source") <=< audioElem
+    findAudioSrc = srcAttr <=< audioElem
+    findFirstURL = find ("http" `T.isPrefixOf`) . T.split (== '"')
 
-skipEmpty :: String -> Maybe String
-skipEmpty s = let trimmed = trimSpace s
-  in if null trimmed then Nothing else Just trimmed
+    audioElem = findElement (unqual "audio")
+    srcAttr = findAttr (unqual "src")
 
-trimSpace :: String -> String
-trimSpace = dropWhile isSpace . dropWhileEnd isSpace
+firstJust :: Foldable t => t (Maybe a) -> Maybe a
+firstJust = getFirst . foldMap First
 
 handleError :: Either String (Maybe a) -> IO (Maybe a)
 handleError (Right b) = pure b

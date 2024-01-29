@@ -1,12 +1,12 @@
 # Maintainer: Eugene Nikolsky <e@egeek.me>
 pkgname=podripper
-pkgver=2.2.1
+pkgver=2.2.2
 pkgrel=1
 pkgdesc="Rips online podcast streams and generates RSS for them"
 arch=('x86_64')
 url=""
 license=('MIT')
-depends=('glibc' 'gmp' htmlq)
+depends=('glibc' 'gmp')
 source=($pkgname.tar)
 md5sums=('SKIP')
 

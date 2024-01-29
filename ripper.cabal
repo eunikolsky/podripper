@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           ripper
-version:        2.2.1
+version:        2.2.2
 description:    Please see the README on Github at <https://github.com/githubuser/ripper#readme>
 homepage:       https://github.com/githubuser/ripper#readme
 bug-reports:    https://github.com/githubuser/ripper/issues
@@ -41,7 +41,6 @@ library
       Ripper.RipperDelay
       Ripper.Run
       Ripper.Types
-      Ripper.Util
       RSSGen.BinaryUTCTime
       RSSGen.Database
       RSSGen.Downloader
@@ -90,7 +89,6 @@ library
     , monad-logger
     , mtl
     , optparse-applicative
-    , process
     , rio >=0.1.12.0
     , shake
     , sqlite-simple
@@ -145,6 +143,7 @@ test-suite ripper-test
   main-is: Spec.hs
   other-modules:
       RipConfigSpec
+      Ripper.ATPLiveStreamCheckSpec
       Ripper.RipperDelaySpec
       Ripper.RunSpec
       RipSpec
@@ -182,16 +181,13 @@ test-suite ripper-test
     , hspec
     , hspec-attoparsec
     , http-client
-    , http-conduit
     , http-types
     , monad-logger
     , mtl
     , raw-strings-qq
     , rio >=0.1.12.0
     , ripper
-    , sqlite-simple
     , text
     , time
-    , transformers
     , tztime
   default-language: Haskell2010
