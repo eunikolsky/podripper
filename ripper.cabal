@@ -145,6 +145,7 @@ test-suite ripper-test
   main-is: Spec.hs
   other-modules:
       RipConfigSpec
+      Ripper.ATPLiveStreamCheckSpec
       Ripper.RipperDelaySpec
       Ripper.RunSpec
       RipSpec

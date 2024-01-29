@@ -1,5 +1,6 @@
 module Ripper.ATPLiveStreamCheck
   ( checkATPLiveStream
+  , extractURL
   ) where
 
 import Control.Monad
@@ -11,6 +12,7 @@ import Data.Functor
 import Data.List (dropWhileEnd)
 import Data.Maybe
 import Data.Monoid
+import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Lazy.Encoding qualified as TLE
 import Data.Text.Lazy.IO qualified as TL
@@ -61,6 +63,9 @@ retrieveStreamURL originalStreamURL status = fromMaybe originalStreamURL <$>
       pure $ StreamURL . URL . T.pack <$> firstMaybe
 
     Nothing -> pure Nothing
+
+extractURL :: Text -> Maybe StreamURL
+extractURL = const . Just . StreamURL . URL $ "https://example.org/"
 
 -- | Wrapper around `readCommand` that returns `Nothing` if the output is
 -- whitespace only.
