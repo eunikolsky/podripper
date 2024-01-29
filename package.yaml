@@ -70,7 +70,6 @@ library:
     - monad-logger
     - mtl
     - optparse-applicative
-    - process
     - shake
     - sqlite-simple
     - stm-chans

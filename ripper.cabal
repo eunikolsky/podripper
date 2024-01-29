@@ -41,7 +41,6 @@ library
       Ripper.RipperDelay
       Ripper.Run
       Ripper.Types
-      Ripper.Util
       RSSGen.BinaryUTCTime
       RSSGen.Database
       RSSGen.Downloader
@@ -90,7 +89,6 @@ library
     , monad-logger
     , mtl
     , optparse-applicative
-    , process
     , rio >=0.1.12.0
     , shake
     , sqlite-simple
