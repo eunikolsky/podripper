@@ -3,13 +3,14 @@ module Ripper.ATPLiveStreamCheck
   , extractURL
   ) where
 
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Except
 import Data.Aeson hiding ((<?>))
 import Data.Aeson.KeyMap qualified as A
 import Data.Char
 import Data.Functor
-import Data.List (dropWhileEnd)
+import Data.List (dropWhileEnd, find)
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
@@ -68,12 +69,14 @@ retrieveStreamURL originalStreamURL status = fromMaybe originalStreamURL <$>
 extractURL :: Text -> Maybe StreamURL
 extractURL t = do
   xmlElem <- listToMaybe . onlyElems $ parseXML t
-  src <- firstJust [findAudioSourceSrc xmlElem, findAudioSrc xmlElem]
-  pure . StreamURL . URL . T.pack $ src
+  src <- T.pack <$> firstJust [findAudioSourceSrc xmlElem, findAudioSrc xmlElem]
+    <|> findFirstURL t
+  pure . StreamURL . URL $ src
 
   where
     findAudioSourceSrc = srcAttr <=< findElement (unqual "source") <=< audioElem
     findAudioSrc = srcAttr <=< audioElem
+    findFirstURL = find ("http" `T.isPrefixOf`) . T.split (== '"')
 
     audioElem = findElement (unqual "audio")
     srcAttr = findAttr (unqual "src")

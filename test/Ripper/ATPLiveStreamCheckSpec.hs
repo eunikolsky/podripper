@@ -19,3 +19,8 @@ spec = do
       extractURL [r|
         <div><p>hi</p><audio controls="controls" src="https://example.net/"></audio></div>
       |] `shouldBe` Just (StreamURL $ URL "https://example.net/")
+
+    it "returns first found URL" $
+      extractURL [r|
+        <div id="live"><p>hi <span>42</span><a href="https://example.edu/">listen</a></p><audio controls="controls" source="https://example.net/"></audio></div>
+      |] `shouldBe` Just (StreamURL $ URL "https://example.edu/")
