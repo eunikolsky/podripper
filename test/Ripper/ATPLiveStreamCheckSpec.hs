@@ -24,3 +24,8 @@ spec = do
       extractURL [r|
         <div id="live"><p>hi <span>42</span><a href="https://example.edu/">listen</a></p><audio controls="controls" source="https://example.net/"></audio></div>
       |] `shouldBe` Just (StreamURL $ URL "https://example.edu/")
+
+    it "returns Nothing when no URLs" $
+      extractURL [r|
+        <div id="live"><p>hi <span>42</span></p><audio controls="controls" source="ftp://example.net/"></audio></div>
+      |] `shouldBe` Nothing
