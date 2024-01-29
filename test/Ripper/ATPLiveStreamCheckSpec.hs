@@ -14,3 +14,8 @@ spec = do
       extractURL [r|
         <div><p>hi</p><audio controls><source src="https://example.org/" type="audio/mpeg" /></audio></div>
       |] `shouldBe` Just (StreamURL $ URL "https://example.org/")
+
+    it "returns `src` of audio" $
+      extractURL [r|
+        <div><p>hi</p><audio controls="controls" src="https://example.net/"></audio></div>
+      |] `shouldBe` Just (StreamURL $ URL "https://example.net/")

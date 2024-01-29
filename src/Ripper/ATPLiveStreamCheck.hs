@@ -20,6 +20,7 @@ import Network.HTTP.Simple
 import RipConfig
 import Ripper.Types
 import Ripper.Util
+import Text.XML.Light
 
 -- | Checks whether the ATP's stream is live and if so, extracts the stream URL
 -- from the status response. If the stream is live, but the stream URL can't be
@@ -59,13 +60,26 @@ retrieveStreamURL originalStreamURL status = fromMaybe originalStreamURL <$>
       -- if I understand correctly, all three values are not lazy and are
       -- evaluated regardless of whether the previous one was a `Just`; if so,
       -- it's not a big deal as this function isn't called often
-      let firstMaybe = getFirst $ foldMap First [maybeAudioSourceSrc, maybeAudioSrc, maybeFirstLink]
+      let firstMaybe = firstJust [maybeAudioSourceSrc, maybeAudioSrc, maybeFirstLink]
       pure $ StreamURL . URL . T.pack <$> firstMaybe
 
     Nothing -> pure Nothing
 
 extractURL :: Text -> Maybe StreamURL
-extractURL = const . Just . StreamURL . URL $ "https://example.org/"
+extractURL t = do
+  xmlElem <- listToMaybe . onlyElems $ parseXML t
+  src <- firstJust [findAudioSourceSrc xmlElem, findAudioSrc xmlElem]
+  pure . StreamURL . URL . T.pack $ src
+
+  where
+    findAudioSourceSrc = srcAttr <=< findElement (unqual "source") <=< audioElem
+    findAudioSrc = srcAttr <=< audioElem
+
+    audioElem = findElement (unqual "audio")
+    srcAttr = findAttr (unqual "src")
+
+firstJust :: Foldable t => t (Maybe a) -> Maybe a
+firstJust = getFirst . foldMap First
 
 -- | Wrapper around `readCommand` that returns `Nothing` if the output is
 -- whitespace only.
