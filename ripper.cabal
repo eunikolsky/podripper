@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           ripper
-version:        2.2.2
+version:        2.2.3
 description:    Please see the README on Github at <https://github.com/githubuser/ripper#readme>
 homepage:       https://github.com/githubuser/ripper#readme
 bug-reports:    https://github.com/githubuser/ripper/issues
@@ -35,8 +35,8 @@ library
       ProcessRip
       Rip
       RipConfig
-      Ripper.ATPLiveStreamCheck
       Ripper.Import
+      Ripper.LiveStreamCheck
       Ripper.Main
       Ripper.RipperDelay
       Ripper.Run
@@ -143,7 +143,7 @@ test-suite ripper-test
   main-is: Spec.hs
   other-modules:
       RipConfigSpec
-      Ripper.ATPLiveStreamCheckSpec
+      Ripper.LiveStreamCheckSpec
       Ripper.RipperDelaySpec
       Ripper.RunSpec
       RipSpec

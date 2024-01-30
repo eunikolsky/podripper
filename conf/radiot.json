@@ -1,5 +1,7 @@
 {
-  "streamURL": "https://stream.radio-t.com/",
+  "stream": {
+    "url": "https://stream.radio-t.com/"
+  },
   "ripIntervals": [
     "Sa 19:45-21:50 UTC: 30s"
   ],

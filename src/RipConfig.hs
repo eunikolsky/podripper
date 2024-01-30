@@ -19,7 +19,7 @@ import System.Exit (die)
 
 -- | Configuration necessary to rip a stream.
 data RipConfig = RipConfig
-  { streamURL :: !StreamURL
+  { streamURLConfig :: !StreamURLConfig
   , ripIntervalRefs :: ![RipperIntervalRef]
   , postRipEndDelays :: ![PostRipEndDelay]
   , defaultRipperDelay :: !RetryDelay
@@ -35,7 +35,7 @@ data RipConfig = RipConfig
 
 instance FromJSON RipConfig where
   parseJSON = withObject "RipConfig" $ \o -> RipConfig
-    <$> o .: "streamURL"
+    <$> o .: "stream"
     -- the key is called `ripIntervals` instead of `ripIntervalRefs` because
     -- `RipperIntervalRef` is an internal workaround for pure parsers and
     -- doesn't need to leak outside

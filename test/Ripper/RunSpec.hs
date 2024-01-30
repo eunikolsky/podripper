@@ -132,7 +132,7 @@ instance MonadRipper TestM where
     put $ s { tsRipResult = tail }
     pure head
 
-  checkLiveStream _name = pure . Just
+  checkLiveStream _config = pure . Just . StreamURL . URL $ ""
 
   getRipDelay _ ripEndTime _ = tellRipEndTime ripEndTime >> gets tsRipDelay
 
