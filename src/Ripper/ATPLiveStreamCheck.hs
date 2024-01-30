@@ -22,15 +22,14 @@ import Ripper.Types
 import Text.XML.Light
 
 -- | Checks whether the ATP's stream is live and if so, extracts the stream URL
--- from the status response. If the stream is live, but the stream URL can't be
--- found, uses the `originalStreamURL` (from the config).
+-- from the status response.
 --
 -- The ATP support is hardcoded in the program because its live stream check
 -- is more complicated and the stream URL needs to be extracted from the
 -- status endpoint.
 -- FIXME support this via the config file
-checkATPLiveStream :: StreamURL -> IO (Maybe StreamURL)
-checkATPLiveStream originalStreamURL = handleError <=< runExceptT $ do
+checkATPLiveStream :: IO (Maybe StreamURL)
+checkATPLiveStream = handleError <=< runExceptT $ do
   statusResponse <- liftIO . fmap getResponseBody . httpLBS $ parseRequest_ "https://atp.fm/livestream_status"
   liftIO . TL.putStrLn $ TLE.decodeUtf8 statusResponse
   status <- liftEither . eitherDecode @Object $ statusResponse
@@ -38,7 +37,7 @@ checkATPLiveStream originalStreamURL = handleError <=< runExceptT $ do
   isLiveValue <- liftEither $ A.lookup "live" status <?> "Can't find `live` key"
   isLive <- liftEither $ extractBool isLiveValue
 
-  pure $ if isLive then Just (retrieveStreamURL originalStreamURL status) else Nothing
+  pure $ if isLive then retrieveStreamURL status else Nothing
 
 extractBool :: Value -> Either String Bool
 extractBool (Bool b) = Right b
@@ -48,9 +47,8 @@ asText :: Value -> Maybe Text
 asText (String t) = Just t
 asText _ = Nothing
 
-retrieveStreamURL :: StreamURL -> Object -> StreamURL
-retrieveStreamURL originalStreamURL status = fromMaybe originalStreamURL $
-  A.lookup "player" status >>= asText >>= extractURL
+retrieveStreamURL :: Object -> Maybe StreamURL
+retrieveStreamURL status = A.lookup "player" status >>= asText >>= extractURL
 
 extractURL :: Text -> Maybe StreamURL
 extractURL t = do

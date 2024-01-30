@@ -86,7 +86,7 @@ class Monad m => MonadRipper m where
 instance (HasLogFunc env, HasAppRipsQueue env, HasAppOptions env) => MonadRipper (RIO env) where
   rip = ripOneStream
   checkLiveStream ripName url = if ripName == "atp"
-    then liftIO (checkATPLiveStream url)
+    then liftIO checkATPLiveStream
     else pure $ Just url
   getRipDelay is ripEnd now = do
     options <- view appOptionsL
