@@ -1,5 +1,6 @@
 module Ripper.ATPLiveStreamCheck
-  ( checkATPLiveStream
+  ( StreamCheckConfig(..)
+  , checkATPLiveStream
   , extractURL
   ) where
 
@@ -21,6 +22,15 @@ import RipConfig
 import Ripper.Types
 import Text.XML.Light
 
+data StreamCheckConfig = StreamCheckConfig
+  { checkURL :: !StreamCheckURL
+  -- ^ the URL to get a json object with live stream information
+  , liveKey :: !A.Key
+  -- ^ key for a bool value indicating whether live stream is on
+  , playerKey :: !A.Key
+  -- ^ key for a string with HTML code that contains a URL of the live stream
+  }
+
 -- | Checks whether the ATP's stream is live and if so, extracts the stream URL
 -- from the status response.
 --
@@ -28,17 +38,18 @@ import Text.XML.Light
 -- is more complicated and the stream URL needs to be extracted from the
 -- status endpoint.
 -- FIXME support this via the config file
-checkATPLiveStream :: StreamCheckURL -> IO (Maybe StreamURL)
-checkATPLiveStream checkURL = handleError <=< runExceptT $ do
+checkATPLiveStream :: StreamCheckConfig -> IO (Maybe StreamURL)
+checkATPLiveStream StreamCheckConfig{checkURL, liveKey, playerKey} = handleError <=< runExceptT $ do
   statusResponse <- liftIO . fmap getResponseBody . httpLBS . parseRequest_
     . T.unpack . urlToText . getStreamCheckURL $ checkURL
   liftIO . TL.putStrLn $ TLE.decodeUtf8 statusResponse
   status <- liftEither . eitherDecode @Object $ statusResponse
 
-  isLiveValue <- liftEither $ A.lookup "live" status <?> "Can't find `live` key"
+  isLiveValue <- liftEither $ A.lookup liveKey status
+    <?> ("Can't find `" <> show liveKey <> "` key")
   isLive <- liftEither $ extractBool isLiveValue
 
-  pure $ if isLive then retrieveStreamURL status else Nothing
+  pure $ if isLive then retrieveStreamURL playerKey status else Nothing
 
 extractBool :: Value -> Either String Bool
 extractBool (Bool b) = Right b
@@ -48,8 +59,8 @@ asText :: Value -> Maybe Text
 asText (String t) = Just t
 asText _ = Nothing
 
-retrieveStreamURL :: Object -> Maybe StreamURL
-retrieveStreamURL status = A.lookup "player" status >>= asText >>= extractURL
+retrieveStreamURL :: A.Key -> Object -> Maybe StreamURL
+retrieveStreamURL playerKey status = A.lookup playerKey status >>= asText >>= extractURL
 
 extractURL :: Text -> Maybe StreamURL
 extractURL t = do
