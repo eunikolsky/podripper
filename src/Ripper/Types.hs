@@ -6,14 +6,17 @@ module Ripper.Types
   , Options (..)
   , RipName
   , RipsQueue
+  , StreamCheckConfig(..)
   , StreamCheckURL(..)
   , StreamConfig(..)
   , StreamURL(..)
+  , StreamURLConfig(..)
   , SuccessfulRip(..)
   , URL(..)
   ) where
 
-import Data.Aeson (FromJSON)
+import Data.Aeson (FromJSON(..), (.:), (.:?), withObject)
+import Data.Aeson.KeyMap qualified as A
 import MP3.Xing
 import RIO
 import RIO.Process
@@ -26,6 +29,31 @@ newtype StreamURL = StreamURL { getStreamURL :: URL }
 
 newtype StreamCheckURL = StreamCheckURL { getStreamCheckURL :: URL }
   deriving newtype (Show, Eq, FromJSON)
+
+data StreamCheckConfig = StreamCheckConfig
+  { checkURL :: !StreamCheckURL
+  -- ^ the URL to get a json object with live stream information
+  , liveKey :: !A.Key
+  -- ^ key for a bool value indicating whether live stream is on
+  , playerKey :: !A.Key
+  -- ^ key for a string with HTML code that contains a URL of the live stream
+  }
+  deriving stock (Show, Eq)
+
+data StreamURLConfig
+  = StreamWithURL !StreamURL
+  | StreamWithLiveCheck !StreamCheckConfig
+  deriving stock (Show, Eq)
+
+instance FromJSON StreamURLConfig where
+  parseJSON = withObject "StreamURLConfig" $ \o -> do
+    maybeURL <- o .:? "url"
+    case maybeURL of
+      Just url -> pure $ StreamWithURL url
+      Nothing -> fmap StreamWithLiveCheck $ StreamCheckConfig
+        <$> o .: "checkURL"
+        <*> o .: "liveKey"
+        <*> o .: "playerKey"
 
 -- | Command line arguments
 data Options = Options
@@ -47,10 +75,9 @@ type RipName = Text
 
 -- | The input data for the `ripper` about how to record a stream.
 data StreamConfig
-  -- | The config contains the stream name (to know how the live stream is
-  -- checked and find out the stream URL) and the stream URL if there is no
-  -- special live stream check. This is what `Podripper` uses.
-  = StreamConfig !RipName !StreamURL
+  -- | The config contains the stream URL config, which may require live stream
+  -- checks. This is what `Podripper` uses.
+  = StreamConfig !StreamURLConfig
   -- | Contains only the stream URL, without any live checks. This simplified
   -- version should only be used by the `ripper` CLI.
   | SimpleURL !StreamURL

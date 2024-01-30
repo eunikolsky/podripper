@@ -75,7 +75,7 @@ withRecordedRip _ RipNothing = Nothing
 
 class Monad m => MonadRipper m where
   rip :: (StreamURL, Request) -> Maybe FilePath -> Maybe FilePath -> m RipResult
-  checkLiveStream :: RipName -> StreamURL -> m (Maybe StreamURL)
+  checkLiveStream :: StreamURLConfig -> m (Maybe StreamURL)
   getRipDelay :: [RipperInterval] -> Maybe RipEndTime -> Now -> m RetryDelay
   -- TODO can `MonadTime` be composed here to replace these two functions?
   getTime :: m Now
@@ -85,13 +85,8 @@ class Monad m => MonadRipper m where
 
 instance (HasLogFunc env, HasAppRipsQueue env, HasAppOptions env) => MonadRipper (RIO env) where
   rip = ripOneStream
-  checkLiveStream ripName url = if ripName == "atp"
-    then liftIO . checkATPLiveStream $ StreamCheckConfig
-      { checkURL = StreamCheckURL $ URL "https://atp.fm/livestream_status"
-      , liveKey = "live"
-      , playerKey = "player"
-      }
-    else pure $ Just url
+  checkLiveStream (StreamWithLiveCheck streamCheckConfig) = liftIO . checkATPLiveStream $ streamCheckConfig
+  checkLiveStream (StreamWithURL url) = pure $ Just url
   getRipDelay is ripEnd now = do
     options <- view appOptionsL
     let defaultDelay = optionsDefaultRipDelay options
@@ -140,7 +135,7 @@ ripper userAgent maybeRawRipsDir maybeCleanRipsDir ripperIntervals streamConfig 
       whenM (lift shouldRepeat) go
 
 urlFromStreamConfig :: MonadRipper m => StreamConfig -> m (Maybe StreamURL)
-urlFromStreamConfig (StreamConfig ripName url) = checkLiveStream ripName url
+urlFromStreamConfig (StreamConfig urlConfig) = checkLiveStream urlConfig
 urlFromStreamConfig (SimpleURL url) = pure . Just $ url
 
 delayWithLog :: (MonadIO m, MonadReader env m, HasLogFunc env) => RetryDelay -> m ()

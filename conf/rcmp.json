@@ -1,5 +1,7 @@
 {
-  "streamURL": "https://stream.rcmp.me/stream",
+  "stream": {
+    "url": "https://stream.rcmp.me/stream"
+  },
   "ripIntervals": [
     "Fr 14:30-18:30 America/Toronto: 25s",
     "Sa 06:00-09:00 America/Toronto: 45s",

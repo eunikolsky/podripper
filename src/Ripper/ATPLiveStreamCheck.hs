@@ -1,6 +1,5 @@
 module Ripper.ATPLiveStreamCheck
-  ( StreamCheckConfig(..)
-  , checkATPLiveStream
+  ( checkATPLiveStream
   , extractURL
   ) where
 
@@ -21,15 +20,6 @@ import Network.HTTP.Simple
 import RipConfig
 import Ripper.Types
 import Text.XML.Light
-
-data StreamCheckConfig = StreamCheckConfig
-  { checkURL :: !StreamCheckURL
-  -- ^ the URL to get a json object with live stream information
-  , liveKey :: !A.Key
-  -- ^ key for a bool value indicating whether live stream is on
-  , playerKey :: !A.Key
-  -- ^ key for a string with HTML code that contains a URL of the live stream
-  }
 
 -- | Checks whether the ATP's stream is live and if so, extracts the stream URL
 -- from the status response.
