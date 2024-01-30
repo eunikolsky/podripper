@@ -6,6 +6,7 @@ module Ripper.Types
   , Options (..)
   , RipName
   , RipsQueue
+  , StreamCheckURL(..)
   , StreamConfig(..)
   , StreamURL(..)
   , SuccessfulRip(..)
@@ -21,6 +22,9 @@ import RSSGen.Duration
 import Ripper.RipperDelay
 
 newtype StreamURL = StreamURL { getStreamURL :: URL }
+  deriving newtype (Show, Eq, FromJSON)
+
+newtype StreamCheckURL = StreamCheckURL { getStreamCheckURL :: URL }
   deriving newtype (Show, Eq, FromJSON)
 
 -- | Command line arguments

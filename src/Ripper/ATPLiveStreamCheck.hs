@@ -28,9 +28,10 @@ import Text.XML.Light
 -- is more complicated and the stream URL needs to be extracted from the
 -- status endpoint.
 -- FIXME support this via the config file
-checkATPLiveStream :: IO (Maybe StreamURL)
-checkATPLiveStream = handleError <=< runExceptT $ do
-  statusResponse <- liftIO . fmap getResponseBody . httpLBS $ parseRequest_ "https://atp.fm/livestream_status"
+checkATPLiveStream :: StreamCheckURL -> IO (Maybe StreamURL)
+checkATPLiveStream checkURL = handleError <=< runExceptT $ do
+  statusResponse <- liftIO . fmap getResponseBody . httpLBS . parseRequest_
+    . T.unpack . urlToText . getStreamCheckURL $ checkURL
   liftIO . TL.putStrLn $ TLE.decodeUtf8 statusResponse
   status <- liftEither . eitherDecode @Object $ statusResponse
 
