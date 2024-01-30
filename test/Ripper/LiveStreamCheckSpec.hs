@@ -1,8 +1,8 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Ripper.ATPLiveStreamCheckSpec where
+module Ripper.LiveStreamCheckSpec where
 
-import Ripper.ATPLiveStreamCheck
+import Ripper.LiveStreamCheck
 import Ripper.Types
 import Test.Hspec
 import Text.RawString.QQ

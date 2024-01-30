@@ -29,7 +29,7 @@ import System.IO.Error (isResourceVanishedError)
 
 import MP3.Parser
 import MP3.Xing
-import Ripper.ATPLiveStreamCheck
+import Ripper.LiveStreamCheck
 import Ripper.Import
 import Ripper.RipperDelay
 import RSSGen.Duration
@@ -85,7 +85,7 @@ class Monad m => MonadRipper m where
 
 instance (HasLogFunc env, HasAppRipsQueue env, HasAppOptions env) => MonadRipper (RIO env) where
   rip = ripOneStream
-  checkLiveStream (StreamWithLiveCheck streamCheckConfig) = liftIO . checkATPLiveStream $ streamCheckConfig
+  checkLiveStream (StreamWithLiveCheck streamCheckConfig) = liftIO . getLiveStreamURL $ streamCheckConfig
   checkLiveStream (StreamWithURL url) = pure $ Just url
   getRipDelay is ripEnd now = do
     options <- view appOptionsL

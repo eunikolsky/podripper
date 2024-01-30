@@ -1,5 +1,5 @@
-module Ripper.ATPLiveStreamCheck
-  ( checkATPLiveStream
+module Ripper.LiveStreamCheck
+  ( getLiveStreamURL
   , extractURL
   ) where
 
@@ -21,15 +21,10 @@ import RipConfig
 import Ripper.Types
 import Text.XML.Light
 
--- | Checks whether the ATP's stream is live and if so, extracts the stream URL
--- from the status response.
---
--- The ATP support is hardcoded in the program because its live stream check
--- is more complicated and the stream URL needs to be extracted from the
--- status endpoint.
--- FIXME support this via the config file
-checkATPLiveStream :: StreamCheckConfig -> IO (Maybe StreamURL)
-checkATPLiveStream StreamCheckConfig{checkURL, liveKey, playerKey} = handleError <=< runExceptT $ do
+-- | Checks whether the stream is live and if so, extracts the stream URL from
+-- the status response. This live stream check is based on the ATP's setup.
+getLiveStreamURL :: StreamCheckConfig -> IO (Maybe StreamURL)
+getLiveStreamURL StreamCheckConfig{checkURL, liveKey, playerKey} = handleError <=< runExceptT $ do
   statusResponse <- liftIO . fmap getResponseBody . httpLBS . parseRequest_
     . T.unpack . urlToText . getStreamCheckURL $ checkURL
   liftIO . TL.putStrLn $ TLE.decodeUtf8 statusResponse

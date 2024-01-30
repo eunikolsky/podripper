@@ -35,8 +35,8 @@ library
       ProcessRip
       Rip
       RipConfig
-      Ripper.ATPLiveStreamCheck
       Ripper.Import
+      Ripper.LiveStreamCheck
       Ripper.Main
       Ripper.RipperDelay
       Ripper.Run
@@ -143,7 +143,7 @@ test-suite ripper-test
   main-is: Spec.hs
   other-modules:
       RipConfigSpec
-      Ripper.ATPLiveStreamCheckSpec
+      Ripper.LiveStreamCheckSpec
       Ripper.RipperDelaySpec
       Ripper.RunSpec
       RipSpec
