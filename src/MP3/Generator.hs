@@ -30,7 +30,7 @@ generateFrame info contents = BS.pack headerBytes <> contents
       ]
 
 frameForContentsSize :: FrameInfo -> FrameContentsSize -> Maybe FrameInfo
-frameForContentsSize frame size | frameContentsSize frame == size = Just frame
+frameForContentsSize frame size | frameContentsSize frame >= size = Just frame
 frameForContentsSize _ _ = Nothing
 
 bitrate :: Bitrate -> Word8

@@ -30,6 +30,10 @@ spec = do
       let frame = mkFrameInfo SR44100Hz BR40kbps Mono -- 130 bytes
       in frameForContentsSize frame 126 `shouldBe` Just frame
 
+    it "returns given frame when its size is larger than requested size" $
+      let frame = mkFrameInfo SR44100Hz BR48kbps Mono -- 156 bytes
+      in frameForContentsSize frame 126 `shouldBe` Just frame
+
     it "returns Nothing for big size" $
       -- max frame for 44.1 kHz is 1044 bytes
       frameForContentsSize (mkFrameInfo SR44100Hz BR40kbps Mono) 1041 `shouldBe` Nothing
