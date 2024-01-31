@@ -11,6 +11,7 @@ import Data.ByteString qualified as BS
 import Data.Word
 import MP3.FrameInfo
 import MP3.MP3
+import MP3.Parser
 
 -- | Generates an MPEG1 Layer3 frame with the header from `FrameInfo` and the
 -- `contents`.
@@ -29,6 +30,7 @@ generateFrame info contents = BS.pack headerBytes <> contents
       ]
 
 frameForContentsSize :: FrameInfo -> FrameContentsSize -> Maybe FrameInfo
+frameForContentsSize frame size | frameContentsSize frame == size = Just frame
 frameForContentsSize _ _ = Nothing
 
 bitrate :: Bitrate -> Word8

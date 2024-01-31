@@ -26,5 +26,10 @@ spec = do
         (BS.drop frameHeaderSize . getFrameData . fData <$> parsedFrame) `shouldParse` contents
 
   describe "frameForContentsSize" $ do
+    it "returns given frame when its size matches requested size" $
+      let frame = mkFrameInfo SR44100Hz BR40kbps Mono -- 130 bytes
+      in frameForContentsSize frame 126 `shouldBe` Just frame
+
     it "returns Nothing for big size" $
-      frameForContentsSize (mkFrameInfo SR44100Hz BR40kbps Mono) 1040 `shouldBe` Nothing
+      -- max frame for 44.1 kHz is 1044 bytes
+      frameForContentsSize (mkFrameInfo SR44100Hz BR40kbps Mono) 1041 `shouldBe` Nothing
