@@ -3,13 +3,15 @@
 module MP3.Parser
   ( AudioDuration(..)
   , Frame(..)
+  , FrameData(..)
   , FrameInfo
   , MaybeFrame(..)
   , fiBitrate
+  , frameContentsSize
   , frameDuration
+  , frameHeaderSize
   , frameParser
   , frameSize
-  , getFrameData
   , maybeFrameParser
   ) where
 
@@ -29,6 +31,7 @@ import Text.Printf
 -- | Bytes of an MP3 frame: header + data. The reason for the separate type is
 -- to have a more concise `Show` instance.
 newtype FrameData = FrameData { getFrameData :: ByteString }
+  deriving newtype Eq
 
 instance Show FrameData where
   show (FrameData d) = "<" <> show (BS.length d) <> " bytes>"
@@ -41,6 +44,7 @@ data Frame = Frame
   deriving stock (Show)
 
 type FrameSize = Word16
+type FrameContentsSize = Word16
 
 -- | Used only for logging and easier debugging afterwards.
 type JunkLength = Int
@@ -82,11 +86,13 @@ frameDuration info =
 samplesPerFrame :: Num a => a
 samplesPerFrame = 1152
 
+frameHeaderSize :: Num a => a
+frameHeaderSize = 4
+
 -- | Parses the header of an MP3 frame and returns its `FrameInfo`, header bytes
 -- and the number of extra bytes to read for this frame.
 frameHeaderParser :: Parser (FrameInfo, [Word8], FrameSize)
 frameHeaderParser = do
-  let frameHeaderSize = 4
   bytes@[byte0, byte1, byte2, byte3] <- A.count frameHeaderSize A.anyWord8 <?> "Incomplete frame header"
 
   frameSyncValidator (byte0, byte1)
@@ -98,7 +104,7 @@ frameHeaderParser = do
   channel <- channelParser byte3
 
   let paddingSize = if testBit byte2 paddingBitIndex then 1 else 0
-      contentsSize = frameSize' bitrate samplingRate - fromIntegral frameHeaderSize + paddingSize
+      contentsSize = frameSize' bitrate samplingRate - frameHeaderSize + paddingSize
 
   pure (mkFrameInfo samplingRate bitrate channel, bytes, contentsSize)
 
@@ -174,7 +180,8 @@ channelParser byte = case byte `shiftR` 6 of
   0b11 -> pure Mono
   x -> fail $ "Impossible channel value " <> show x
 
--- | Returns the frame size based on the provided bitrate and sampling rate.
+-- | Returns the frame size (including the frame header!) based on the provided
+-- bitrate and sampling rate.
 frameSize' :: Bitrate -> SamplingRate -> FrameSize
 frameSize' br sr = floor @Float $ samplesPerFrame / 8 * bitrateBitsPerSecond br / samplingRateHz sr
   where
@@ -193,12 +200,19 @@ frameSize' br sr = floor @Float $ samplesPerFrame / 8 * bitrateBitsPerSecond br 
     bitrateBitsPerSecond BR256kbps = 256000
     bitrateBitsPerSecond BR320kbps = 320000
 
+-- | Returns the frame size (including the frame header!) based on the provided
+-- `FrameInfo`.
 frameSize :: FrameInfo -> FrameSize
 frameSize info =
   frameSize' bitrate samplingRate
   where
     samplingRate = fiSamplingRate info
     bitrate = fiBitrate info
+
+-- | Returns the frame size (without the frame header!) based on the provided
+-- `FrameInfo`.
+frameContentsSize :: FrameInfo -> FrameContentsSize
+frameContentsSize = (\x -> x - frameHeaderSize) . frameSize
 
 samplingRateHz :: Num a => SamplingRate -> a
 samplingRateHz SR32000Hz = 32000

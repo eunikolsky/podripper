@@ -112,6 +112,7 @@ tests:
     - ripper
     - QuickCheck
     - aeson
+    - attoparsec
     - binary
     - bytestring
     - directory

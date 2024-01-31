@@ -2,7 +2,7 @@ module MP3.FrameInfoSpec where
 
 import Control.Monad
 import MP3.FrameInfo
-import MP3.MP3
+import MP3.TestCommon
 import Test.Hspec
 
 spec :: Spec
@@ -15,19 +15,3 @@ spec = do
         fiSamplingRate frame `shouldBe` sr
         fiBitrate frame `shouldBe` br
         fiChannel frame `shouldBe` ch
-
-allFrameVersions :: [(SamplingRate, Bitrate, Channel)]
-allFrameVersions =
-  [(sr, br, ch) | sr <- allSamplingRates, br <- allBitrates, ch <- allChannels]
-
-allSamplingRates :: [SamplingRate]
-allSamplingRates = [SR32000Hz, SR44100Hz, SR48000Hz]
-
-allBitrates :: [Bitrate]
-allBitrates = allBounded
-
-allChannels :: [Channel]
-allChannels = allBounded
-
-allBounded :: (Bounded a, Enum a) => [a]
-allBounded = [minBound..maxBound]

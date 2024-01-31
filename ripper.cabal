@@ -27,6 +27,7 @@ library
   exposed-modules:
       MP3.AudioDuration
       MP3.FrameInfo
+      MP3.Generator
       MP3.ID3
       MP3.MP3
       MP3.Parser
@@ -143,6 +144,8 @@ test-suite ripper-test
   main-is: Spec.hs
   other-modules:
       MP3.FrameInfoSpec
+      MP3.GeneratorSpec
+      MP3.TestCommon
       RipConfigSpec
       Ripper.LiveStreamCheckSpec
       Ripper.RipperDelaySpec
@@ -174,6 +177,7 @@ test-suite ripper-test
   build-depends:
       QuickCheck
     , aeson
+    , attoparsec
     , base >=4.11 && <10
     , binary
     , bytestring
