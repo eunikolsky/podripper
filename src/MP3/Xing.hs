@@ -13,6 +13,9 @@ import Data.ByteString.Builder qualified as BSB
 import Data.Maybe
 import Data.Vector.Unboxed qualified as VU
 import Data.Word
+import MP3.FrameInfo
+import MP3.Generator
+import MP3.MP3
 import MP3.Parser
 
 -- TODO a better data structure for storing frames?
@@ -32,26 +35,24 @@ newtype XingHeader = XingHeader { getXingHeader :: ByteString }
 -- header (137 bytes).
 calculateXingHeader :: MP3Structure -> (XingHeader, AudioDuration)
 calculateXingHeader mp3@(MP3Structure mp3Frames) =
-  ( XingHeader . BS.toStrict . BSB.toLazyByteString . mconcat $
-      [header, sideInfo, xingId, flags, frames, bytes, toc, padding]
-    , duration
-  )
+  (XingHeader . generateFrame smallestFrame $ contents, duration)
 
   where
     -- TODO use a frame close to what's already in the file?
-    header = BSB.word32BE 0b1111_1111__1111_1011__0011_0000__1100_0100
+    smallestFrame = mkFrameInfo SR44100Hz BR48kbps Mono
+    contents = BS.toStrict . BSB.toLazyByteString . mconcat $
+      [sideInfo, xingId, flags, frames, bytes, toc, padding]
     sideInfo = BSB.byteString $ BS.replicate 17 0
     xingId = if isCBR mp3 then "Info" else "Xing"
     flags = BSB.word32BE 7 -- Frames .|. Bytes .|. TOC
     xingFrame = 1
     frames = BSB.word32BE . fromIntegral $ VU.length mp3Frames + xingFrame
-    -- FIXME remove hardcoded values
-    xingFrameSize = 156
+    xingFrameSize = frameSize smallestFrame
     -- it's not clear whether the filesize field should include the size of the
     -- ID3v2 tag; I think ffmpeg and audacity don't include it
-    bytes = BSB.word32BE $ mp3Size + xingFrameSize
+    bytes = BSB.word32BE $ mp3Size + fromIntegral xingFrameSize
     (toc, mp3Size, duration) = generateTableOfContents mp3
-    padding = BSB.byteString $ BS.replicate (fromIntegral xingFrameSize - 137) 0
+    padding = BSB.byteString $ BS.replicate (fromIntegral xingFrameSize - 133) 0
 
 -- | CBR is when all frames have the same bitrate.
 isCBR :: MP3Structure -> Bool
