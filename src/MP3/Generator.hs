@@ -21,7 +21,7 @@ generateFrame info contents = BS.pack headerBytes <> contents
   where
     headerBytes =
       [ 0xff
-      , 0b1111_1010
+      , 0b1111_1011
       -- no padding
       , bitrate (fiBitrate info) .|. samplingRate (fiSamplingRate info)
       , channel (fiChannel info) .|. 0b0100
