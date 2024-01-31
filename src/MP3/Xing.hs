@@ -44,7 +44,7 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
 
     xingContents = BS.toStrict . BSB.toLazyByteString . mconcat $
       [sideInfo, xingId, flags, frames, bytes, toc]
-    sideInfo = BSB.byteString $ BS.replicate 17 0
+    sideInfo = BSB.byteString $ zeros 17
     xingId = if isCBR mp3 then "Info" else "Xing"
     flags = BSB.word32BE 7 -- Frames .|. Bytes .|. TOC
     xingFrame = 1
@@ -55,7 +55,10 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
     bytes = BSB.word32BE $ mp3Size + fromIntegral xingFrameSize
     (toc, mp3Size, duration) = generateTableOfContents mp3
 
-    padding = BS.replicate (fromIntegral xingFrameSize - frameHeaderSize - BS.length xingContents) 0
+    padding = zeros $ fromIntegral xingFrameSize - frameHeaderSize - BS.length xingContents
+
+zeros :: Int -> ByteString
+zeros = (`BS.replicate` 0)
 
 -- | CBR is when all frames have the same bitrate.
 isCBR :: MP3Structure -> Bool
