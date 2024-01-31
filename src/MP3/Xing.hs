@@ -40,8 +40,10 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
   where
     -- TODO use a frame close to what's already in the file?
     smallestFrame = mkFrameInfo SR44100Hz BR48kbps Mono
-    contents = BS.toStrict . BSB.toLazyByteString . mconcat $
-      [sideInfo, xingId, flags, frames, bytes, toc, padding]
+    contents = xingContents <> padding
+
+    xingContents = BS.toStrict . BSB.toLazyByteString . mconcat $
+      [sideInfo, xingId, flags, frames, bytes, toc]
     sideInfo = BSB.byteString $ BS.replicate 17 0
     xingId = if isCBR mp3 then "Info" else "Xing"
     flags = BSB.word32BE 7 -- Frames .|. Bytes .|. TOC
@@ -52,7 +54,8 @@ calculateXingHeader mp3@(MP3Structure mp3Frames) =
     -- ID3v2 tag; I think ffmpeg and audacity don't include it
     bytes = BSB.word32BE $ mp3Size + fromIntegral xingFrameSize
     (toc, mp3Size, duration) = generateTableOfContents mp3
-    padding = BSB.byteString $ BS.replicate (fromIntegral xingFrameSize - 133) 0
+
+    padding = BS.replicate (fromIntegral xingFrameSize - frameHeaderSize - BS.length xingContents) 0
 
 -- | CBR is when all frames have the same bitrate.
 isCBR :: MP3Structure -> Bool
