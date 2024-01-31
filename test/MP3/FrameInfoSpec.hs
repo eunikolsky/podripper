@@ -8,15 +8,17 @@ import Test.Hspec
 spec :: Spec
 spec = do
   describe "FrameInfo" $ do
-    forM_ allSamplingRates $ \sr ->
-      forM_ allBitrates $ \br ->
-        forM_ allChannels $ \ch ->
-          it ("preserves information for frame "
-              <> show sr <> ", " <> show br <> ", " <> show ch) $ do
-            let frame = mkFrameInfo sr br ch
-            fiSamplingRate frame `shouldBe` sr
-            fiBitrate frame `shouldBe` br
-            fiChannel frame `shouldBe` ch
+    forM_ allFrameVersions $ \(sr, br, ch) ->
+      it ("preserves information for frame "
+          <> show sr <> ", " <> show br <> ", " <> show ch) $ do
+        let frame = mkFrameInfo sr br ch
+        fiSamplingRate frame `shouldBe` sr
+        fiBitrate frame `shouldBe` br
+        fiChannel frame `shouldBe` ch
+
+allFrameVersions :: [(SamplingRate, Bitrate, Channel)]
+allFrameVersions =
+  [(sr, br, ch) | sr <- allSamplingRates, br <- allBitrates, ch <- allChannels]
 
 allSamplingRates :: [SamplingRate]
 allSamplingRates = [SR32000Hz, SR44100Hz, SR48000Hz]
