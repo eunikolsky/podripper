@@ -21,8 +21,8 @@ import MP3.MP3
 
 -- | Parsed information about one MP3 frame: sampling rate and bitrate packed
 -- into one byte for efficient storage of frames while ripping.
--- Only sampling rate and its MPEG version are necessary to calculate frame's
--- duration in seconds; bitrate is necessary to calculate frame's size in bytes.
+-- Only sampling rate is necessary to calculate frame's duration in seconds;
+-- bitrate is necessary to calculate frame's size in bytes.
 newtype FrameInfo = FrameInfo { packedFrameInfo :: Word8 }
   deriving stock (Show, Eq)
 
@@ -34,28 +34,23 @@ deriving newtype instance VGM.MVector VU.MVector FrameInfo
 deriving newtype instance VG.Vector VU.Vector FrameInfo
 instance VU.Unbox FrameInfo
 
+-- Bit schema: `00ss_bbbb` where `s` are sampling rate bits and `b` are bitrate
+-- bits.
 mkFrameInfo :: SamplingRate -> Bitrate -> FrameInfo
-mkFrameInfo sr br = FrameInfo $ (packSamplingRate sr `shiftL` 5) .|. packBitrate br
+mkFrameInfo sr br = FrameInfo $ (packSamplingRate sr `shiftL` 4) .|. packBitrate br
   where
-    packSamplingRate (MPEG1SR SR32000Hz) = 0b000
-    packSamplingRate (MPEG1SR SR44100Hz) = 0b001
-    packSamplingRate (MPEG1SR SR48000Hz) = 0b010
-    packSamplingRate (MPEG2SR SR16000Hz) = 0b100
-    packSamplingRate (MPEG2SR SR22050Hz) = 0b101
-    packSamplingRate (MPEG2SR SR24000Hz) = 0b110
+    packSamplingRate SR32000Hz = 0b00
+    packSamplingRate SR44100Hz = 0b01
+    packSamplingRate SR48000Hz = 0b10
 
     packBitrate = fromIntegral . fromEnum
 
 fiSamplingRate :: FrameInfo -> SamplingRate
-fiSamplingRate (FrameInfo byte) = case byte `shiftR` 5 of
-  0b000 -> MPEG1SR SR32000Hz
-  0b001 -> MPEG1SR SR44100Hz
-  0b010 -> MPEG1SR SR48000Hz
-  0b100 -> MPEG2SR SR16000Hz
-  0b101 -> MPEG2SR SR22050Hz
-  0b110 -> MPEG2SR SR24000Hz
+fiSamplingRate (FrameInfo byte) = case byte `shiftR` 4 of
+  0b00 -> SR32000Hz
+  0b01 -> SR44100Hz
+  0b10 -> SR48000Hz
   x -> error $ "Impossible FrameInfo sampling rate value " <> show x
 
 fiBitrate :: FrameInfo -> Bitrate
-fiBitrate (FrameInfo byte) = toEnum . fromIntegral $ byte .&. 0b0001_1111
-
+fiBitrate (FrameInfo byte) = toEnum . fromIntegral $ byte .&. 0b0000_1111

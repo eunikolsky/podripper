@@ -76,12 +76,11 @@ maybeFrameParser = validFrame <|> junk
 
 frameDuration :: FrameInfo -> AudioDuration
 frameDuration info =
-  AudioDuration . (samplesPerFrame (srMPEGVersion samplingRate) /) $ samplingRateHz samplingRate
+  AudioDuration . (samplesPerFrame /) $ samplingRateHz samplingRate
   where samplingRate = fiSamplingRate info
 
-samplesPerFrame :: Num a => MPEGVersion -> a
-samplesPerFrame MPEG1 = 1152
-samplesPerFrame MPEG2 = 576
+samplesPerFrame :: Num a => a
+samplesPerFrame = 1152
 
 -- | Parses the header of an MP3 frame and returns its `FrameInfo`, header bytes
 -- and the number of extra bytes to read for this frame.
@@ -91,14 +90,14 @@ frameHeaderParser = do
   bytes@[byte0, byte1, byte2, _] <- A.count frameHeaderSize A.anyWord8 <?> "Incomplete frame header"
 
   frameSyncValidator (byte0, byte1)
-  mpegVersion <- parseMPEGVersion byte1
+  validateMPEG1 byte1
   layerValidator byte1
 
-  bitrate <- bitrateParser mpegVersion byte2
-  samplingRate <- samplingRateParser mpegVersion byte2
+  bitrate <- bitrateParser byte2
+  samplingRate <- samplingRateParser byte2
 
   let paddingSize = if testBit byte2 paddingBitIndex then 1 else 0
-      contentsSize = frameSize' mpegVersion bitrate samplingRate - fromIntegral frameHeaderSize + paddingSize
+      contentsSize = frameSize' bitrate samplingRate - fromIntegral frameHeaderSize + paddingSize
 
   pure (mkFrameInfo samplingRate bitrate, bytes, contentsSize)
 
@@ -118,11 +117,11 @@ frameSyncValidator (b0, b1) =
   in unless isValid . fail $ printf "Invalid frame sync (0x%02x%02x, %c%c)" b0 b1 b0 b1
   where byte1Mask = 0b1110_0000
 
--- | Parses MPEG Version 1 or 2 from the header byte.
-parseMPEGVersion :: Word8 -> Parser MPEGVersion
-parseMPEGVersion byte = case 0b00000011 .&. byte `shiftR` 3 of
-  0b11 -> pure MPEG1
-  0b10 -> pure MPEG2
+-- | Validates that the header byte declares MPEG Version 1.
+validateMPEG1 :: Word8 -> Parser ()
+validateMPEG1 byte = case 0b00000011 .&. byte `shiftR` 3 of
+  0b11 -> pure ()
+  0b10 -> fail "Unsupported MPEG version 2 (2) frame"
   0b00 -> fail "Unexpected MPEG version 2.5 (0) frame"
   0b01 -> fail "Unexpected MPEG version \"reserved\" (1) frame"
   x -> fail $ "Impossible MPEG version value " <> show x
@@ -137,63 +136,39 @@ layerValidator byte = case 0b0000_0011 .&. byte `shiftR` 1 of
   x -> fail $ "Impossible Layer value " <> show x
 
 -- | Parses the sample rate from the frame byte.
-samplingRateParser :: MPEGVersion -> Word8 -> Parser SamplingRate
-samplingRateParser mpeg byte = case (mpeg, 0b00000011 .&. shiftR byte 2) of
-  (MPEG1, 0b00) -> pure $ MPEG1SR SR44100Hz
-  (MPEG1, 0b01) -> pure $ MPEG1SR SR48000Hz
-  (MPEG1, 0b10) -> pure $ MPEG1SR SR32000Hz
-  (MPEG2, 0b00) -> pure $ MPEG2SR SR22050Hz
-  (MPEG2, 0b01) -> pure $ MPEG2SR SR24000Hz
-  (MPEG2, 0b10) -> pure $ MPEG2SR SR16000Hz
-  (_, 0b11) -> fail "Unexpected sampling rate \"reserved\" (3)"
-  (_, x) -> fail $ "Impossible sampling rate value " <> show x
+samplingRateParser :: Word8 -> Parser SamplingRate
+samplingRateParser byte = case 0b00000011 .&. shiftR byte 2 of
+  0b00 -> pure SR44100Hz
+  0b01 -> pure SR48000Hz
+  0b10 -> pure SR32000Hz
+  0b11 -> fail "Unexpected sampling rate \"reserved\" (3)"
+  x -> fail $ "Impossible sampling rate value " <> show x
 
 -- | Parses the bitrate from the frame byte.
-bitrateParser :: MPEGVersion -> Word8 -> Parser Bitrate
-bitrateParser mpeg byte = case (mpeg, shiftR byte 4) of
-  (MPEG1, 0b0001) -> pure BR32kbps
-  (MPEG1, 0b0010) -> pure BR40kbps
-  (MPEG1, 0b0011) -> pure BR48kbps
-  (MPEG1, 0b0100) -> pure BR56kbps
-  (MPEG1, 0b0101) -> pure BR64kbps
-  (MPEG1, 0b0110) -> pure BR80kbps
-  (MPEG1, 0b0111) -> pure BR96kbps
-  (MPEG1, 0b1000) -> pure BR112kbps
-  (MPEG1, 0b1001) -> pure BR128kbps
-  (MPEG1, 0b1010) -> pure BR160kbps
-  (MPEG1, 0b1011) -> pure BR192kbps
-  (MPEG1, 0b1100) -> pure BR224kbps
-  (MPEG1, 0b1101) -> pure BR256kbps
-  (MPEG1, 0b1110) -> pure BR320kbps
-  (MPEG2, 0b0001) -> pure BR8kbps
-  (MPEG2, 0b0010) -> pure BR16kbps
-  (MPEG2, 0b0011) -> pure BR24kbps
-  (MPEG2, 0b0100) -> pure BR32kbps
-  (MPEG2, 0b0101) -> pure BR40kbps
-  (MPEG2, 0b0110) -> pure BR48kbps
-  (MPEG2, 0b0111) -> pure BR56kbps
-  (MPEG2, 0b1000) -> pure BR64kbps
-  (MPEG2, 0b1001) -> pure BR80kbps
-  (MPEG2, 0b1010) -> pure BR96kbps
-  (MPEG2, 0b1011) -> pure BR112kbps
-  (MPEG2, 0b1100) -> pure BR128kbps
-  (MPEG2, 0b1101) -> pure BR144kbps
-  (MPEG2, 0b1110) -> pure BR160kbps
-  (_, 0b0000) -> fail "Unexpected bitrate \"free\" (0)"
-  (_, 0b1111) -> fail "Unexpected bitrate \"bad\" (15)"
-  (_, x) -> fail $ "Impossible bitrate value " <> show x
+bitrateParser :: Word8 -> Parser Bitrate
+bitrateParser byte = case shiftR byte 4 of
+  0b0001 -> pure BR32kbps
+  0b0010 -> pure BR40kbps
+  0b0011 -> pure BR48kbps
+  0b0100 -> pure BR56kbps
+  0b0101 -> pure BR64kbps
+  0b0110 -> pure BR80kbps
+  0b0111 -> pure BR96kbps
+  0b1000 -> pure BR112kbps
+  0b1001 -> pure BR128kbps
+  0b1010 -> pure BR160kbps
+  0b1011 -> pure BR192kbps
+  0b1100 -> pure BR224kbps
+  0b1101 -> pure BR256kbps
+  0b1110 -> pure BR320kbps
+  0b0000 -> fail "Unexpected bitrate \"free\" (0)"
+  0b1111 -> fail "Unexpected bitrate \"bad\" (15)"
+  x -> fail $ "Impossible bitrate value " <> show x
 
--- | Returns the frame size based on the provided MPEG version, bitrate and
--- sample rate.
--- Note: most MP3 docs don't mention this, but the formula to calculate the
--- frame size is slightly different for MPEG2 vs MPEG1 Layer 3. See also:
--- https://stackoverflow.com/questions/62536328/mpeg-2-and-2-5-problems-calculating-frame-sizes-in-bytes/62539671#62539671
-frameSize' :: MPEGVersion -> Bitrate -> SamplingRate -> FrameSize
-frameSize' mpeg br sr = floor @Float $ samplesPerFrame mpeg / 8 * bitrateBitsPerSecond br / samplingRateHz sr
+-- | Returns the frame size based on the provided bitrate and sampling rate.
+frameSize' :: Bitrate -> SamplingRate -> FrameSize
+frameSize' br sr = floor @Float $ samplesPerFrame / 8 * bitrateBitsPerSecond br / samplingRateHz sr
   where
-    bitrateBitsPerSecond BR8kbps   = 8000
-    bitrateBitsPerSecond BR16kbps  = 16000
-    bitrateBitsPerSecond BR24kbps  = 24000
     bitrateBitsPerSecond BR32kbps  = 32000
     bitrateBitsPerSecond BR40kbps  = 40000
     bitrateBitsPerSecond BR48kbps  = 48000
@@ -203,7 +178,6 @@ frameSize' mpeg br sr = floor @Float $ samplesPerFrame mpeg / 8 * bitrateBitsPer
     bitrateBitsPerSecond BR96kbps  = 96000
     bitrateBitsPerSecond BR112kbps = 112000
     bitrateBitsPerSecond BR128kbps = 128000
-    bitrateBitsPerSecond BR144kbps = 144000
     bitrateBitsPerSecond BR160kbps = 160000
     bitrateBitsPerSecond BR192kbps = 192000
     bitrateBitsPerSecond BR224kbps = 224000
@@ -212,22 +186,15 @@ frameSize' mpeg br sr = floor @Float $ samplesPerFrame mpeg / 8 * bitrateBitsPer
 
 frameSize :: FrameInfo -> FrameSize
 frameSize info =
-  frameSize' (srMPEGVersion samplingRate) bitrate samplingRate
+  frameSize' bitrate samplingRate
   where
     samplingRate = fiSamplingRate info
     bitrate = fiBitrate info
 
-srMPEGVersion :: SamplingRate -> MPEGVersion
-srMPEGVersion (MPEG1SR _) = MPEG1
-srMPEGVersion (MPEG2SR _) = MPEG2
-
 samplingRateHz :: Num a => SamplingRate -> a
-samplingRateHz (MPEG2SR SR16000Hz) = 16000
-samplingRateHz (MPEG2SR SR22050Hz) = 22050
-samplingRateHz (MPEG2SR SR24000Hz) = 24000
-samplingRateHz (MPEG1SR SR32000Hz) = 32000
-samplingRateHz (MPEG1SR SR44100Hz) = 44100
-samplingRateHz (MPEG1SR SR48000Hz) = 48000
+samplingRateHz SR32000Hz = 32000
+samplingRateHz SR44100Hz = 44100
+samplingRateHz SR48000Hz = 48000
 
 -- TODO try https://github.com/stevana/bits-and-bobs
 paddingBitIndex :: Int

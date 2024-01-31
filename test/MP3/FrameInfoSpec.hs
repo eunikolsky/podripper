@@ -10,13 +10,13 @@ spec = do
   describe "FrameInfo" $ do
     forM_ allSamplingRates $ \sr ->
       forM_ allBitrates $ \br ->
-        it "preserves frame information" $ do
+        it ("preserves information for frame " <> show sr <> ", " <> show br) $ do
           let frame = mkFrameInfo sr br
           fiSamplingRate frame `shouldBe` sr
           fiBitrate frame `shouldBe` br
 
 allSamplingRates :: [SamplingRate]
-allSamplingRates = [MPEG2SR SR16000Hz, MPEG2SR SR22050Hz, MPEG2SR SR24000Hz, MPEG1SR SR32000Hz, MPEG1SR SR44100Hz, MPEG1SR SR48000Hz]
+allSamplingRates = [SR32000Hz, SR44100Hz, SR48000Hz]
 
 allBitrates :: [Bitrate]
 allBitrates = enumFromTo minBound maxBound
