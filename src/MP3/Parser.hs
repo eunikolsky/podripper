@@ -87,7 +87,7 @@ samplesPerFrame = 1152
 frameHeaderParser :: Parser (FrameInfo, [Word8], FrameSize)
 frameHeaderParser = do
   let frameHeaderSize = 4
-  bytes@[byte0, byte1, byte2, _] <- A.count frameHeaderSize A.anyWord8 <?> "Incomplete frame header"
+  bytes@[byte0, byte1, byte2, byte3] <- A.count frameHeaderSize A.anyWord8 <?> "Incomplete frame header"
 
   frameSyncValidator (byte0, byte1)
   validateMPEG1 byte1
@@ -95,11 +95,12 @@ frameHeaderParser = do
 
   bitrate <- bitrateParser byte2
   samplingRate <- samplingRateParser byte2
+  channel <- channelParser byte3
 
   let paddingSize = if testBit byte2 paddingBitIndex then 1 else 0
       contentsSize = frameSize' bitrate samplingRate - fromIntegral frameHeaderSize + paddingSize
 
-  pure (mkFrameInfo samplingRate bitrate, bytes, contentsSize)
+  pure (mkFrameInfo samplingRate bitrate channel, bytes, contentsSize)
 
 -- | Parses a single MP3 frame.
 frameParser :: Parser Frame
@@ -164,6 +165,14 @@ bitrateParser byte = case shiftR byte 4 of
   0b0000 -> fail "Unexpected bitrate \"free\" (0)"
   0b1111 -> fail "Unexpected bitrate \"bad\" (15)"
   x -> fail $ "Impossible bitrate value " <> show x
+
+channelParser :: Word8 -> Parser Channel
+channelParser byte = case byte `shiftR` 6 of
+  0b00 -> pure Stereo
+  0b01 -> pure JointStereo
+  0b10 -> pure Dual
+  0b11 -> pure Mono
+  x -> fail $ "Impossible channel value " <> show x
 
 -- | Returns the frame size based on the provided bitrate and sampling rate.
 frameSize' :: Bitrate -> SamplingRate -> FrameSize

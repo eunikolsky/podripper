@@ -2,6 +2,7 @@
 
 module MP3.MP3
   ( Bitrate(..)
+  , Channel(..)
   , SamplingRate(..)
   ) where
 
@@ -48,3 +49,7 @@ instance Show Bitrate where
   show BR224kbps = "224 kb/s"
   show BR256kbps = "256 kb/s"
   show BR320kbps = "320 kb/s"
+
+-- | Channel information of a frame.
+data Channel = Stereo | JointStereo | Dual | Mono
+  deriving stock (Show, Eq, Enum, Bounded)

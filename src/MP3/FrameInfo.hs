@@ -8,6 +8,7 @@
 module MP3.FrameInfo
   ( FrameInfo
   , fiBitrate
+  , fiChannel
   , fiSamplingRate
   , mkFrameInfo
   ) where
@@ -34,11 +35,15 @@ deriving newtype instance VGM.MVector VU.MVector FrameInfo
 deriving newtype instance VG.Vector VU.Vector FrameInfo
 instance VU.Unbox FrameInfo
 
--- Bit schema: `00ss_bbbb` where `s` are sampling rate bits and `b` are bitrate
--- bits.
-mkFrameInfo :: SamplingRate -> Bitrate -> FrameInfo
-mkFrameInfo sr br = FrameInfo $ (packSamplingRate sr `shiftL` 4) .|. packBitrate br
+-- Bit schema: `ccss_bbbb` where `c` are channel bits, `s` are sampling rate
+-- bits and `b` are bitrate bits.
+mkFrameInfo :: SamplingRate -> Bitrate -> Channel -> FrameInfo
+mkFrameInfo sr br ch = FrameInfo $
+  (packChannel ch `shiftL` 6) .|. (packSamplingRate sr `shiftL` 4) .|. packBitrate br
+
   where
+    packChannel = fromIntegral . fromEnum
+
     packSamplingRate SR32000Hz = 0b00
     packSamplingRate SR44100Hz = 0b01
     packSamplingRate SR48000Hz = 0b10
@@ -46,7 +51,7 @@ mkFrameInfo sr br = FrameInfo $ (packSamplingRate sr `shiftL` 4) .|. packBitrate
     packBitrate = fromIntegral . fromEnum
 
 fiSamplingRate :: FrameInfo -> SamplingRate
-fiSamplingRate (FrameInfo byte) = case byte `shiftR` 4 of
+fiSamplingRate (FrameInfo byte) = case (byte `shiftR` 4) .&. 0b0000_0011 of
   0b00 -> SR32000Hz
   0b01 -> SR44100Hz
   0b10 -> SR48000Hz
@@ -54,3 +59,6 @@ fiSamplingRate (FrameInfo byte) = case byte `shiftR` 4 of
 
 fiBitrate :: FrameInfo -> Bitrate
 fiBitrate (FrameInfo byte) = toEnum . fromIntegral $ byte .&. 0b0000_1111
+
+fiChannel :: FrameInfo -> Channel
+fiChannel (FrameInfo byte) = toEnum . fromIntegral $ byte `shiftR` 6
