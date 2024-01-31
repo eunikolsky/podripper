@@ -64,7 +64,7 @@ data Bitrate
   | BR224kbps
   | BR256kbps
   | BR320kbps
-  deriving stock (Eq, Enum)
+  deriving stock (Eq, Enum, Bounded)
 
 instance Show Bitrate where
   show BR8kbps = "8 kb/s"

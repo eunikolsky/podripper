@@ -142,6 +142,7 @@ test-suite ripper-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      MP3.FrameInfoSpec
       RipConfigSpec
       Ripper.LiveStreamCheckSpec
       Ripper.RipperDelaySpec
