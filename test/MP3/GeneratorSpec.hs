@@ -6,6 +6,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
 import MP3.FrameInfo
 import MP3.Generator
+import MP3.MP3
 import MP3.Parser
 import MP3.TestCommon
 import Test.Hspec
@@ -23,3 +24,7 @@ spec = do
             parsedFrame = generateFrame frame contents ~> (frameParser <* endOfInput)
         (fInfo <$> parsedFrame) `shouldParse` frame
         (BS.drop frameHeaderSize . getFrameData . fData <$> parsedFrame) `shouldParse` contents
+
+  describe "frameForContentsSize" $ do
+    it "returns Nothing for big size" $
+      frameForContentsSize (mkFrameInfo SR44100Hz BR40kbps Mono) 1040 `shouldBe` Nothing

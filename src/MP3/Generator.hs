@@ -1,7 +1,8 @@
 {-# LANGUAGE BinaryLiterals #-}
 
 module MP3.Generator
-  ( generateFrame
+  ( frameForContentsSize
+  , generateFrame
   ) where
 
 import Data.Bits
@@ -26,6 +27,9 @@ generateFrame info contents = BS.pack headerBytes <> contents
       , bitrate (fiBitrate info) .|. samplingRate (fiSamplingRate info)
       , channel (fiChannel info) .|. 0b0100
       ]
+
+frameForContentsSize :: FrameInfo -> FrameContentsSize -> Maybe FrameInfo
+frameForContentsSize _ _ = Nothing
 
 bitrate :: Bitrate -> Word8
 bitrate br = (`shiftL` 4) $ case br of

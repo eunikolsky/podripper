@@ -3,8 +3,13 @@
 module MP3.MP3
   ( Bitrate(..)
   , Channel(..)
+  , FrameContentsSize
   , SamplingRate(..)
   ) where
+
+import Data.Word
+
+type FrameContentsSize = Word16
 
 -- | Sampling rate of a frame; it's required to calculate the frame size in
 -- bytes and frame duration in seconds.

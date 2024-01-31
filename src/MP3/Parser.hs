@@ -44,7 +44,6 @@ data Frame = Frame
   deriving stock (Show)
 
 type FrameSize = Word16
-type FrameContentsSize = Word16
 
 -- | Used only for logging and easier debugging afterwards.
 type JunkLength = Int
