@@ -8,6 +8,7 @@ module MP3.Generator
 import Data.Bits
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
+import Data.List (find)
 import Data.Word
 import MP3.FrameInfo
 import MP3.MP3
@@ -29,9 +30,16 @@ generateFrame info contents = BS.pack headerBytes <> contents
       , channel (fiChannel info) .|. 0b0100
       ]
 
+-- | Returns a frame that's at least as big as the given `frame` that can fit
+-- the `size` number of bytes as contents; if `frame` can't fit that, the next
+-- larger bitrate is tested, and so on. A different sampling rate is not tested.
 frameForContentsSize :: FrameInfo -> FrameContentsSize -> Maybe FrameInfo
-frameForContentsSize frame size | frameContentsSize frame >= size = Just frame
-frameForContentsSize _ _ = Nothing
+frameForContentsSize frame size = find ((>= size) . frameContentsSize) frameAndLarger
+  where frameAndLarger = frameInfoWithBitrate frame <$> [fiBitrate frame .. maxBound]
+
+-- | Modifies the `Bitrate` of the given `FrameInfo`.
+frameInfoWithBitrate :: FrameInfo -> Bitrate -> FrameInfo
+frameInfoWithBitrate frame br = mkFrameInfo (fiSamplingRate frame) br (fiChannel frame)
 
 bitrate :: Bitrate -> Word8
 bitrate br = (`shiftL` 4) $ case br of
