@@ -40,7 +40,11 @@ newtype XingHeader = XingHeader { getXingHeader :: ByteString }
 calculateXingHeader :: MP3Structure -> (XingHeader, AudioDuration)
 calculateXingHeader (MP3Structure mp3Frames) | VU.null mp3Frames = (XingHeader mempty, 0)
 calculateXingHeader mp3@(MP3Structure mp3Frames) =
-  (XingHeader $ maybe mempty (`generateFrame` contents) fitFrame, duration)
+  ( XingHeader $ maybe mempty (`generateFrame` contents) fitFrame
+  -- add the duration of the Xing header frame to the total duration because
+  -- it's technically a frame with silence and is also included in filesize
+  , duration + maybe 0 frameDuration fitFrame
+  )
 
   where
     firstFrame = VU.head mp3Frames -- `mp3Frames` is not empty here
