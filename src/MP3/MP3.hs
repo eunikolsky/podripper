@@ -1,20 +1,14 @@
-{-# LANGUAGE BinaryLiterals #-}
-
 module MP3.MP3
   ( Bitrate(..)
   , Channel(..)
-  , FrameContentsSize
+  , Padding(..)
   , SamplingRate(..)
   ) where
-
-import Data.Word
-
-type FrameContentsSize = Word16
 
 -- | Sampling rate of a frame; it's required to calculate the frame size in
 -- bytes and frame duration in seconds.
 data SamplingRate = SR32000Hz | SR44100Hz | SR48000Hz
-  deriving stock Eq
+  deriving stock (Eq, Enum, Bounded)
 
 instance Show SamplingRate where
   show SR32000Hz = "32 kHz"
@@ -57,4 +51,7 @@ instance Show Bitrate where
 
 -- | Channel information of a frame.
 data Channel = Stereo | JointStereo | Dual | Mono
+  deriving stock (Show, Eq, Enum, Bounded)
+
+data Padding = NoPadding | Padding
   deriving stock (Show, Eq, Enum, Bounded)

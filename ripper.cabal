@@ -60,6 +60,7 @@ library
   hs-source-dirs:
       src
   default-extensions:
+      BinaryLiterals
       DeriveAnyClass
       DeriveGeneric
       DerivingStrategies
@@ -113,6 +114,7 @@ executable ripper-exe
   hs-source-dirs:
       app
   default-extensions:
+      BinaryLiterals
       DeriveAnyClass
       DeriveGeneric
       DerivingStrategies
@@ -162,6 +164,7 @@ test-suite ripper-test
   hs-source-dirs:
       test
   default-extensions:
+      BinaryLiterals
       DeriveAnyClass
       DeriveGeneric
       DerivingStrategies

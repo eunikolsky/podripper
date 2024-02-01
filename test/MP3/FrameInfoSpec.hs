@@ -8,10 +8,10 @@ import Test.Hspec
 spec :: Spec
 spec = do
   describe "FrameInfo" $ do
-    forM_ allFrameVersions $ \(sr, br, ch) ->
-      it ("preserves information for frame "
-          <> show sr <> ", " <> show br <> ", " <> show ch) $ do
-        let frame = mkFrameInfo sr br ch
+    forM_ allFrameVersions $ \fr@(sr, br, ch, pad) ->
+      it ("preserves information for frame " <> show fr) $ do
+        let frame = mkFrameInfo sr br ch pad
         fiSamplingRate frame `shouldBe` sr
         fiBitrate frame `shouldBe` br
         fiChannel frame `shouldBe` ch
+        fiPadding frame `shouldBe` pad

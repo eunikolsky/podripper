@@ -1,5 +1,3 @@
-{-# LANGUAGE BinaryLiterals #-}
-
 module MP3.Generator
   ( frameForContentsSize
   , generateFrame
@@ -25,8 +23,7 @@ generateFrame info contents = BS.pack headerBytes <> contents
     headerBytes =
       [ 0xff
       , 0b1111_1011
-      -- no padding
-      , bitrate (fiBitrate info) .|. samplingRate (fiSamplingRate info)
+      , bitrate (fiBitrate info) .|. samplingRate (fiSamplingRate info) .|. padding (fiPadding info)
       , channel (fiChannel info) .|. 0b0100
       ]
 
@@ -39,7 +36,8 @@ frameForContentsSize frame size = find ((>= size) . frameContentsSize) frameAndL
 
 -- | Modifies the `Bitrate` of the given `FrameInfo`.
 frameInfoWithBitrate :: FrameInfo -> Bitrate -> FrameInfo
-frameInfoWithBitrate frame br = mkFrameInfo (fiSamplingRate frame) br (fiChannel frame)
+frameInfoWithBitrate frame br =
+  mkFrameInfo (fiSamplingRate frame) br (fiChannel frame) (fiPadding frame)
 
 bitrate :: Bitrate -> Word8
 bitrate br = (`shiftL` 4) $ case br of
@@ -63,6 +61,10 @@ samplingRate sr = (`shiftL` 2) $ case sr of
   SR44100Hz -> 0b00
   SR48000Hz -> 0b01
   SR32000Hz -> 0b10
+
+padding :: Padding -> Word8
+padding NoPadding = 0b00
+padding Padding = 0b10
 
 channel :: Channel -> Word8
 channel ch = (`shiftL` 6) $ case ch of

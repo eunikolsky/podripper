@@ -1,8 +1,7 @@
-{-# LANGUAGE BinaryLiterals #-}
-
 module MP3.Parser
   ( AudioDuration(..)
   , Frame(..)
+  , FrameContentsSize
   , FrameData(..)
   , FrameInfo
   , MaybeFrame(..)
@@ -44,6 +43,7 @@ data Frame = Frame
   deriving stock (Show)
 
 type FrameSize = Word16
+type FrameContentsSize = Word16
 
 -- | Used only for logging and easier debugging afterwards.
 type JunkLength = Int
@@ -100,12 +100,12 @@ frameHeaderParser = do
 
   bitrate <- bitrateParser byte2
   samplingRate <- samplingRateParser byte2
+  padding <- paddingParser byte2
   channel <- channelParser byte3
 
-  let paddingSize = if testBit byte2 paddingBitIndex then 1 else 0
-      contentsSize = frameSize' bitrate samplingRate - frameHeaderSize + paddingSize
+  let contentsSize = frameSize' bitrate samplingRate padding - frameHeaderSize
 
-  pure (mkFrameInfo samplingRate bitrate channel, bytes, contentsSize)
+  pure (mkFrameInfo samplingRate bitrate channel padding, bytes, contentsSize)
 
 -- | Parses a single MP3 frame.
 frameParser :: Parser Frame
@@ -171,6 +171,9 @@ bitrateParser byte = case shiftR byte 4 of
   0b1111 -> fail "Unexpected bitrate \"bad\" (15)"
   x -> fail $ "Impossible bitrate value " <> show x
 
+paddingParser :: Word8 -> Parser Padding
+paddingParser byte = pure $ if testBit byte 1 then Padding else NoPadding
+
 channelParser :: Word8 -> Parser Channel
 channelParser byte = case byte `shiftR` 6 of
   0b00 -> pure Stereo
@@ -181,9 +184,13 @@ channelParser byte = case byte `shiftR` 6 of
 
 -- | Returns the frame size (including the frame header!) based on the provided
 -- bitrate and sampling rate.
-frameSize' :: Bitrate -> SamplingRate -> FrameSize
-frameSize' br sr = floor @Float $ samplesPerFrame / 8 * bitrateBitsPerSecond br / samplingRateHz sr
+frameSize' :: Bitrate -> SamplingRate -> Padding -> FrameSize
+frameSize' br sr pad = floor @Float $
+  (samplesPerFrame / 8 * bitrateBitsPerSecond br / samplingRateHz sr) + padding pad
   where
+    padding NoPadding = 0
+    padding Padding = 1
+
     bitrateBitsPerSecond BR32kbps  = 32000
     bitrateBitsPerSecond BR40kbps  = 40000
     bitrateBitsPerSecond BR48kbps  = 48000
@@ -203,10 +210,11 @@ frameSize' br sr = floor @Float $ samplesPerFrame / 8 * bitrateBitsPerSecond br 
 -- `FrameInfo`.
 frameSize :: FrameInfo -> FrameSize
 frameSize info =
-  frameSize' bitrate samplingRate
+  frameSize' bitrate samplingRate padding
   where
     samplingRate = fiSamplingRate info
     bitrate = fiBitrate info
+    padding = fiPadding info
 
 -- | Returns the frame size (without the frame header!) based on the provided
 -- `FrameInfo`.
@@ -217,7 +225,3 @@ samplingRateHz :: Num a => SamplingRate -> a
 samplingRateHz SR32000Hz = 32000
 samplingRateHz SR44100Hz = 44100
 samplingRateHz SR48000Hz = 48000
-
--- TODO try https://github.com/stevana/bits-and-bobs
-paddingBitIndex :: Int
-paddingBitIndex = 1

@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE BinaryLiterals #-}
 
 module MP3.Xing
   ( MP3Structure(..)
