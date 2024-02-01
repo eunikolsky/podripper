@@ -20,10 +20,12 @@ import Data.Vector.Unboxed qualified as VU
 import Data.Word
 import MP3.MP3
 
--- | Parsed information about one MP3 frame: sampling rate and bitrate packed
--- into one byte for efficient storage of frames while ripping.
+-- | Parsed information about one MP3 frame: channel information, sampling rate
+-- and bitrate packed into one byte for efficient storage of frames while
+-- ripping.
 -- Only sampling rate is necessary to calculate frame's duration in seconds;
--- bitrate is necessary to calculate frame's size in bytes.
+-- bitrate is necessary to calculate frame's size in bytes. Channel information
+-- is used to mimic the existing frame for the Xing header.
 newtype FrameInfo = FrameInfo { packedFrameInfo :: Word8 }
   deriving stock (Show, Eq)
 
