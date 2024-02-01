@@ -42,35 +42,27 @@ instance VU.Unbox FrameInfo
 -- `s` are sampling rate bits and `b` are bitrate bits.
 mkFrameInfo :: SamplingRate -> Bitrate -> Channel -> Padding -> FrameInfo
 mkFrameInfo sr br ch pad = FrameInfo . getIor . foldMap Ior $
-  [ packPadding pad `shiftL` 8
-  , packChannel ch `shiftL` 6
-  , packSamplingRate sr `shiftL` 4
-  , packBitrate br
+  [ packEnum pad `shiftL` 8
+  , packEnum ch `shiftL` 6
+  , packEnum sr `shiftL` 4
+  , packEnum br
   ]
 
   where
-    packPadding = fromIntegral . fromEnum
+    packEnum :: Enum a => a -> Word16
+    packEnum = fromIntegral . fromEnum
 
-    packChannel = fromIntegral . fromEnum
-
-    packSamplingRate SR32000Hz = 0b00
-    packSamplingRate SR44100Hz = 0b01
-    packSamplingRate SR48000Hz = 0b10
-
-    packBitrate = fromIntegral . fromEnum
+unpackEnum :: Enum a => Word16 -> a
+unpackEnum = toEnum . fromIntegral
 
 fiSamplingRate :: FrameInfo -> SamplingRate
-fiSamplingRate (FrameInfo word) = case (word `shiftR` 4) .&. 0b0000_0011 of
-  0b00 -> SR32000Hz
-  0b01 -> SR44100Hz
-  0b10 -> SR48000Hz
-  x -> error $ "Impossible FrameInfo sampling rate value " <> show x
+fiSamplingRate (FrameInfo word) = unpackEnum $ word `shiftR` 4 .&. 0b0000_0011
 
 fiBitrate :: FrameInfo -> Bitrate
-fiBitrate (FrameInfo word) = toEnum . fromIntegral $ word .&. 0b0000_1111
+fiBitrate (FrameInfo word) = unpackEnum $ word .&. 0b0000_1111
 
 fiChannel :: FrameInfo -> Channel
-fiChannel (FrameInfo word) = toEnum . fromIntegral $ word `shiftR` 6 .&. 0b0000_0011
+fiChannel (FrameInfo word) = unpackEnum $ word `shiftR` 6 .&. 0b0000_0011
 
 fiPadding :: FrameInfo -> Padding
-fiPadding (FrameInfo word) = toEnum . fromIntegral $ word `shiftR` 8 .&. 0b0000_0001
+fiPadding (FrameInfo word) = unpackEnum $ word `shiftR` 8 .&. 0b0000_0001

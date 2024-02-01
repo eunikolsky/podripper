@@ -10,7 +10,7 @@ module MP3.MP3
 -- | Sampling rate of a frame; it's required to calculate the frame size in
 -- bytes and frame duration in seconds.
 data SamplingRate = SR32000Hz | SR44100Hz | SR48000Hz
-  deriving stock Eq
+  deriving stock (Eq, Enum, Bounded)
 
 instance Show SamplingRate where
   show SR32000Hz = "32 kHz"
