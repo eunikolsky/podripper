@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-missing-methods #-}
-{-# LANGUAGE BinaryLiterals #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving #-}

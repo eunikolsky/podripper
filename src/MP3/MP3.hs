@@ -1,5 +1,3 @@
-{-# LANGUAGE BinaryLiterals #-}
-
 module MP3.MP3
   ( Bitrate(..)
   , Channel(..)
