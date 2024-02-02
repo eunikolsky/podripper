@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-missing-methods #-}
-{-# LANGUAGE BinaryLiterals #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -8,6 +7,8 @@
 module MP3.FrameInfo
   ( FrameInfo
   , fiBitrate
+  , fiChannel
+  , fiPadding
   , fiSamplingRate
   , mkFrameInfo
   ) where
@@ -19,43 +20,48 @@ import Data.Vector.Unboxed qualified as VU
 import Data.Word
 import MP3.MP3
 
--- | Parsed information about one MP3 frame: sampling rate and bitrate packed
--- into one byte for efficient storage of frames while ripping.
--- Only sampling rate and its MPEG version are necessary to calculate frame's
--- duration in seconds; bitrate is necessary to calculate frame's size in bytes.
-newtype FrameInfo = FrameInfo { packedFrameInfo :: Word8 }
+-- | Parsed information about one MP3 frame: channel information, sampling rate,
+-- bitrate and padding packed into two bytes for efficient storage of frames
+-- while ripping.
+-- Only sampling rate is necessary to calculate frame's duration in seconds;
+-- bitrate and padding are necessary to calculate frame's size in bytes. Channel
+-- information is used to mimic the existing frame for the Xing header.
+newtype FrameInfo = FrameInfo { packedFrameInfo :: Word16 }
   deriving stock (Show, Eq)
 
 -- boilerplate from the `Data.Vector.Unboxed` docs to be able to store
 -- `FrameInfo` in an unboxed vector
-newtype instance VU.MVector s FrameInfo = MV_Word8 (VU.MVector s Word8)
-newtype instance VU.Vector FrameInfo = V_Word8 (VU.Vector Word8)
+newtype instance VU.MVector s FrameInfo = MV_Word16 (VU.MVector s Word16)
+newtype instance VU.Vector FrameInfo = V_Word16 (VU.Vector Word16)
 deriving newtype instance VGM.MVector VU.MVector FrameInfo
 deriving newtype instance VG.Vector VU.Vector FrameInfo
 instance VU.Unbox FrameInfo
 
-mkFrameInfo :: SamplingRate -> Bitrate -> FrameInfo
-mkFrameInfo sr br = FrameInfo $ (packSamplingRate sr `shiftL` 5) .|. packBitrate br
-  where
-    packSamplingRate (MPEG1SR SR32000Hz) = 0b000
-    packSamplingRate (MPEG1SR SR44100Hz) = 0b001
-    packSamplingRate (MPEG1SR SR48000Hz) = 0b010
-    packSamplingRate (MPEG2SR SR16000Hz) = 0b100
-    packSamplingRate (MPEG2SR SR22050Hz) = 0b101
-    packSamplingRate (MPEG2SR SR24000Hz) = 0b110
+-- Bit schema: `p_ccss_bbbb` where `p` is padding bit, `c` are channel bits,
+-- `s` are sampling rate bits and `b` are bitrate bits.
+mkFrameInfo :: SamplingRate -> Bitrate -> Channel -> Padding -> FrameInfo
+mkFrameInfo sr br ch pad = FrameInfo . getIor . foldMap Ior $
+  [ packEnum pad `shiftL` 8
+  , packEnum ch `shiftL` 6
+  , packEnum sr `shiftL` 4
+  , packEnum br
+  ]
 
-    packBitrate = fromIntegral . fromEnum
+  where
+    packEnum :: Enum a => a -> Word16
+    packEnum = fromIntegral . fromEnum
+
+unpackEnum :: Enum a => Word16 -> a
+unpackEnum = toEnum . fromIntegral
 
 fiSamplingRate :: FrameInfo -> SamplingRate
-fiSamplingRate (FrameInfo byte) = case byte `shiftR` 5 of
-  0b000 -> MPEG1SR SR32000Hz
-  0b001 -> MPEG1SR SR44100Hz
-  0b010 -> MPEG1SR SR48000Hz
-  0b100 -> MPEG2SR SR16000Hz
-  0b101 -> MPEG2SR SR22050Hz
-  0b110 -> MPEG2SR SR24000Hz
-  x -> error $ "Impossible FrameInfo sampling rate value " <> show x
+fiSamplingRate (FrameInfo word) = unpackEnum $ word `shiftR` 4 .&. 0b0000_0011
 
 fiBitrate :: FrameInfo -> Bitrate
-fiBitrate (FrameInfo byte) = toEnum . fromIntegral $ byte .&. 0b0001_1111
+fiBitrate (FrameInfo word) = unpackEnum $ word .&. 0b0000_1111
 
+fiChannel :: FrameInfo -> Channel
+fiChannel (FrameInfo word) = unpackEnum $ word `shiftR` 6 .&. 0b0000_0011
+
+fiPadding :: FrameInfo -> Padding
+fiPadding (FrameInfo word) = unpackEnum $ word `shiftR` 8 .&. 0b0000_0001
