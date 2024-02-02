@@ -109,7 +109,12 @@ generateTableOfContents (MP3Structure frames) = (tocBytes, filesize, duration)
     (frameOffset, frameTimeOffset) = (fst, snd)
 
     forDurationPercentage prcnt = (>= fromIntegral prcnt / 100 * duration) . frameTimeOffset
-    scaleToByte = floor @Double . (* 255) . (/ fromIntegral filesize) . fromIntegral
+    -- even though the maximum value for a byte is `255`, we're multiplying the
+    -- percentage by `256` (as http://www.multiweb.cz/twoinches/MP3inside.htm
+    -- suggests) — that's probably because the TOC goes up to 99%, and then
+    -- `floor` rounds down, so `256` won't appear; as to the `floor`, it's not
+    -- clear which rounding method should be used here
+    scaleToByte = floor @Double . (* 256) . (/ fromIntegral filesize) . fromIntegral
 
     (filesize, duration) = VU.last stats
     -- this generates a vector of tuples, one for each frame, containing:
