@@ -89,47 +89,47 @@ jobs:
       - name: Build
         run: stack --local-bin-path=. install ripper:ripper-exe --system-ghc --test --bench --no-run-tests --no-run-benchmarks
 
-        #      - name: Test
-        #        run: stack test --system-ghc
-        #
-        #      - name: Set binary path name
-        #        env:
-        #          ACTIONS_ALLOW_UNSECURE_COMMANDS: true
-        #        run: echo "::set-env name=BINARY_PATH::./ripper-exe"
-        #
-        #      - name: Build ArchLinux package
-        #        run: docker build -t podripper --build-arg podripper_path=. . && docker run -v "$(pwd):/export" podripper sh -c 'cp podripper-*.pkg.tar.* /export'
-        #
-        #      - name: Set package path name
-        #        run: echo "PACKAGE_PATH=$( ls -1 podripper-*.pkg.tar.* | head -1 )" >> $GITHUB_ENV
-        #
-        #      - name: Load Release URL File from release job
-        #        uses: actions/download-artifact@v3
-        #        with:
-        #          name: release_url
-        #
-        #      - name: Get Release File Name & Upload URL
-        #        id: get_release_info
-        #        run: echo "::set-output name=upload_url::$(cat release_url.txt)"
-        #
-        #      - name: Upload binary
-        #        id: upload-binary
-        #        uses: actions/upload-release-asset@v1.0.2
-        #        env:
-        #          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        #        with:
-        #          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-        #          asset_path: ${{ env.BINARY_PATH }}
-        #          asset_name: podripper-${{ steps.tag.outputs.tag }}-${{ runner.os }}
-        #          asset_content_type: application/octet-stream
-        #
-        #      - name: Upload package
-        #        id: upload-package
-        #        uses: actions/upload-release-asset@v1.0.2
-        #        env:
-        #          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        #        with:
-        #          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-        #          asset_path: ${{ env.PACKAGE_PATH }}
-        #          asset_name: ${{ env.PACKAGE_PATH }}
-        #          asset_content_type: application/octet-stream
+      - name: Test
+        run: stack test --system-ghc
+
+      - name: Set binary path name
+        env:
+          ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+        run: echo "::set-env name=BINARY_PATH::./ripper-exe"
+
+      - name: Build ArchLinux package
+        run: docker build -t podripper-build -o . .
+
+      - name: Set package path name
+        run: echo "PACKAGE_PATH=$( ls -1 podripper-*.pkg.tar.* | head -1 )" >> $GITHUB_ENV
+
+      - name: Load Release URL File from release job
+        uses: actions/download-artifact@v3
+        with:
+          name: release_url
+
+      - name: Get Release File Name & Upload URL
+        id: get_release_info
+        run: echo "::set-output name=upload_url::$(cat release_url.txt)"
+
+      - name: Upload binary
+        id: upload-binary
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
+          asset_path: ${{ env.BINARY_PATH }}
+          asset_name: podripper-${{ steps.tag.outputs.tag }}-${{ runner.os }}
+          asset_content_type: application/octet-stream
+
+      - name: Upload package
+        id: upload-package
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
+          asset_path: ${{ env.PACKAGE_PATH }}
+          asset_name: ${{ env.PACKAGE_PATH }}
+          asset_content_type: application/octet-stream
