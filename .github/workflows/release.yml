@@ -87,7 +87,7 @@ jobs:
             ${{ runner.os }}-stack-work-
 
       - name: Build
-        run: stack --local-bin-path=. install podripper:podripper --system-ghc --test --bench --no-run-tests --no-run-benchmarks
+        run: stack --local-bin-path=. install ripper:ripper-exe --system-ghc --test --bench --no-run-tests --no-run-benchmarks
 
         #      - name: Test
         #        run: stack test --system-ghc
@@ -95,7 +95,7 @@ jobs:
         #      - name: Set binary path name
         #        env:
         #          ACTIONS_ALLOW_UNSECURE_COMMANDS: true
-        #        run: echo "::set-env name=BINARY_PATH::./podripper"
+        #        run: echo "::set-env name=BINARY_PATH::./ripper-exe"
         #
         #      - name: Build ArchLinux package
         #        run: docker build -t podripper --build-arg podripper_path=. . && docker run -v "$(pwd):/export" podripper sh -c 'cp podripper-*.pkg.tar.* /export'
