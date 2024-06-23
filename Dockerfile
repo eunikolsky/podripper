@@ -7,9 +7,11 @@ RUN pacman -Sy --noconfirm sudo fakeroot binutils
 
 WORKDIR /build
 
+ARG podripper_path=.stack-work/install/x86_64-linux-*/*/*/bin
+
 COPY PKGBUILD .
 COPY LICENSE \
-    .stack-work/install/x86_64-linux-*/*/*/bin/ripper-exe \
+    ${podripper_path}/ripper-exe \
     podripper/
 # multiple steps are necessary to copy every individual directory
 COPY conf/*.json podripper/conf/
