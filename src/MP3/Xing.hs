@@ -4,6 +4,7 @@ module MP3.Xing
   ( MP3Structure(..)
   , XingHeader(..)
   , calculateXingHeader
+  , isValidMP3
   ) where
 
 import Data.ByteString (ByteString)
@@ -24,6 +25,10 @@ newtype MP3Structure = MP3Structure { unMP3Structure :: VU.Vector FrameInfo }
 instance Show MP3Structure where
   -- shows the number of frames, otherwise the output may be very big
   show (MP3Structure s) = "MP3Structure{" <> show (VU.length s) <> " frames}"
+
+-- | Valid MP3 is one with at least one frame.
+isValidMP3 :: MP3Structure -> Bool
+isValidMP3 = not . VU.null . unMP3Structure
 
 newtype XingHeader = XingHeader { getXingHeader :: ByteString }
 

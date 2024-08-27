@@ -21,37 +21,46 @@ import Rip
 import RipConfig
 import Ripper.Types qualified as Ripper
 import System.Directory
-import System.FilePath
+import System.FilePath hiding (isValid)
 
-processRip' :: RipConfigExt -> (Ripper.SuccessfulRip, FilePath) -> IO ()
+-- | Processes a successful rip (using its parsed MP3 structure, that is, only
+-- the full and correct MP3 frames) by prepending an ID3 header and Xing header.
+-- Returns `True` if the rip is valid, that is, having 1+ MP3 frames.
+processRip' :: RipConfigExt -> (Ripper.SuccessfulRip, FilePath) -> IO Bool
 processRip'
     configExt@RipConfigExt{config}
     (Ripper.SuccessfulRip{Ripper.ripFilename=ripName, Ripper.ripMP3Structure=mp3, Ripper.ripStreamURL=streamURL}, processedRip)
   = do
-  let ripDate = fromMaybe (error $ "Couldn't parse rip time from filename " <> ripName) $ parseRipDate ripName
-  ripTime <- localTimeToZonedTime ripDate
-  now <- getCurrentTime
-  let id3Header = getID3Header . generateID3Header $ ID3Fields
-        { id3Title = T.pack . titlePubDate $ fst ripTime
-        , id3Artist = podArtist config
-        , id3Album = podAlbum config
-        , id3RecordingTime = snd ripTime
-        , id3Genre = "Podcast"
-        , id3Publisher = "podripper/" <> version
-        , id3Duration = audioDuration
-        , id3EncodingTime = now
-        , id3Language = podLanguage config
-        , id3MediaType = "Internet stream"
-        , id3PodcastURL = mkID3URL $ podHomepage config
-        , id3StreamURL = mkID3URL . Ripper.urlToText . Ripper.getStreamURL <$> streamURL
-        , id3OriginalFilename = T.pack $ takeFileName ripName
-        }
-      (XingHeader xingHeader, audioDuration) = calculateXingHeader mp3
+    let isValid = isValidMP3 mp3
+    when isValid $ doProcessRip
+    trashFile configExt ripName
+    pure isValid
 
-  runConduitRes $
-    C.sourceList [id3Header, xingHeader] *> sourceFile ripName
-    .| sinkFile processedRip
-  trashFile configExt ripName
+  where
+    doProcessRip = do
+      let ripDate = fromMaybe (error $ "Couldn't parse rip time from filename " <> ripName) $ parseRipDate ripName
+      ripTime <- localTimeToZonedTime ripDate
+      now <- getCurrentTime
+      let id3Header = getID3Header . generateID3Header $ ID3Fields
+            { id3Title = T.pack . titlePubDate $ fst ripTime
+            , id3Artist = podArtist config
+            , id3Album = podAlbum config
+            , id3RecordingTime = snd ripTime
+            , id3Genre = "Podcast"
+            , id3Publisher = "podripper/" <> version
+            , id3Duration = audioDuration
+            , id3EncodingTime = now
+            , id3Language = podLanguage config
+            , id3MediaType = "Internet stream"
+            , id3PodcastURL = mkID3URL $ podHomepage config
+            , id3StreamURL = mkID3URL . Ripper.urlToText . Ripper.getStreamURL <$> streamURL
+            , id3OriginalFilename = T.pack $ takeFileName ripName
+            }
+          (XingHeader xingHeader, audioDuration) = calculateXingHeader mp3
+
+      runConduitRes $
+        C.sourceList [id3Header, xingHeader] *> sourceFile ripName
+        .| sinkFile processedRip
 
 -- FIXME version information is retrieved in multiple places
 version :: Text

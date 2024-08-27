@@ -68,8 +68,8 @@ processSuccessfulRips :: RipConfigExt -> Ripper.RipsQueue -> ProcessedQueue -> I
 processSuccessfulRips config queue processedQueue = forever $ do
   newRip <- atomically $ readTQueue queue
   putStrLn $ "Successful rip: " <> show newRip
-  processRip config newRip
-  atomically $ writeTQueue processedQueue $ QValue NewProcessedRip
+  whenM (processRip config newRip) $
+    atomically $ writeTQueue processedQueue $ QValue NewProcessedRip
 
 -- | An event in a `TerminatableQueue`: either a value or a termination signal.
 data QEvent a = QValue a | QFinish
@@ -153,7 +153,7 @@ catchExceptions = handle $ \(e :: SomeException) ->
 processedRipSuffix :: IsString s => s
 processedRipSuffix = "_enc"
 
-processRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO ()
+processRip :: RipConfigExt -> Ripper.SuccessfulRip -> IO Bool
 processRip configExt@RipConfigExt{doneRipDir} newRip =
   let processedRip = processedRipNameFromOriginal doneRipDir (Ripper.ripFilename newRip)
   in processRip' configExt (newRip, processedRip)
@@ -178,7 +178,7 @@ processPreviousRips configExt@RipConfigExt{doneRipDir, cleanRipDir} queue = do
 
   let notifyProcessedQueue = atomically $ writeTQueue queue $ QValue NewProcessedRip
 
-  forM_ ripOriginals' $ \newRip -> processRip' configExt newRip >> notifyProcessedQueue
+  forM_ ripOriginals' $ \newRip -> whenM (processRip' configExt newRip) notifyProcessedQueue
 
 updateRSS :: RipConfigExt -> IO ()
 updateRSS RipConfigExt{config, doneBaseDir} = RSSGen.run rssName
