@@ -3,7 +3,8 @@
 FROM archlinux AS build
 
 # binutils is for `strip` even though we're not using it
-RUN pacman -Sy --noconfirm sudo fakeroot binutils
+# debugedit is to fix the error: `ERROR: Cannot find the debugedit binary required for including source files in debug packages.`
+RUN pacman -Sy --noconfirm sudo fakeroot binutils debugedit
 
 WORKDIR /build
 
