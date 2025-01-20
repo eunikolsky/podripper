@@ -7,9 +7,9 @@ module RSSGen.Main
   , run
   ) where
 
+import Control.Monad
 import Control.Monad.IO.Unlift
 import Control.Monad.Logger.CallStack
-import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import Data.Functor
 import Data.List (intercalate, sortOn)

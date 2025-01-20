@@ -10,6 +10,7 @@ module RSSGen.Downloader
   ) where
 
 import Control.Applicative
+import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Logger
 import Control.Monad.Reader

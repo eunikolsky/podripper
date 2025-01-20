@@ -172,6 +172,7 @@ responseWith responseStatus item = Response
   , responseCookieJar = mempty
   , responseClose' = undefined
   , responseOriginalRequest = undefined
+  , responseEarlyHints = undefined
   }
 
   where
@@ -194,6 +195,7 @@ response responseStatus = Response
   , responseCookieJar = mempty
   , responseClose' = undefined
   , responseOriginalRequest = undefined
+  , responseEarlyHints = undefined
   }
 
 findHeaderValue :: HeaderName -> RequestHeaders -> Maybe Bytes

@@ -5,7 +5,8 @@ module Ripper.LiveStreamCheck
 
 import Control.Applicative
 import Control.Monad
-import Control.Monad.Except
+import Control.Monad.Except hiding (handleError)
+import Control.Monad.IO.Class
 import Data.Aeson hiding ((<?>))
 import Data.Aeson.KeyMap qualified as A
 import Data.Functor
