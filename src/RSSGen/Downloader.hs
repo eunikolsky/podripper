@@ -105,4 +105,4 @@ logD = logDebugN . T.pack . mconcat
  - for this is to remove that header.
  -}
 fixCloudflareETags :: Request -> Request
-fixCloudflareETags = addRequestHeader "Accept-Encoding" ""
+fixCloudflareETags = addRequestHeader hAcceptEncoding ""
