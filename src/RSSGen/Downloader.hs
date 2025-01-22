@@ -1,5 +1,6 @@
 module RSSGen.Downloader
-  ( getFile
+  ( UserAgent
+  , getFile
 
   -- * re-exports
   , Bytes
@@ -18,12 +19,15 @@ import Data.Function
 import Data.List (find)
 import Data.Maybe
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as TE
 import Network.HTTP.Client (Request(..), Response(..), parseRequest)
 import Network.HTTP.Simple (addRequestHeader)
 import Network.HTTP.Types
 import Network.HTTP.Types.Header
 import RSSGen.Database
 import RSSGen.DownloaderTypes
+
+type UserAgent = T.Text
 
 -- |Downloads a file by the `URL` with an automatic response caching support,
 -- that is, the `ETag` and `Last-Modified` response headers (with the
@@ -32,15 +36,16 @@ import RSSGen.DownloaderTypes
 -- and only if the body has changed since the last response, and `Nothing`
 -- otherwise.
 getFile :: (MonadIO m, MonadThrow m, MonadLogger m)
-  => (Request -> m (Response Bytes))
+  => UserAgent
+  -> (Request -> m (Response Bytes))
   -- ^ the `httpBS` function
   -> DBConnection
   -> URL
   -> m (Maybe Bytes)
-getFile httpBS conn url = do
+getFile userAgent httpBS conn url = do
   request <- do
     r <- parseRequest url
-    let r' = fixCloudflareETags r
+    let r' = setUserAgent userAgent $ fixCloudflareETags r
     liftIO $ applyCachedResponse r'
   logD ["Requesting ", show request]
   response <- httpBS request
@@ -96,6 +101,9 @@ findHeaderValue name = fmap snd . find ((== name) . fst)
 
 logD :: MonadLogger m => [String] -> m ()
 logD = logDebugN . T.pack . mconcat
+
+setUserAgent :: UserAgent -> Request -> Request
+setUserAgent = addRequestHeader hUserAgent . TE.encodeUtf8
 
 {-| Works around the unusual cloudflare's behavior with ETags. It would return
  - weak ETags (with the `W/` prefix) to the program and then fail to return

@@ -19,14 +19,15 @@ import UnliftIO.Exception
 -- | Wrapper around `getFile` that repeatedly tries to get an updated response
 -- from the `url` until it's successful or until `endTime`.
 pollHTTP :: (MonadUnliftIO m, MonadThrow m, MonadTime m, MonadLogger m)
-  => RetryDelay
+  => UserAgent
+  -> RetryDelay
   -> UTCTime
   -> DBConnection
   -> URL
   -> m (Maybe Bytes)
-pollHTTP retryDelay endTime conn url = fromStepResult <$>
+pollHTTP userAgent retryDelay endTime conn url = fromStepResult <$>
   runUntil "pollHTTP" retryDelay endTime
-    (handleHTTPExceptions $ toStepResult <$> getFile httpBS conn url)
+    (handleHTTPExceptions $ toStepResult <$> getFile userAgent httpBS conn url)
 
   where
     handleHTTPExceptions :: (MonadUnliftIO m, MonadLogger m) => m (StepResult Bytes) -> m (StepResult Bytes)

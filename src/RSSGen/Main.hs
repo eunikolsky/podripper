@@ -39,6 +39,10 @@ import RSSGen.RSSItem
 import RSSGen.RunUntil
 import qualified RSSGen.UpstreamRSSFeed as UpstreamRSSFeed
 
+-- TODO deduplicate this with `Ripper.Main`
+userAgent :: T.Text
+userAgent = "rssgen/" <> T.pack (showVersion Paths.version)
+
 -- | This oracle is needed to politely ask `shake` to poll for upstream RSS
 -- changes, which is basically a wrapper around `pollUpstreamRSSIfPossible`
 -- (using it directly does not work!). The question's types here are the
@@ -233,7 +237,7 @@ pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime 
   -- latest version in case anything has changed, even though we might
   -- already have a matching upstream item
   processUpstreamRSS $ \conn' url ->
-    handle (\e -> httpExceptionHandler e $> mempty) $ getFile httpBS conn' url
+    handle (\e -> httpExceptionHandler e $> mempty) $ getFile userAgent httpBS conn' url
 
   fromStepResult <$> runUntil "pollRSS" retryDelay endTime iter
 
@@ -265,7 +269,7 @@ pollUpstreamRSS podcastTitle upstreamFeedConfig retryDelay endTime conn ripTime 
       case maybeUpstreamItemForRipTime of
         Just item -> pure $ Result item
         Nothing -> do
-          processUpstreamRSS $ pollHTTP retryDelay endTime
+          processUpstreamRSS $ pollHTTP userAgent retryDelay endTime
 
           -- since the polling above may take a while, we want to check whether
           -- it has produced the upstream item that we need right after
