@@ -5,6 +5,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Logger
 import Data.IORef
 import Data.List (find)
+import Data.Text.Encoding qualified as TE
 import Network.HTTP.Client
 import Network.HTTP.Client.Internal (Response(..))
 import Network.HTTP.Types
@@ -23,7 +24,7 @@ spec = do
                 mockHTTPBS _ = pure $ responseWith' item
 
             actual <- withDB $ \conn -> do
-              void . runNoLoggingT $ getFile mockHTTPBS conn url
+              void . runNoLoggingT $ getFile "" mockHTTPBS conn url
               liftIO $ getCacheItem conn url
 
             actual `shouldBe` Just item
@@ -49,7 +50,7 @@ spec = do
 
         withDB $ \conn -> do
           liftIO $ setCacheItem conn url etag
-          void . runNoLoggingT $ getFile mockHTTPBS conn url
+          void . runNoLoggingT $ getFile "" mockHTTPBS conn url
 
         actual <- readIORef ifModifiedSinceRef
         ETag <$> actual `shouldBe` Just etag
@@ -66,7 +67,7 @@ spec = do
 
         withDB $ \conn -> do
           liftIO $ setCacheItem conn url lastmod
-          void . runNoLoggingT $ getFile mockHTTPBS conn url
+          void . runNoLoggingT $ getFile "" mockHTTPBS conn url
 
         actual <- readIORef ifNoneMatchRef
         LastModified <$> actual `shouldBe` Just lastmod
@@ -85,7 +86,7 @@ spec = do
 
         withDB $ \conn -> do
           liftIO $ setCacheItem conn url etagLastmod
-          void . runNoLoggingT $ getFile mockHTTPBS conn url
+          void . runNoLoggingT $ getFile "" mockHTTPBS conn url
 
         actual <- readIORef headerValuesRef
         let (ifModifiedSince, ifNoneMatch) = sequence actual
@@ -99,7 +100,7 @@ spec = do
 
         actual <- withDB $ \conn -> do
           liftIO $ setCacheItem conn url cachedBody
-          runNoLoggingT $ getFile mockHTTPBS conn url
+          runNoLoggingT $ getFile "" mockHTTPBS conn url
 
         actual `shouldBe` Just body
 
@@ -108,7 +109,7 @@ spec = do
             body = "response body"
             mockHTTPBS _ = pure $ responseWith' (Body body)
 
-        actual <- withDB $ \conn -> runNoLoggingT $ getFile mockHTTPBS conn url
+        actual <- withDB $ \conn -> runNoLoggingT $ getFile "" mockHTTPBS conn url
 
         actual `shouldBe` Just body
 
@@ -119,7 +120,7 @@ spec = do
 
         actual <- withDB $ \conn -> do
           liftIO $ setCacheItem conn url body
-          runNoLoggingT $ getFile mockHTTPBS conn url
+          runNoLoggingT $ getFile "" mockHTTPBS conn url
 
         actual `shouldBe` Nothing
 
@@ -128,7 +129,7 @@ spec = do
         let url = "http://localhost"
             mockHTTPBS _ = pure $ response notModified304
 
-        actual <- withDB $ \conn -> runNoLoggingT $ getFile mockHTTPBS conn url
+        actual <- withDB $ \conn -> runNoLoggingT $ getFile "" mockHTTPBS conn url
 
         actual `shouldBe` Nothing
 
@@ -138,7 +139,7 @@ spec = do
                 mockHTTPBS _ = pure $ responseWith status item
 
             actual <- withDB $ \conn -> do
-              void . runNoLoggingT $ getFile mockHTTPBS conn url
+              void . runNoLoggingT $ getFile "" mockHTTPBS conn url
               liftIO $ getCacheItem conn url
 
             actual `shouldBe` Nothing
@@ -147,7 +148,7 @@ spec = do
         let url = "http://localhost"
             mockHTTPBS _ = pure $ response imATeapot418
 
-        actual <- withDB $ \conn -> runNoLoggingT $ getFile mockHTTPBS conn url
+        actual <- withDB $ \conn -> runNoLoggingT $ getFile "" mockHTTPBS conn url
 
         actual `shouldBe` Nothing
 
@@ -163,6 +164,21 @@ spec = do
       it "doesn't store Body of a response" $
         verifyNotStored notFound404 $ Body "body"
 
+    it "sets User-Agent" $ do
+      userAgentRef <- newIORef Nothing
+
+      let url = "http://localhost"
+          userAgent = "test/0.0.1"
+          mockHTTPBS req = do
+            liftIO . writeIORef userAgentRef . fmap TE.decodeUtf8 .
+              findHeaderValue "User-Agent" $ requestHeaders req
+            pure $ responseWith ok200 (Body "body")
+
+      void . withDB $ \conn -> runNoLoggingT $ getFile userAgent mockHTTPBS conn url
+
+      actual <- readIORef userAgentRef
+      actual `shouldBe` Just userAgent
+
 responseWith :: Status -> CacheItem -> Response Bytes
 responseWith responseStatus item = Response
   { responseHeaders
@@ -172,6 +188,7 @@ responseWith responseStatus item = Response
   , responseCookieJar = mempty
   , responseClose' = undefined
   , responseOriginalRequest = undefined
+  , responseEarlyHints = undefined
   }
 
   where
@@ -194,6 +211,7 @@ response responseStatus = Response
   , responseCookieJar = mempty
   , responseClose' = undefined
   , responseOriginalRequest = undefined
+  , responseEarlyHints = undefined
   }
 
 findHeaderValue :: HeaderName -> RequestHeaders -> Maybe Bytes

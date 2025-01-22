@@ -12,7 +12,7 @@
   "defaultRipperDelay": "20m",
   "noDataTimeout": "4s",
   "ripDirName": "radiot",
-  "oldFileDays": 8,
+  "oldFileDays": 6,
   "podArtist": "Umputun, Bobuk, Gray, Ksenks, Alek.sys",
   "podAlbum": "Радио-Т Поток",
   "podLanguage": "rus",
