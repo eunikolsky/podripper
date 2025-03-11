@@ -50,7 +50,8 @@ upload-pkg:
 
 .PHONY:
 test-pkg:
-	tar tvf podripper*pkg* usr/share/podripper/ >/dev/null
+	# this glob excludes the new `podripper-debug-*.pkg.*` files
+	tar tvf podripper-[0-9]*pkg* usr/share/podripper/ >/dev/null
 
 .PHONY:
 clean-pkg:
