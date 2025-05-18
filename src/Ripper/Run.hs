@@ -234,7 +234,10 @@ ripOneStream (streamURL, request) maybeRawRipsDir maybeCleanRipsDir = do
       -- for many hours, even when a new connection returned `404`! this conduit
       -- wrapper ensures that if there is no data for the given duration, we'll
       -- disconnect and reconnect
-      doesn'tStall noDataTimeout (getResponseBody response) dumpBody
+      if isEmpty noDataTimeout
+        -- empty timeout => don't detect stalled connections
+        then dumpBody $ getResponseBody response
+        else doesn'tStall noDataTimeout (getResponseBody response) dumpBody
 
       -- we're not inside `MonadRipper` here, so we're using the original IO func
       now <- liftIO getCurrentTZTime
