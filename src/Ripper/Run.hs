@@ -217,23 +217,27 @@ ripOneStream (streamURL, request) maybeRawRipsDir maybeCleanRipsDir = do
         , irWriteIndex = 0
         }
 
+      let dumpBody body =
+            let rawDump = sinkFile rawFilename
+
+                saveCleanDump = mapC (getFrameData . fData) .| sinkFile filename
+                processCleanDump = mapM_C $ extendRip maybeRipVar . fInfo
+                cleanDump = conduitParserEither maybeFrameParser
+                  .| C.mapMaybeM getMP3Frame
+                  .| getZipSink (ZipSink saveCleanDump *> ZipSink processCleanDump)
+
+                bothDumps = getZipSink $ ZipSink rawDump *> ZipSink cleanDump
+            in runConduit $ body .| bothDumps
       -- there was a strange issue with ATP when the recording started, but then
       -- halted about an hour later (the file modtime confirms this) in the
       -- middle of the stream, whereas the TCP connection itself was left open
       -- for many hours, even when a new connection returned `404`! this conduit
       -- wrapper ensures that if there is no data for the given duration, we'll
       -- disconnect and reconnect
-      doesn'tStall noDataTimeout (getResponseBody response) $ \body ->
-        let rawDump = sinkFile rawFilename
-
-            saveCleanDump = mapC (getFrameData . fData) .| sinkFile filename
-            processCleanDump = mapM_C $ extendRip maybeRipVar . fInfo
-            cleanDump = conduitParserEither maybeFrameParser
-              .| C.mapMaybeM getMP3Frame
-              .| getZipSink (ZipSink saveCleanDump *> ZipSink processCleanDump)
-
-            bothDumps = getZipSink $ ZipSink rawDump *> ZipSink cleanDump
-        in runConduit $ body .| bothDumps
+      if isEmpty noDataTimeout
+        -- empty timeout => don't detect stalled connections
+        then dumpBody $ getResponseBody response
+        else doesn'tStall noDataTimeout (getResponseBody response) dumpBody
 
       -- we're not inside `MonadRipper` here, so we're using the original IO func
       now <- liftIO getCurrentTZTime

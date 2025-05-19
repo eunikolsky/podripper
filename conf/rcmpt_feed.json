@@ -1,11 +1,11 @@
 {
-    "description": "Запись потока RCMP (старая)",
+    "description": "Запись потока RCMP (без определения зависаний)",
     "language": "ru",
     "title": "Пиратский Канадский Лось и компания",
     "upstreamFeedConfig": {
         "closestUpstreamItemInterval": "10h",
         "pollingDuration": "6h",
         "pollingRetryDelay": "30m",
-        "upstreamRSSURL": "https://rcmp.me/feed/"
+        "upstreamRSSURL": "https://feed.rcmp.cloud/"
     }
 }

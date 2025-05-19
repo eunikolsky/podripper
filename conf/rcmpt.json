@@ -1,6 +1,6 @@
 {
   "stream": {
-    "url": "https://stream.rcmp.me/stream"
+    "url": "https://stream.rcmp.cloud/stream"
   },
   "ripIntervals": [
     "Fr 14:30-18:30 America/Toronto: 25s",
@@ -12,11 +12,11 @@
     "[< 10m]: 5s"
   ],
   "defaultRipperDelay": "10m",
-  "noDataTimeout": "4s",
-  "ripDirName": "rcmpo",
+  "noDataTimeout": "0s",
+  "ripDirName": "rcmpt",
   "oldFileDays": 6,
   "podArtist": "Канадский Лось и компания",
   "podAlbum": "Пиратский Канадский Лось и компания",
   "podLanguage": "rus",
-  "podHomepageLatin1": "https://rcmp.me/"
+  "podHomepageLatin1": "https://rcmp.cloud/"
 }

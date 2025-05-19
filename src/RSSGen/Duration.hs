@@ -5,6 +5,7 @@ module RSSGen.Duration
   , durationMinutes
   , durationParser
   , durationSeconds
+  , isEmpty
   , parseDuration
   , retryDurationParser
   , toMicroseconds
@@ -82,6 +83,12 @@ durationMinutes = Minutes
 -- | Creates a `Duration` from the given number of hours.
 durationHours :: Int -> Duration
 durationHours = Hours
+
+isEmpty :: Duration -> Bool
+isEmpty (Seconds 0) = True
+isEmpty (Minutes 0) = True
+isEmpty (Hours 0) = True
+isEmpty _ = False
 
 -- | Duration of time to sleep for between retries in `runUntil`.
 --
